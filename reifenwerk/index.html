@@ -154,17 +154,17 @@ const STATIONS = [
   { id: 'fuellen', g: 'fuellen', kind: 'proc', work: 'reparatur', time: 6, mat: { fuellgummi: 1 }, x: 36, y: 3, w: 2, h: 2, ax: 36, ay: 5, inCap: 2, next: 'belegen', color: '#5d6b2f' },
   { id: 'belegen1', g: 'belegen', kind: 'proc', work: 'belegen', time: 9, mat: { laufstreifen: 1, bindegummi: 1 }, x: 39, y: 3, w: 3, h: 2, ax: 40, ay: 5, inCap: 2, next: 'huelle', color: '#a0662a' },
   { id: 'belegen2', g: 'belegen', kind: 'proc', work: 'belegen', time: 9, mat: { laufstreifen: 1, bindegummi: 1 }, x: 42, y: 3, w: 3, h: 2, ax: 43, ay: 5, inCap: 2, next: 'huelle', color: '#a0662a' },
-  { id: 'huelle', g: 'huelle', kind: 'proc', work: 'belegen', time: 4, x: 35, y: 8, w: 2, h: 2, ax: 35, ay: 10, inCap: 4, next: 'auto', color: '#4a4f73' },
-  { id: 'auto1', g: 'auto', kind: 'auto', work: 'vulkan', x: 40, y: 8, w: 5, h: 3, ax: 39, ay: 9, cap: 10, cycle: 300, next: 'entgr', color: '#56606e' },
-  { id: 'auto2', g: 'auto', kind: 'auto', work: 'vulkan', x: 40, y: 11, w: 5, h: 3, ax: 39, ay: 12, cap: 10, cycle: 300, next: 'entgr', color: '#56606e' },
-  { id: 'auto3', g: 'auto', kind: 'auto', work: 'vulkan', x: 40, y: 14, w: 5, h: 3, ax: 39, ay: 15, cap: 10, cycle: 300, next: 'entgr', color: '#56606e' },
-  { id: 'auto4', g: 'auto', kind: 'auto', work: 'vulkan', x: 40, y: 17, w: 5, h: 3, ax: 39, ay: 18, cap: 10, cycle: 300, next: 'entgr', color: '#56606e' },
+  { id: 'huelle', g: 'huelle', kind: 'proc', work: 'belegen', time: 4, x: 35, y: 7, w: 2, h: 2, ax: 35, ay: 6, inCap: 4, next: 'auto', color: '#4a4f73' },
+  { id: 'auto1', g: 'auto', kind: 'auto', work: 'vulkan', x: 40, y: 8, w: 5, h: 3, ax: 45, ay: 9, cap: 10, cycle: 300, next: 'entgr', color: '#56606e' },
+  { id: 'auto2', g: 'auto', kind: 'auto', work: 'vulkan', x: 40, y: 11, w: 5, h: 3, ax: 45, ay: 12, cap: 10, cycle: 300, next: 'entgr', color: '#56606e' },
+  { id: 'auto3', g: 'auto', kind: 'auto', work: 'vulkan', x: 40, y: 14, w: 5, h: 3, ax: 45, ay: 15, cap: 10, cycle: 300, next: 'entgr', color: '#56606e' },
+  { id: 'auto4', g: 'auto', kind: 'auto', work: 'vulkan', x: 40, y: 17, w: 5, h: 3, ax: 45, ay: 18, cap: 10, cycle: 300, next: 'entgr', color: '#56606e' },
   { id: 'entgr1', g: 'entgr', kind: 'proc', work: 'nacharbeit', time: 6, x: 40, y: 22, w: 2, h: 2, ax: 40, ay: 21, inCap: 3, next: 'lack', color: '#8a5a2a' },
   { id: 'entgr2', g: 'entgr', kind: 'proc', work: 'nacharbeit', time: 6, x: 37, y: 22, w: 2, h: 2, ax: 37, ay: 21, inCap: 3, next: 'lack', color: '#8a5a2a' },
   { id: 'nacharb', g: 'nacharb', kind: 'store', x: 33, y: 22, w: 3, h: 2, ax: 34, ay: 21, cap: 16, next: 'ausschl', color: '#7a3b4a' },
   { id: 'lack', g: 'lack', kind: 'proc', work: 'lack', time: 3, x: 29, y: 22, w: 2, h: 2, ax: 29, ay: 21, inCap: 3, next: 'endk', color: '#2f2f2f' },
   { id: 'endk', g: 'endk', kind: 'proc', work: 'pruefen', time: 4, x: 25, y: 22, w: 2, h: 2, ax: 25, ay: 21, inCap: 4, next: 'fertig', color: '#2c6aa8' },
-  { id: 'fertig', g: 'fertig', kind: 'store', x: 12, y: 20, w: 4, h: 4, ax: 16, ay: 21, cap: 48, next: null, color: '#3d5a40' },
+  { id: 'fertig', g: 'fertig', kind: 'store', x: 12, y: 20, w: 4, h: 4, ax: 16, ay: 21, cap: 80, next: null, color: '#3d5a40' },
 ];
 const SHORT = { eingang: 'Eingang', pruef: 'Prüfung', rauen: 'Rauen', ausschl: 'Schleifen', spray: 'Flüssiggummi', fuellen: 'Spachteln', belegen: 'Belegen', huelle: 'Hülle', auto: 'Autoklav', entgr: 'Fehler', nacharb: 'Nacharbeit', lack: 'Lack', endk: 'Kontrolle', fertig: 'Versand' };
 const ST = {}, GROUP = {};
@@ -176,9 +176,62 @@ STATIONS.forEach(s => {
   for (let y = s.y; y < s.y + s.h; y++) for (let x = s.x; x < s.x + s.w; x++) blocked[I(x, y)] = 1;
 });
 
+// ================= Подвесной конвейер (Hängebahn) =================
+// Кольцо над цехом по ходу процесса: верх (запад→восток) → автоклавы (вниз) → низ (восток→запад) → обратно вверх.
+const LOOP = [{ x: 13, y: 6 }, { x: 45, y: 6 }, { x: 45, y: 20 }, { x: 13, y: 20 }];
+const SEGS = []; let LOOP_LEN = 0;
+LOOP.forEach((a, i) => { const b = LOOP[(i + 1) % LOOP.length], len = Math.abs(b.x - a.x) + Math.abs(b.y - a.y); SEGS.push({ a, b, len, start: LOOP_LEN }); LOOP_LEN += len; });
+function loopPos(s) {
+  s = ((s % LOOP_LEN) + LOOP_LEN) % LOOP_LEN;
+  const g = SEGS.find(g => s >= g.start && s < g.start + g.len) || SEGS[SEGS.length - 1], t = (s - g.start) / g.len;
+  return { x: g.a.x + (g.b.x - g.a.x) * t, y: g.a.y + (g.b.y - g.a.y) * t };
+}
+function nearestOnLoop(px, py) {
+  let best = { s: 0, d: Infinity };
+  for (const g of SEGS) {
+    const dx = g.b.x - g.a.x, dy = g.b.y - g.a.y, t = Math.max(0, Math.min(1, ((px - g.a.x) * dx + (py - g.a.y) * dy) / (dx * dx + dy * dy)));
+    const x = g.a.x + dx * t, y = g.a.y + dy * t, d = Math.hypot(px - x, py - y);
+    if (d < best.d) best = { s: g.start + t * g.len, d };
+  }
+  return best;
+}
+const HOOK_SPACING = 1.5, HOOK_SPEED = 8; // клеток; клеток в минуту (≈12 м/мин)
+const HOOKS = Array.from({ length: Math.floor(LOOP_LEN / HOOK_SPACING) }, (_, k) => ({ s: k * HOOK_SPACING, tire: null, dest: null }));
+STATIONS.forEach(s => { s.stopS = nearestOnLoop(s.ax, s.ay).s; });
+
+// Что можно повесить на крюк на этом участке (или null)
+function takeForHook(st) {
+  if (st.kind === 'proc') {
+    const k = st.out.findIndex(id => { const t = S.tires.get(id); return !t.res && t.readyAt <= S.t && (t.dest || st.next) !== 'schrott'; });
+    if (k < 0) return null; const tid = st.out.splice(k, 1)[0], t = S.tires.get(tid); const dest = t.dest || st.next; t.dest = null; return { tid, dest };
+  }
+  if (st.kind === 'store' && st.next) {
+    if (st.g === 'eingang' && wipCount() >= S.wip) return null;
+    const k = st.items.findIndex(id => !S.tires.get(id).res); if (k < 0) return null;
+    return { tid: st.items.splice(k, 1)[0], dest: st.next };
+  }
+  if (st.kind === 'auto' && st.state === 'done') {
+    const k = st.items.findIndex(id => !S.tires.get(id).res); if (k < 0) return null;
+    const tid = st.items.splice(k, 1)[0]; if (!st.items.length) st.state = 'idle'; return { tid, dest: st.next };
+  }
+  return null;
+}
+function updateHooks(dt) {
+  if (!S.hook) return;
+  const ds = HOOK_SPEED * dt;
+  for (const h of HOOKS) {
+    const p0 = h.s; h.s = (h.s + ds) % LOOP_LEN;
+    for (const st of STATIONS) {
+      if (((st.stopS - p0) % LOOP_LEN + LOOP_LEN) % LOOP_LEN >= ds) continue; // крюк не проходил эту точку
+      if (h.tire && h.dest === st.g && canAcceptId(st.id)) { deposit(st.id, h.tire); h.tire = null; h.dest = null; }
+      if (!h.tire) { const got = takeForHook(st); if (got) { h.tire = got.tid; h.dest = got.dest; S.tires.get(got.tid).res = false; } }
+    }
+  }
+}
+
 // ================= Состояние =================
 const S = {
-  t: DAY_START, speed: 1, money: 40000, rep: 50, wip: 64, autoBuy: true,
+  t: DAY_START, speed: 1, money: 40000, rep: 50, wip: 64, autoBuy: true, hook: true,
   tires: new Map(), nextTire: 1, nextId: 1,
   workers: [], trucks: [], offers: [], orders: [], matOrders: [], complaints: [],
   mats: { laufstreifen: 60, bindegummi: 60, loesung: 80, fuellgummi: 80 },
@@ -308,7 +361,7 @@ function updateTrucks(dt) {
     } else if (tr.state === 'docked') {
       const o = orderById(tr.order);
       if (tr.kind === 'deliver' && tr.cargo.length === 0 && !truckBusy(tr)) leaveTruck(tr);
-      if (tr.kind === 'pickup' && tr.cargo.length >= o.finished && !truckBusy(tr)) { settleOrder(o, tr); leaveTruck(tr); }
+      if (tr.kind === 'pickup' && !truckBusy(tr) && !ST.fertig.items.some(id => S.tires.get(id).order === o.id)) { settleOrder(o, tr); leaveTruck(tr); }
     }
   }
   S.trucks = S.trucks.filter(t => t.state !== 'gone');
@@ -317,15 +370,21 @@ const truckBusy = tr => S.workers.some(w => w.job && w.job.type === 'haul' && (w
 function leaveTruck(tr) { tr.state = 'leave'; tr.path = [{ x: 1, y: DOCKS[tr.dock].y }, { x: 1, y: -4 }]; }
 function settleOrder(o, tr) {
   const n = tr.cargo.length; let pay = n * o.price; const late = S.t > o.deadline;
-  if (late) { pay *= 0.8; S.rep = Math.max(0, S.rep - 5); } else S.rep = Math.min(100, S.rep + 1.5);
-  S.money += pay; S.stats.revenue += pay; S.shipped += n; o.shippedN = n; o.state = 'done';
+  if (late) { pay *= 0.8; S.rep = Math.max(0, S.rep - 3); } else S.rep = Math.min(100, S.rep + 0.8);
+  S.money += pay; S.stats.revenue += pay; S.shipped += n; o.shippedN += n; o.pickupPending = false;
   for (const tid of tr.cargo) { const t = S.tires.get(tid); if (t.defect || t.badCasing) S.complaints.push({ at: S.t + R(600, 2400), order: o.customer }); S.tires.delete(tid); }
-  log(`${o.customer}: отгружено ${n} шин, оплата ${eur(pay)}${late ? ' (просрочка −20%)' : ''}. Лом: ${o.scrapped}.`, late ? 'warn' : 'good');
+  const complete = o.finished + o.scrapped >= o.qty && o.shippedN >= o.finished;
+  if (complete) o.state = 'done';
+  log(`${o.customer}: ${complete ? 'заказ закрыт, ' : 'частичная отгрузка, '}${n} шин, оплата ${eur(pay)}${late ? ' (просрочка −20%)' : ''}.${complete ? ` Всего ${o.shippedN}/${o.qty}, лом ${o.scrapped}.` : ''}`, late ? 'warn' : 'good');
 }
+// Отгрузка: клиент забирает готовое партиями (Teillieferung) — от 12 шин или остаток, когда заказ доделан
 function checkOrders() {
-  for (const o of S.orders) if (o.state === 'production' && o.finished + o.scrapped >= o.qty) {
-    if (o.finished > 0) { o.state = 'pickup'; pendingTrucks.push({ kind: 'pickup', order: o, at: S.t + RI(30, 60) }); log(`${o.customer}: заказ готов, вызван грузовик.`, 'good'); }
-    else { o.state = 'done'; log(`${o.customer}: все каркасы ушли в лом, отгружать нечего.`, 'bad'); }
+  for (const o of S.orders) {
+    if (o.state !== 'production' || o.pickupPending) continue;
+    const ready = ST.fertig.items.filter(id => S.tires.get(id).order === o.id).length;
+    const allDone = o.finished + o.scrapped >= o.qty;
+    if (ready >= 12 || (allDone && ready > 0)) { o.pickupPending = true; pendingTrucks.push({ kind: 'pickup', order: o, at: S.t + RI(30, 60) }); log(`${o.customer}: ${allDone ? 'заказ готов' : `готово ${ready} шин`}, вызван грузовик.`, 'good'); }
+    else if (allDone && o.shippedN >= o.finished) { o.state = 'done'; if (!o.finished) log(`${o.customer}: все каркасы ушли в лом, отгружать нечего.`, 'bad'); }
   }
 }
 
@@ -363,6 +422,7 @@ function wipCount() {
   for (const s of STATIONS) if (s.g !== 'eingang' && s.g !== 'fertig') n += s.input.length + s.out.length + s.items.length + (s.cur ? 1 : 0);
   for (const w of S.workers) if (w.carry && w.job && w.job.src !== 'eingang' && !w.job.srcTruck && !w.job.dstTruck) n++;
   for (const s of GROUP.pruef) n += s.resIn;
+  for (const h of HOOKS) if (h.tire) n++;
   return n;
 }
 function matsOk(s) { if (!s.mat) return true; for (const [k, v] of Object.entries(s.mat)) if (S.mats[k] < v) return false; return true; }
@@ -383,7 +443,7 @@ function genJobs() {
   }
   for (const s of STATIONS) {
     const from = accessOf(s.id);
-    if (s.kind === 'store' && s.next) {
+    if (s.kind === 'store' && s.next && !S.hook) {
       const tid = s.items.find(id => !S.tires.get(id).res);
       const wipOk = s.g !== 'eingang' || wipCount() < S.wip;
       const dst = tid && wipOk && chooseDst(s.next);
@@ -392,13 +452,14 @@ function genJobs() {
     if (s.kind === 'proc') {
       for (const tid of s.out) {
         const t = S.tires.get(tid); if (t.res || t.readyAt > S.t) continue;
+        if (S.hook && (t.dest || s.next) !== 'schrott') continue; // между участками шины едут на крюках; руками — только лом
         const dst = chooseDst(t.dest || s.next); if (!dst) continue;
         jobs.push({ type: 'haul', work: 'transport', tire: tid, src: s.id, from, dst, to: accessOf(dst) });
       }
       if (!s.worker && !s.cur && s.input.length && s.out.length < s.outCap && matsOk(s)) jobs.push({ type: 'work', work: s.work, st: s, to: from });
     }
     if (s.kind === 'auto') {
-      if (s.state === 'done') { const tid = s.items.find(id => !S.tires.get(id).res), dst = tid && chooseDst(s.next); if (dst) jobs.push({ type: 'haul', work: 'transport', tire: tid, src: s.id, from, dst, to: accessOf(dst) }); }
+      if (s.state === 'done' && !S.hook) { const tid = s.items.find(id => !S.tires.get(id).res), dst = tid && chooseDst(s.next); if (dst) jobs.push({ type: 'haul', work: 'transport', tire: tid, src: s.id, from, dst, to: accessOf(dst) }); }
       const late = clock() >= 20 * 60 + 30 && s.items.length >= 4; // вечером запускаем неполную партию, чтобы автоклав работал ночью
       if (s.state === 'idle' && !s.worker && s.items.length && s.resIn === 0 && (s.items.length >= s.cap || S.t - s.lastLoad >= 50 || late))
         jobs.push({ type: 'start', work: 'vulkan', st: s, to: from });
@@ -540,6 +601,7 @@ function simulate(dt) {
   if (S.t - S.lastOffer > 90 && S.offers.length < 5 && isDay()) { S.lastOffer = S.t; makeOffer(); }
   S.offers = S.offers.filter(o => { if (S.t > o.expires) { log(`Запрос ${o.customer} истёк.`, 'muted'); return false; } return true; });
   for (let i = S.complaints.length - 1; i >= 0; i--) { const cpl = S.complaints[i]; if (S.t >= cpl.at) { S.money -= 350; S.stats.penalties += 350; S.rep = Math.max(0, S.rep - 4); log(`Рекламация от ${cpl.order}: брак восстановленной шины (−350 €, репутация −4).`, 'bad'); S.complaints.splice(i, 1); } }
+  updateHooks(dt);
   checkOrders();
   assignJobs();
   for (const w of S.workers) updateWorker(w, dt);
@@ -611,6 +673,17 @@ function render() {
       if (!matsOk(s) && s.input.length) { ctx.fillStyle = '#e35d5d'; ctx.font = 'bold 14px system-ui'; ctx.fillText('!', px + pw - 10, py + 13); }
     }
     if (s.prog > 0 && (s.cur || s.kind === 'auto')) { ctx.fillStyle = '#111'; ctx.fillRect(px + 3, py - 5, pw - 6, 4); ctx.fillStyle = '#62c370'; ctx.fillRect(px + 3, py - 5, (pw - 6) * Math.min(1, s.prog), 4); }
+  }
+  if (S.hook) { // подвесной конвейер рисуем поверх станков, но под людьми
+    const P = p => [p.x * TILE + TILE / 2, p.y * TILE + TILE / 2];
+    ctx.beginPath(); LOOP.forEach((p, i) => { const [x, y] = P(p); i ? ctx.lineTo(x, y) : ctx.moveTo(x, y); }); ctx.closePath();
+    ctx.strokeStyle = 'rgba(25,27,32,.85)'; ctx.lineWidth = 5; ctx.stroke(); ctx.strokeStyle = 'rgba(210,215,225,.55)'; ctx.lineWidth = 1.5; ctx.stroke(); ctx.lineWidth = 1;
+    for (const s of STATIONS) { const p = loopPos(s.stopS), [x, y] = P(p); ctx.fillStyle = '#f0a030'; ctx.fillRect(x - 3, y - 3, 6, 6); }
+    for (const h of HOOKS) {
+      const p = loopPos(h.s), [x, y] = P(p);
+      ctx.fillStyle = '#c9ced8'; ctx.beginPath(); ctx.arc(x, y, 1.8, 0, 7); ctx.fill();
+      if (h.tire) { const t = S.tires.get(h.tire); ctx.strokeStyle = '#999'; ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x, y + 4); ctx.stroke(); drawTire(x, y + 9, 6, t && (t.stage === 'lack' || t.stage === 'endk')); }
+    }
   }
   for (const tr of S.trucks) {
     if (tr.y < -2.5) continue;
@@ -701,6 +774,7 @@ function renderPanel() {
         <div class="row"><span title="Durchlaufzeit: от выгрузки до склада готовой продукции">Среднее время прохождения</span><b>${avgLead() ? Math.floor(avgLead() / 60) + ' ч ' + (avgLead() % 60) + ' мин' : '—'}</b></div>
         <div class="row"><span title="Сколько метров прошли рабочие сегодня — главный показатель для оптимизации расстановки">Пройдено рабочими сегодня</span><b>${Math.round(S.stats.walkToday * 1.5).toLocaleString('de-DE')} м</b></div>
         <div class="row"><span title="Kanban: сколько шин одновременно пускать в линию. Мало — станки простаивают, много — заторы.">WIP-лимит: в линии <b>${wipCount()}</b> из</span><span><button data-wip="-2">−</button> <b>${S.wip}</b> <button data-wip="2">+</button></span></div>
+        <div class="row"><label title="Подвесной конвейер на крюках (Hängebahn): шины едут между участками сами, люди только снимают и вешают. Выключите — и шины будут катать вручную."><input type="checkbox" data-hookbahn ${S.hook ? 'checked' : ''}> Hängebahn — подвесной конвейер на крюках</label><span class="muted">${HOOKS.filter(h => h.tire).length}/${HOOKS.length} крюков заняты</span></div>
       </div>
       <h3>Технологический поток</h3>
       <table><tr><th>Станция</th><th>Очередь (вход▸работа▸выход)</th><th>Загр.</th></tr>${rows}</table>
@@ -722,9 +796,9 @@ function renderPanel() {
       <div class="card" style="margin-top:10px"><div class="row"><span>Нанять рабочего (400 € разово, ${WAGE_PER_HOUR} €/ч)</span><button data-act="hire">Нанять</button></div></div>`;
   } else if (tab === 'orders') {
     const offers = S.offers.map(o => `<div class="card"><div class="row"><b>${o.customer}</b><span>${o.qty} шт × ${o.price} €</span></div><div class="muted">Срок: ${fmtDT(o.deadline)} · запрос истекает в ${fmtClock(o.expires)}</div><div class="row" style="margin-top:6px"><span class="good">${eur(o.qty * o.price)}</span><span><button data-accept="${o.id}">Принять</button> <button data-decline="${o.id}">Отказ</button></span></div></div>`).join('') || '<div class="muted">Новых запросов нет.</div>';
-    const st = { incoming: 'грузовик с каркасами в пути', production: 'в производстве', pickup: 'ждём грузовик клиента', done: 'закрыт' };
+    const st = { incoming: 'грузовик с каркасами в пути', production: 'в производстве', done: 'закрыт' };
     const active = S.orders.filter(o => o.state !== 'done'), done = S.orders.filter(o => o.state === 'done').slice(-6).reverse();
-    const card = o => `<div class="card"><div class="row"><b>${o.customer}</b><span class="${o.state === 'done' ? 'muted' : ''}">${st[o.state]}</span></div><div class="row"><span>Готово ${o.finished}/${o.qty}, лом ${o.scrapped}${o.state === 'done' ? `, отгружено ${o.shippedN}` : ''}</span><span class="${S.t > o.deadline && o.state !== 'done' ? 'bad' : 'muted'}">до ${fmtDT(o.deadline)}</span></div><div class="bar"><i style="width:${(o.finished + o.scrapped) / o.qty * 100}%"></i></div></div>`;
+    const card = o => `<div class="card"><div class="row"><b>${o.customer}</b><span class="${o.state === 'done' ? 'muted' : ''}">${st[o.state]}${o.pickupPending ? ' · грузовик едет' : ''}</span></div><div class="row"><span>Готово ${o.finished}/${o.qty}, отгружено ${o.shippedN}, лом ${o.scrapped}</span><span class="${S.t > o.deadline && o.state !== 'done' ? 'bad' : 'muted'}">до ${fmtDT(o.deadline)}</span></div><div class="bar"><i style="width:${(o.finished + o.scrapped) / o.qty * 100}%"></i></div></div>`;
     p.innerHTML = `<h3>Запросы клиентов</h3>${offers}<h3>В работе (${active.length})</h3>${active.map(card).join('') || '<div class="muted">Нет.</div>'}<h3>Закрытые</h3>${done.map(card).join('') || '<div class="muted">Нет.</div>'}`;
   } else if (tab === 'stock') {
     const rows = Object.entries(MATS).map(([k, m]) => { const coming = S.matOrders.filter(o => o.key === k).reduce((a, o) => a + o.qty, 0); return `<div class="card"><div class="row"><b>${m.de}</b><span class="${S.mats[k] < 10 ? 'bad' : ''}">${S.mats[k]} шт${coming ? ` <span class="muted">(+${coming} в пути)</span>` : ''}</span></div><div class="row"><span class="muted">${m.ru}</span><button data-buy="${k}">+${m.pack} за ${eur(m.price)}</button></div></div>`; }).join('');
@@ -738,6 +812,12 @@ function renderTop() {
   $('tRep').textContent = Math.round(S.rep); $('tToday').textContent = S.doneToday;
   document.querySelectorAll('[data-speed]').forEach(b => b.classList.toggle('on', Number(b.dataset.speed) === S.speed));
 }
+// Включить/выключить конвейер. При выключении шины с крюков возвращаются на ближайший участок-получатель.
+function setHook(on) {
+  S.hook = on;
+  if (!on) for (const h of HOOKS) if (h.tire) { const dst = chooseDst(h.dest) || GROUP[h.dest][0].id; deposit(dst, h.tire); h.tire = null; h.dest = null; }
+  log(on ? 'Hängebahn включена: шины едут на крюках.' : 'Hängebahn выключена: шины катают вручную.', 'info');
+}
 function hire() {
   if (S.money < 400) return; S.money -= 400;
   const name = pick(FIRST) + ' ' + pick(LAST), main = {}; main[pick(WORKS)] = RI(5, 8); main[pick(WORKS)] = RI(4, 7);
@@ -745,7 +825,8 @@ function hire() {
   S.workers.push(w); log(`Нанят ${name} (${w.shift === 'F' ? 'Frühschicht' : 'Spätschicht'}).`, 'good');
 }
 document.addEventListener('click', e => {
-  const b = e.target.closest('button, [data-st], [data-selw], [data-autobuy]'); if (!b) return;
+  const b = e.target.closest('button, [data-st], [data-selw], [data-autobuy], [data-hookbahn]'); if (!b) return;
+  if (b.dataset.hookbahn !== undefined) setHook(b.checked);
   if (b.dataset.speed !== undefined) { S.speed = Number(b.dataset.speed); if (S.speed) S.lastSpeed = S.speed; }
   if (b.dataset.tab) { tab = b.dataset.tab; document.querySelectorAll('#tabs button').forEach(x => x.classList.toggle('on', x === b)); }
   if (b.dataset.prio) { const [id, k] = b.dataset.prio.split(':'); const w = S.workers.find(x => x.id === Number(id)); w.prio[k] = (w.prio[k] + 1) % 5; }
@@ -797,12 +878,12 @@ requestAnimationFrame(frame);
 
 // ================= API для автоматической игры и тестов =================
 window.RW = {
-  S, ST, STATIONS, GROUP, advance, acceptOffer, declineOffer, buy, hire, wipCount,
+  S, ST, STATIONS, GROUP, HOOKS, advance, acceptOffer, declineOffer, buy, hire, wipCount, setHook,
   setSpeed: v => { S.speed = v; renderTop(); },
   setPrio: (name, work, p) => { const w = S.workers.find(w => w.name.startsWith(name)); if (w) w.prio[work] = p; },
   summary: () => ({
     day: day(), clock: fmtClock(clock()), money: Math.round(S.money), rep: Math.round(S.rep), shipped: S.shipped, scrap: S.scrap,
-    doneToday: S.doneToday, doneYesterday: S.doneYesterday, leadMin: avgLead(), walkTodayM: Math.round(S.stats.walkToday * 1.5), wip: `${wipCount()}/${S.wip}`,
+    doneToday: S.doneToday, doneYesterday: S.doneYesterday, leadMin: avgLead(), walkTodayM: Math.round(S.stats.walkToday * 1.5), wip: `${wipCount()}/${S.wip}`, hooksBusy: HOOKS.filter(h => h.tire).length,
     stations: Object.fromEntries(STATIONS.map(s => [s.id, s.kind === 'proc' ? `${s.input.length}>${s.cur ? 1 : 0}>${s.out.length} ${util(s)}%` : s.kind === 'auto' ? `${s.state}:${s.items.length} ${util(s)}%` : String(s.items.length)])),
     workers: S.workers.map(w => `${w.name.split(' ')[0]}(${w.shift}): ${jobText(w)} (${Math.round(w.energy)}%)`),
     offers: S.offers.map(o => `${o.id} ${o.customer} ${o.qty}×${o.price}`),
