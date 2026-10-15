@@ -55,6 +55,8 @@
     <span class="stat">Касса: <b id="tMoney">0 €</b></span>
     <span class="stat">Репутация: <b id="tRep">50</b></span>
     <span class="stat">Сегодня: <b id="tToday">0</b> шин</span>
+    <button id="gfxBtn" title="Переключить графику">🎨 Графика: пиксели</button>
+    <span><button id="zoomOut" title="Отдалить (−, колесо мыши)">🔍−</button> <button id="zoomIn" title="Приблизить (+, колесо мыши). Двигать: WASD или правая кнопка мыши">🔍+</button></span>
     <span class="speed">
       <button data-speed="0" title="Пауза (Пробел)">⏸</button>
       <button data-speed="1" title="1">1×</button>
@@ -75,6 +77,7 @@
   </div>
   <div id="panel"></div>
 </div>
+<script src="pixel.js"></script>
 <script>
 'use strict';
 (() => {
@@ -85,6 +88,24 @@ const WALK = 12;              // клеток за игровую минуту (
 const TRUCK_SPEED = 9;
 const DAY_START = 6 * 60, SHIFT_CHANGE = 14 * 60, DAY_END = 22 * 60;
 const WAGE_PER_HOUR = 21, OVERHEAD_PER_DAY = 2800;
+const FORK = 6;                                   // шин на вилах погрузчика за рейс
+const DUSTY = ["rauen", "ausschl", "entgr"];       // участки, где сыплется резиновая пыль
+const BREAK_MIN = 1000;                           // средняя наработка на отказ, минут работы (пыль и износ ускоряют)
+// Типичные поломки по участкам: немецкое название — что случилось
+const FAULTS = {
+  pruef: [['Spreizer-Hydraulik undicht', 'течёт гидравлика расширителя бортов'], ['Prüflampe defekt', 'перегорела лампа осмотра']],
+  rauen: [['Raspelmesser stumpf', 'затупились ножи рашпиля'], ['Antriebsriemen gerissen', 'порвался приводной ремень'], ['Felgenspanner klemmt', 'заело зажим обода']],
+  ausschl: [['Druckluftschlauch geplatzt', 'лопнул шланг сжатого воздуха'], ['Schleifer defekt', 'сломалась пневмошлифовка']],
+  spray: [['Sprühdüse verstopft', 'засорилась форсунка'], ['Absaugung ausgefallen', 'отказала вытяжка']],
+  fuellen: [['Extruder-Heizung defekt', 'не греет пистолет-экструдер'], ['Schnecke blockiert', 'заклинило шнек экструдера']],
+  belegen: [['Anrollrolle verschlissen', 'износился прикаточный ролик'], ['Messer stumpf', 'затупился нож']],
+  huelle: [['Vakuumpumpe defekt', 'сломался вакуумный насос']],
+  auto: [['Türdichtung undicht', 'течёт уплотнение двери, падает давление'], ['Dampfventil klemmt', 'заело паровой клапан']],
+  entgr: [['Druckluftschlauch geplatzt', 'лопнул шланг сжатого воздуха'], ['Schleifscheibe gebrochen', 'треснул шлифкруг']],
+  lack: [['Farbpistole verstopft', 'засорился краскопульт']],
+  endk: [['Prüfkompressor ausgefallen', 'отказал компрессор проверки давлением'], ['Etikettendrucker defekt', 'сломался принтер этикеток']],
+  antrieb: [['Kette gesprungen', 'соскочила цепь конвейера'], ['Antriebsmotor überhitzt', 'перегрелся мотор привода']],
+};
 
 // ================= Случайность (воспроизводимая) =================
 function mulberry32(a) { return function () { a |= 0; a = a + 0x6D2B79F5 | 0; let t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
@@ -117,7 +138,10 @@ const DECOR = [
   { id: 'tisch', label: '', x: 13, y: 11, w: 3, h: 1, color: '#7a5a3a', desc: 'Стол в комнате отдыха.' },
   { id: 'desk', label: '', x: 21, y: 10, w: 2, h: 1, color: '#5a5f7a', desc: 'Стол мастера: заказы, планирование, качество. Мастер — это вы.' },
   { id: 'schrott', label: 'Schrott', x: 4, y: 13, w: 2, h: 2, color: '#7a3b2a', desc: 'Контейнер для лома. Сюда уходят забракованные каркасы.' },
+  { id: 'werkbank', label: 'Werkstatt', x: 26, y: 9, w: 3, h: 1, color: '#6b4a2a', desc: 'Мастерская техника: верстак, тиски, ящик с инструментами и запчасти. Когда станок ломается, техник берёт здесь инструмент и идёт чинить.' },
 ];
+const WERKBANK = { x: 27, y: 10 };
+const FORK_HOMES = [{ x: 7, y: 8 }, { x: 7, y: 17 }]; // стоянки двух погрузчиков во дворе
 for (const d of DECOR) for (let y = d.y; y < d.y + d.h; y++) for (let x = d.x; x < d.x + d.w; x++) blocked[I(x, y)] = 1;
 const SEATS = [[12, 10], [14, 10], [16, 10], [12, 12], [16, 12], [12, 13], [14, 13], [16, 13], [12, 14], [14, 14], [16, 14]];
 const EXIT = { x: 28, y: 29 }, ENTRY = { x: 28, y: 28 };
@@ -126,8 +150,8 @@ const DOCKS = { 1: { y: 5.5, access: { x: 9, y: 5 } }, 2: { y: 21.5, access: { x
 
 // ================= Станции =================
 // g = группа (тип станции). next — группа, куда шина идёт дальше. Станций одной группы может быть несколько.
-const WORKS = ['transport', 'pruefen', 'rauen', 'reparatur', 'belegen', 'vulkan', 'nacharbeit', 'lack'];
-const WORK_RU = { transport: 'Транспорт', pruefen: 'Контроль', rauen: 'Рауен', reparatur: 'Ремонт', belegen: 'Обкладка', vulkan: 'Вулканизация', nacharbeit: 'Дефекты', lack: 'Покраска' };
+const WORKS = ['transport', 'pruefen', 'rauen', 'reparatur', 'belegen', 'vulkan', 'nacharbeit', 'lack', 'technik'];
+const WORK_RU = { transport: 'Транспорт', pruefen: 'Контроль', rauen: 'Рауен', reparatur: 'Ремонт шин', belegen: 'Обкладка', vulkan: 'Вулканизация', nacharbeit: 'Дефекты', lack: 'Покраска', technik: 'Техник (Instandhaltung)' };
 const INFO = {
   eingang: ['Eingangslager', 'Склад приёмки', 'Каркасы из грузовика клиента ждут входного контроля.'],
   pruef: ['Eingangsprüfung', 'Входной контроль', 'Осмотр каркаса снаружи и изнутри на расширителе бортов. Порезы корда, разрыв брекера, старость — в лом.'],
@@ -172,7 +196,7 @@ const ST = {}, GROUP = {};
 STATIONS.forEach(s => {
   const [de, ru, desc] = INFO[s.g]; const n = STATIONS.filter(o => o.g === s.g).length;
   s.short = n > 1 ? `${SHORT[s.g]} ${s.id.slice(-1)}` : SHORT[s.g];
-  Object.assign(s, { de: n > 1 ? `${de} ${s.id.slice(-1)}` : de, ru, desc, input: [], items: [], out: [], cur: null, prog: 0, worker: null, resIn: 0, state: 'idle', timer: 0, lastLoad: 0, busy: 0 });
+  Object.assign(s, { dirt: 0, wear: 0, broken: null, de: n > 1 ? `${de} ${s.id.slice(-1)}` : de, ru, desc, input: [], items: [], out: [], cur: null, prog: 0, worker: null, resIn: 0, state: 'idle', timer: 0, lastLoad: 0, busy: 0 });
   s.outCap = s.outCap || 2; ST[s.id] = s; (GROUP[s.g] = GROUP[s.g] || []).push(s);
   for (let y = s.y; y < s.y + s.h; y++) for (let x = s.x; x < s.x + s.w; x++) blocked[I(x, y)] = 1;
 });
@@ -199,6 +223,9 @@ function nearestOnLoop(px, py) {
 const HOOK_SPACING = 1.5, HOOK_SPEED = 8; // клеток; клеток в минуту (≈12 м/мин)
 const HOOKS = Array.from({ length: Math.floor(LOOP_LEN / HOOK_SPACING) }, (_, k) => ({ s: k * HOOK_SPACING, tire: null, dest: null }));
 STATIONS.forEach(s => { s.stopS = nearestOnLoop(s.ax, s.ay).s; });
+// Привод конвейера: тоже может сломаться — тогда все крюки стоят
+const HOOK_DRIVE = { id: 'antrieb', g: 'antrieb', de: 'Hängebahn-Antrieb', ru: 'Привод подвесного конвейера', desc: 'Мотор и натяжная станция цепи подвесного конвейера. Сломается — встанут все крюки.', x: 12, y: 6, w: 1, h: 1, ax: 12, ay: 7, broken: null, wear: 0, dirt: 0 };
+const MACHINES = [...STATIONS.filter(s => s.kind !== 'store'), HOOK_DRIVE];
 
 // Что можно повесить на крюк на этом участке (или null)
 function takeForHook(st) {
@@ -218,7 +245,8 @@ function takeForHook(st) {
   return null;
 }
 function updateHooks(dt) {
-  if (!S.hook) return;
+  if (!S.hook || HOOK_DRIVE.broken) return;
+  if (isDay() && rnd() < dt / 6000) { breakDown(HOOK_DRIVE); return; }
   const ds = HOOK_SPEED * dt;
   for (const h of HOOKS) {
     const p0 = h.s; h.s = (h.s + ds) % LOOP_LEN;
@@ -232,13 +260,16 @@ function updateHooks(dt) {
 
 // ================= Состояние =================
 const S = {
-  t: DAY_START, speed: 1, money: 40000, rep: 50, wip: 64, autoBuy: true, hook: true,
+  t: DAY_START, speed: 1, money: 40000, rep: 50, wip: 64, autoBuy: true, autoAccept: true, hook: true,
+  forks: FORK_HOMES.map((h, k) => ({ id: k + 1, home: h, x: h.x, y: h.y, by: null })),
+  firstBreak: DAY_START + 30, breaksToday: 0,
+  gfx: (() => { try { return new URLSearchParams(location.search).get('gfx') || localStorage.getItem('rw-gfx') || 'pixel'; } catch (e) { return 'pixel'; } })(),
   tires: new Map(), nextTire: 1, nextId: 1,
   workers: [], trucks: [], offers: [], orders: [], matOrders: [], complaints: [],
   mats: { laufstreifen: 60, bindegummi: 60, loesung: 80, fuellgummi: 80 },
   scrap: 0, shipped: 0, log: [], selected: null, lastOffer: DAY_START - 200,
   doneToday: 0, doneYesterday: 0, leadTimes: [],
-  stats: { revenue: 0, wages: 0, materials: 0, penalties: 0, overhead: 0, walk: 0, walkToday: 0 },
+  stats: { revenue: 0, wages: 0, materials: 0, penalties: 0, overhead: 0, walk: 0, walkToday: 0, repairs: 0, breakdowns: 0, downtime: 0 },
 };
 const MATS = {
   laufstreifen: { de: 'Laufstreifen', ru: 'Протектор', pack: 40, price: 1800, min: 30 },
@@ -272,17 +303,17 @@ function makeWorker(name, role, shift, main) {
   ['Mehmet Yılmaz', 'Rauer', 'F', { rauen: 8, transport: 4 }],
   ['Anna Schulz', 'Prüferin', 'F', { pruefen: 8, lack: 5 }],
   ['Paweł Nowak', 'Reparateur', 'F', { reparatur: 8, belegen: 4 }],
-  ['Dragan Petrović', 'Nacharbeiter', 'F', { nacharbeit: 8, reparatur: 6, rauen: 4 }],
+  ['Dragan Petrović', 'Schlosser', 'F', { technik: 8, nacharbeit: 7, reparatur: 6, rauen: 4 }],
   ['Svetlana Koch', 'Belegerin', 'F', { belegen: 8, reparatur: 5 }],
   ['Tobias Klein', 'Beleger', 'F', { belegen: 6, transport: 5 }],
-  ['Lukas Wagner', 'Vulkaniseur', 'F', { vulkan: 8, transport: 5, lack: 6 }],
+  ['Lukas Wagner', 'Vulkaniseur', 'F', { vulkan: 8, transport: 5, lack: 6, technik: 5 }],
   ['Fatma Demir', 'Prüferin', 'S', { pruefen: 7, lack: 6 }],
   ['Marek Lewandowski', 'Rauer', 'S', { rauen: 7, transport: 4 }],
   ['Olga Fischer', 'Reparateurin', 'S', { reparatur: 7, belegen: 4 }],
-  ['Emre Şahin', 'Nacharbeiter', 'S', { nacharbeit: 7, reparatur: 5, transport: 5 }],
+  ['Emre Şahin', 'Schlosser', 'S', { technik: 8, nacharbeit: 7, reparatur: 5, transport: 5 }],
   ['Niklas Weber', 'Beleger', 'S', { belegen: 7, reparatur: 4 }],
   ['Sophie Braun', 'Lageristin', 'S', { transport: 7, lack: 7 }],
-  ['Leonie Hoffmann', 'Vulkaniseurin', 'S', { vulkan: 7, transport: 5, pruefen: 4 }],
+  ['Leonie Hoffmann', 'Vulkaniseurin', 'S', { vulkan: 7, transport: 5, pruefen: 4, technik: 5 }],
 ].forEach(([n, r, sh, m]) => S.workers.push(makeWorker(n, r, sh, m)));
 // Ранняя смена уже в цехе к началу игры
 S.workers.filter(w => w.shift === 'F').forEach((w, i) => { w.away = false; w.state = 'idle'; w.x = 19 + (i % 4) * 2; w.y = 15 + Math.floor(i / 4) * 2; });
@@ -431,15 +462,17 @@ function matsOk(s) { if (!s.mat) return true; for (const [k, v] of Object.entrie
 // ================= Задачи =================
 function genJobs() {
   const jobs = [];
+  // Грузовики разгружают и загружают погрузчиком (Stapler) — до FORK шин за рейс
   for (const tr of S.trucks) {
     if (tr.state !== 'docked') continue;
     const acc = DOCKS[tr.dock].access;
     if (tr.kind === 'deliver') {
-      const tid = tr.cargo.find(id => !S.tires.get(id).res), dst = tid && chooseDst('eingang');
-      if (dst) jobs.push({ type: 'haul', work: 'transport', tire: tid, srcTruck: tr, from: acc, dst, to: accessOf(dst) });
+      const e = ST.eingang, room = e.cap - e.items.length - e.resIn;
+      const ids = tr.cargo.filter(id => !S.tires.get(id).res).slice(0, Math.min(FORK, room));
+      if (ids.length) jobs.push({ type: 'haul', work: 'transport', tire: ids[0], tires: ids, fork: true, srcTruck: tr, from: acc, dst: 'eingang', to: accessOf('eingang') });
     } else {
-      const tid = ST.fertig.items.find(id => !S.tires.get(id).res && S.tires.get(id).order === tr.order);
-      if (tid) jobs.push({ type: 'haul', work: 'transport', tire: tid, src: 'fertig', from: accessOf('fertig'), dstTruck: tr, to: acc });
+      const ids = ST.fertig.items.filter(id => !S.tires.get(id).res && S.tires.get(id).order === tr.order).slice(0, FORK);
+      if (ids.length) jobs.push({ type: 'haul', work: 'transport', tire: ids[0], tires: ids, fork: true, src: 'fertig', from: accessOf('fertig'), dstTruck: tr, to: acc });
     }
   }
   for (const s of STATIONS) {
@@ -457,53 +490,94 @@ function genJobs() {
         const dst = chooseDst(t.dest || s.next); if (!dst) continue;
         jobs.push({ type: 'haul', work: 'transport', tire: tid, src: s.id, from, dst, to: accessOf(dst) });
       }
-      if (!s.worker && !s.cur && s.input.length && s.out.length < s.outCap && matsOk(s)) jobs.push({ type: 'work', work: s.work, st: s, to: from });
+      if (!s.broken && !s.worker && !s.cur && s.input.length && s.out.length < s.outCap && matsOk(s)) jobs.push({ type: 'work', work: s.work, st: s, to: from });
     }
     if (s.kind === 'auto') {
       if (s.state === 'done' && !S.hook) { const tid = s.items.find(id => !S.tires.get(id).res), dst = tid && chooseDst(s.next); if (dst) jobs.push({ type: 'haul', work: 'transport', tire: tid, src: s.id, from, dst, to: accessOf(dst) }); }
       const late = clock() >= 20 * 60 + 30 && s.items.length >= 4; // вечером запускаем неполную партию, чтобы автоклав работал ночью
-      if (s.state === 'idle' && !s.worker && s.items.length && s.resIn === 0 && (s.items.length >= s.cap || S.t - s.lastLoad >= 50 || late))
+      if (!s.broken && s.state === 'idle' && !s.worker && s.items.length && s.resIn === 0 && (s.items.length >= s.cap || S.t - s.lastLoad >= 50 || late))
         jobs.push({ type: 'start', work: 'vulkan', st: s, to: from });
     }
   }
+  // Поломки: техник идёт в мастерскую за инструментом и чинит
+  for (const m of MACHINES) if (m.broken && !m.broken.tech) jobs.push({ type: 'repair', work: 'technik', st: m, to: { x: m.ax, y: m.ay }, urgent: true });
   return jobs;
 }
+// Поломка станка: работа встаёт, шина возвращается в очередь, нужен техник
+function breakDown(s) {
+  if (s.broken) return;
+  const [de, ru] = pick(FAULTS[s.g] || FAULTS.rauen);
+  s.broken = { de, ru, need: R(15, 40), done: 0, tech: null, at: S.t };
+  S.stats.breakdowns++; S.breaksToday++;
+  if (s.worker) { const w = S.workers.find(x => x.id === s.worker); if (w && w.job && w.job.st === s) releaseJob(w); s.worker = null; }
+  if (s.kind === 'proc' && s.cur) { s.input.unshift(s.cur); if (s.mat) for (const [k, v] of Object.entries(s.mat)) S.mats[k] += v; s.cur = null; s.prog = 0; }
+  log(`⚠ Поломка: ${s.de} — ${de} (${ru}). Нужен техник.`, 'bad');
+}
+const breakRate = s => (1 + 2 * s.dirt + s.wear) / BREAK_MIN;
 function reserve(j, w) {
   if (j.type === 'haul') {
-    const t = S.tires.get(j.tire); if (!t || t.res) return false;
+    const ids = j.tires || [j.tire];
+    if (ids.some(id => { const t = S.tires.get(id); return !t || t.res; })) return false;
     if (j.dst && !canAcceptId(j.dst)) return false;
-    t.res = true; if (j.dst && j.dst !== 'schrott') ST[j.dst].resIn++;
+    let f = null;
+    if (j.fork) { f = S.forks.filter(o => !o.by).sort((a, b) => Math.hypot(a.x - w.x, a.y - w.y) - Math.hypot(b.x - w.x, b.y - w.y))[0]; if (!f) return false; }
+    for (const id of ids) S.tires.get(id).res = true;
+    if (j.dst && j.dst !== 'schrott') ST[j.dst].resIn += ids.length;
     j.steps = [{ go: j.from }, { pick: true }, { go: j.to }, { drop: true }];
+    // погрузчик: дойти до него, сесть, после рейса поставить на стоянку
+    if (f) { f.by = w.id; j.forkId = f.id; j.steps = [{ go: { x: Math.round(f.x), y: Math.round(f.y) } }, { mount: true }, ...j.steps, { go: f.home }, { dismount: true }]; }
+  } else if (j.type === 'repair') {
+    if (!j.st.broken || j.st.broken.tech) return false; j.st.broken.tech = w.id;
+    j.steps = [{ go: WERKBANK }, { tool: 'kit' }, { go: j.to }, { repair: true }, { go: WERKBANK }, { tool: null }];
   } else { if (j.st.worker) return false; j.st.worker = w.id; j.steps = [{ go: j.to }, { work: true }]; }
   j.i = 0; return true;
 }
 function releaseJob(w) {
   const j = w.job; if (!j) return;
+  if (j.forkId) { const f = S.forks.find(o => o.id === j.forkId); if (f && f.by === w.id) { f.by = null; f.x = Math.round(w.x); f.y = Math.round(w.y); } w.mounted = false; }
+  if (j.type === 'repair') { if (j.st.broken && j.st.broken.tech === w.id) j.st.broken.tech = null; w.tool = null; }
   if (j.type === 'haul') {
-    const t = S.tires.get(j.tire);
-    if (w.carry) { // вернуть шину туда, откуда взяли
-      if (j.dstTruck) ST.fertig.items.push(w.carry); else if (j.srcTruck) j.srcTruck.cargo.push(w.carry); else if (j.src) { const s = ST[j.src]; (s.kind === 'proc' ? s.out : s.items).push(w.carry); }
-      w.carry = null;
+    const ids = j.tires || [j.tire], load = w.load || (w.carry ? [w.carry] : []);
+    for (const id of load) { // вернуть шины туда, откуда взяли
+      if (j.dstTruck) ST.fertig.items.push(id); else if (j.srcTruck) j.srcTruck.cargo.push(id); else if (j.src) { const s = ST[j.src]; (s.kind === 'proc' ? s.out : s.items).push(id); }
     }
-    if (t) t.res = false; if (j.dst && j.dst !== 'schrott') ST[j.dst].resIn = Math.max(0, ST[j.dst].resIn - 1);
-  } else if (j.st && j.st.worker === w.id) j.st.worker = null;
-  w.job = null; w.path = null;
+    w.carry = null; w.load = null;
+    for (const id of ids) { const t = S.tires.get(id); if (t) t.res = false; }
+    if (j.dst && j.dst !== 'schrott') ST[j.dst].resIn = Math.max(0, ST[j.dst].resIn - ids.length);
+  } else if (j.type !== 'repair' && j.st && j.st.worker === w.id) j.st.worker = null;
+  w.job = null; w.path = null; w.act = null;
+}
+// Свободное время: убирать пыль у станков, обходить станки, наводить порядок на складе, кофе
+function randomFloor() { for (let k = 0; k < 40; k++) { const x = RI(12, 44), y = RI(4, 25); if (passable(x, y)) return { x, y }; } return { x: 28, y: 15 }; }
+function idleJob(w) {
+  const wait = (go, act, min, max) => ({ type: 'idle', act, steps: [{ go }, { wait: R(min, max), act }], i: 0 });
+  const dirty = STATIONS.filter(s => s.dirt > 0.15).sort((a, b) => b.dirt - a.dirt)[0];
+  if (dirty && !S.workers.some(o => o !== w && o.job && o.job.act === 'sweep' && o.job.st === dirty)) { const j = wait({ x: dirty.ax, y: dirty.ay }, 'sweep', 2, 4); j.st = dirty; return j; }
+  if (w.energy < 65 && rnd() < 0.5) return wait({ x: 16, y: 10 }, 'coffee', 1.5, 3);
+  const r = rnd();
+  if (r < 0.45) {
+    const mine = STATIONS.filter(s => s.kind !== 'store' && w.prio[s.work] === 1), s = mine.length ? pick(mine) : pick(STATIONS.filter(s => s.kind !== 'store'));
+    const j = wait({ x: s.ax, y: s.ay }, 'inspect', 1.5, 3.5); j.st = s; return j;
+  }
+  if (r < 0.65) { const s = pick([ST.eingang, ST.fertig, ST.nacharb]); const j = wait({ x: s.ax, y: s.ay }, 'stack', 1.5, 3); j.st = s; return j; }
+  return wait(randomFloor(), 'sweep', 1.5, 3);
 }
 function assignJobs() {
-  const idle = S.workers.filter(w => !w.away && !w.job);
-  if (!idle.length) return;
+  const cand = S.workers.filter(w => !w.away && (!w.job || w.job.type === 'idle'));
+  if (!cand.length) return;
   let jobs = null;
-  for (const w of idle) {
-    if (!onShift(w)) { w.job = { type: 'home', steps: [{ go: EXIT }, { leave: true }], i: 0 }; continue; }
-    if (w.energy < 28) { const seat = SEATS.find(s => !S.workers.some(o => o.seat === s)) || SEATS[0]; w.seat = seat; w.job = { type: 'break', steps: [{ go: { x: seat[0], y: seat[1] } }, { rest: true }], i: 0 }; continue; }
+  for (const w of cand) {
+    if (!onShift(w)) { w.path = null; w.act = null; w.job = { type: 'home', steps: [{ go: EXIT }, { leave: true }], i: 0 }; continue; }
+    if (w.energy < 28) { const seat = SEATS.find(s => !S.workers.some(o => o.seat === s)) || SEATS[0]; w.seat = seat; w.path = null; w.act = null; w.job = { type: 'break', steps: [{ go: { x: seat[0], y: seat[1] } }, { rest: true }], i: 0 }; continue; }
     jobs = jobs || genJobs();
     let best = null, bs = Infinity;
     for (const j of jobs) {
       if (j.taken) continue; const p = w.prio[j.work]; if (!p) continue;
-      const tgt = j.from || j.to, sc = p * 1000 + Math.abs(tgt.x - w.x) + Math.abs(tgt.y - w.y);
+      const tgt = j.from || j.to, sc = p * 1000 + Math.abs(tgt.x - w.x) + Math.abs(tgt.y - w.y) - (j.urgent ? 1500 : 0); // ремонт — срочно
       if (sc < bs) { bs = sc; best = j; }
     }
-    if (best && reserve(best, w)) { best.taken = true; w.job = best; }
+    if (best && reserve(best, w)) { best.taken = true; w.path = null; w.act = null; w.job = best; }
+    else if (!w.job) w.job = idleJob(w);
   }
 }
 function workDuration(w, s) { return (s.time || 10) * (1.45 - w.skills[s.work] * 0.065); }
@@ -526,7 +600,8 @@ function finishProc(s, w) {
       if (t.badCasing || t.rework > 0) { t.dest = 'schrott'; log(`${w.name}: финальный контроль — шина #${t.id} в лом.`, 'bad'); }
       else { t.rework++; t.defect = false; t.dest = 'nacharb'; log(`${w.name}: финальный контроль — шина #${t.id} на переделку.`, 'warn'); }
     }
-  } else if (['rauen', 'ausschl', 'fuellen', 'belegen', 'huelle'].includes(s.g) && rnd() < 0.07 * (1 - sk / 12)) t.defect = true;
+  } else if (['rauen', 'ausschl', 'fuellen', 'belegen', 'huelle'].includes(s.g) && rnd() < 0.07 * (1 - sk / 12) + s.dirt * 0.06) t.defect = true; // пыль у станка — больше брака
+  if (DUSTY.includes(s.g)) s.dirt = Math.min(1, s.dirt + 0.035);
   t.stage = s.g; t.readyAt = S.t + (s.dry || 0);
   s.out.push(s.cur); s.cur = null; s.prog = 0; s.worker = null;
   w.skills[s.work] = Math.min(10, w.skills[s.work] + 0.01);
@@ -539,27 +614,60 @@ function updateWorker(w, dt) {
   if (st.go) {
     w.state = 'walk';
     if (!w.path) { w.path = findPath(w.x, w.y, st.go.x, st.go.y); if (!w.path) { releaseJob(w); return; } }
-    let move = WALK * dt * (w.energy < 15 ? 0.7 : 1);
+    let move = WALK * dt * (w.energy < 15 ? 0.7 : 1) * (w.mounted ? 1.6 : 1);
     while (move > 0 && w.path.length) {
       const p = w.path[0], dx = p.x - w.x, dy = p.y - w.y, d = Math.hypot(dx, dy);
-      if (d <= move) { w.x = p.x; w.y = p.y; w.path.shift(); move -= d; S.stats.walk += d; S.stats.walkToday += d; }
-      else { w.x += dx / d * move; w.y += dy / d * move; S.stats.walk += move; S.stats.walkToday += move; move = 0; }
+      const walked = Math.min(d, move);
+      if (d <= move) { w.x = p.x; w.y = p.y; w.path.shift(); move -= d; } else { w.x += dx / d * move; w.y += dy / d * move; move = 0; }
+      if (!w.mounted) { S.stats.walk += walked; S.stats.walkToday += walked; } // на погрузчике — не пешком
     }
-    w.energy = Math.max(0, w.energy - 0.035 * dt);
+    if (w.mounted) { const f = S.forks.find(o => o.id === j.forkId); if (f) { f.x = w.x; f.y = w.y; } }
+    w.energy = Math.max(0, w.energy - (w.mounted ? 0.01 : 0.035) * dt);
     if (!w.path.length) { w.path = null; j.i++; }
+  } else if (st.mount || st.dismount) {
+    w.state = 'lift'; st.t = (st.t || 0) + dt; if (st.t < 0.2) return;
+    const f = S.forks.find(o => o.id === j.forkId);
+    if (st.mount) w.mounted = true; else { w.mounted = false; if (f) { f.by = null; f.x = f.home.x; f.y = f.home.y; } j.forkId = null; }
+    j.i++;
+  } else if (st.tool !== undefined) { // взять или вернуть ящик с инструментами
+    w.state = 'act'; w.act = 'grab'; st.t = (st.t || 0) + dt; if (st.t < 0.4) return;
+    w.tool = st.tool; w.act = null; j.i++;
+  } else if (st.repair) {
+    w.state = 'work'; w.act = 'repair'; const m = j.st, b = m.broken;
+    if (b) {
+      b.done += dt * (0.5 + w.skills.technik * 0.1);
+      if (b.done >= b.need) {
+        const cost = Math.round(R(80, 450)), down = Math.round(S.t - b.at);
+        S.money -= cost; S.stats.repairs += cost; S.stats.downtime += down;
+        log(`🔧 ${w.name}: ${m.de} снова работает (${b.de}). Простой ${down} мин, запчасти ${eur(cost)}.`, 'good');
+        m.broken = null; m.wear = 0; m.dirt *= 0.5; w.skills.technik = Math.min(10, w.skills.technik + 0.05);
+      }
+    }
+    w.energy = Math.max(0, w.energy - 0.05 * dt);
+    if (!m.broken) { w.act = null; j.i++; }
   } else if (st.pick) {
-    st.t = (st.t || 0) + dt; if (st.t < 0.5) return; // погрузить шину ~30 с
-    let ok = false;
-    if (j.srcTruck) { const k = j.srcTruck.cargo.indexOf(j.tire); if (k >= 0) { j.srcTruck.cargo.splice(k, 1); ok = true; } }
-    else { const s = ST[j.src]; const arr = s.kind === 'proc' ? s.out : s.items; const k = arr.indexOf(j.tire); if (k >= 0) { arr.splice(k, 1); ok = true; if (s.kind === 'auto' && !s.items.length) s.state = 'idle'; } }
-    if (!ok) { releaseJob(w); return; }
-    w.carry = j.tire; j.i++;
+    w.state = 'lift'; st.t = (st.t || 0) + dt; if (st.t < (j.fork ? 0.8 : 0.5)) return; // погрузить шину ~30 с, стопку на вилы ~50 с
+    const ids = j.tires || [j.tire], got = [];
+    if (j.srcTruck) { for (const id of ids) { const k = j.srcTruck.cargo.indexOf(id); if (k >= 0) { j.srcTruck.cargo.splice(k, 1); got.push(id); } } }
+    else { const s = ST[j.src]; const arr = s.kind === 'proc' ? s.out : s.items; for (const id of ids) { const k = arr.indexOf(id); if (k >= 0) { arr.splice(k, 1); got.push(id); } } if (s.kind === 'auto' && !s.items.length) s.state = 'idle'; }
+    if (!got.length) { releaseJob(w); return; }
+    for (const id of ids) if (!got.includes(id)) { const t = S.tires.get(id); if (t) t.res = false; if (j.dst && j.dst !== 'schrott') ST[j.dst].resIn = Math.max(0, ST[j.dst].resIn - 1); }
+    if (j.tires) j.tires = got;
+    w.load = got; w.carry = got[0]; j.i++;
   } else if (st.drop) {
-    st.t = (st.t || 0) + dt; if (st.t < 0.5) return;
-    if (j.dstTruck) { j.dstTruck.cargo.push(w.carry); S.tires.get(w.carry).res = false; } else deposit(j.dst, w.carry);
-    w.carry = null; j.i++;
+    w.state = 'lift'; st.t = (st.t || 0) + dt; if (st.t < (j.fork ? 0.8 : 0.5)) return;
+    for (const id of w.load || [w.carry]) { if (j.dstTruck) { j.dstTruck.cargo.push(id); S.tires.get(id).res = false; } else deposit(j.dst, id); }
+    w.carry = null; w.load = null; j.i++;
+  } else if (st.wait) {
+    w.state = 'act'; w.act = st.act; st.t = (st.t || 0) + dt;
+    if (st.act === 'coffee') w.energy = Math.min(100, w.energy + 4 * dt);
+    if (st.act === 'sweep' && j.st) j.st.dirt = Math.max(0, j.st.dirt - 0.25 * dt);
+    if (st.t >= st.wait) { w.act = null; j.i++; }
   } else if (st.work) {
     w.state = 'work'; const s = j.st;
+    if (!st.grab) { st.grab = 0; }
+    if (st.grab < 0.25 && !s.cur && j.type !== 'start') { st.grab += dt; w.act = 'grab'; return; } // взять инструмент
+    w.act = null;
     if (j.type === 'start') {
       st.t = (st.t || 0) + dt; s.prog = st.t / 10;
       if (st.t >= 10) { s.state = 'running'; s.timer = s.cycle; s.worker = null; s.prog = 0; log(`${w.name}: ${s.de} запущен, партия ${s.items.length} шт.`, 'info'); j.i++; }
@@ -569,7 +677,8 @@ function updateWorker(w, dt) {
         s.cur = s.input.shift(); if (s.mat) for (const [k, v] of Object.entries(s.mat)) S.mats[k] -= v;
         st.dur = workDuration(w, s); st.t = 0;
       }
-      st.t += dt; s.prog = st.t / st.dur; s.busy += dt;
+      st.t += dt; s.prog = st.t / st.dur; s.busy += dt; s.wear = Math.min(2, s.wear + dt / 900);
+      if (rnd() < dt * breakRate(s)) { breakDown(s); return; }
       if (st.t >= st.dur) { finishProc(s, w); j.i++; }
     }
     w.energy = Math.max(0, w.energy - 0.06 * dt);
@@ -592,13 +701,23 @@ function simulate(dt) {
   if (c < prev) { // полночь
     S.money -= OVERHEAD_PER_DAY; S.stats.overhead += OVERHEAD_PER_DAY;
     log(`День ${day() - 1}: готово ${S.doneToday} шин, пройдено ${Math.round(S.stats.walkToday * 1.5)} м. Аренда/энергия −${eur(OVERHEAD_PER_DAY)}.`, 'info');
-    S.doneYesterday = S.doneToday; S.doneToday = 0; S.stats.walkToday = 0;
+    S.doneYesterday = S.doneToday; S.doneToday = 0; S.stats.walkToday = 0; S.breaksToday = 0;
   }
   if (prev < DAY_START && c >= DAY_START) log(`День ${day()}: 06:00, начало Frühschicht.`, 'info');
   updateTrucks(dt);
   for (let i = S.matOrders.length - 1; i >= 0; i--) { const m = S.matOrders[i]; if (S.t >= m.at) { S.mats[m.key] += m.qty; log(`Поставка: ${m.qty} × ${MATS[m.key].de}.`, 'good'); S.matOrders.splice(i, 1); } }
   if (S.autoBuy) for (const [k, m] of Object.entries(MATS)) { const coming = S.matOrders.filter(o => o.key === k).reduce((a, o) => a + o.qty, 0); if (S.mats[k] + coming < m.min && S.money > m.price) buy(k, true); }
-  for (const a of GROUP.auto) { if (a.state === 'running') { a.timer -= dt; a.busy += dt; if (a.timer <= 0) { a.state = 'done'; log(`${a.de}: партия готова, разгружаем.`, 'good'); } } }
+  for (const a of GROUP.auto) {
+    if (a.state !== 'running' || a.broken) continue; // сломан — цикл на паузе
+    a.timer -= dt; a.busy += dt;
+    if (isDay() && rnd() < dt / 3000) { breakDown(a); continue; }
+    if (a.timer <= 0) { a.state = 'done'; log(`${a.de}: партия готова, разгружаем.`, 'good'); }
+  }
+  if (S.firstBreak && S.t >= S.firstBreak) { S.firstBreak = 0; breakDown(ST.rauen1); } // первая поломка — чтобы сразу увидеть ремонт
+  if (S.autoAccept && S.offers.length) { // автопилот мастера: держим в цехе запас работы
+    const pipe = S.tires.size + pendingTrucks.filter(p => p.kind === 'deliver').reduce((a, p) => a + p.order.qty, 0);
+    if (pipe < 90) { const o = S.offers[0]; log(`Автопринятие: ${o.customer}, ${o.qty} шин.`, 'info'); acceptOffer(o.id); }
+  }
   if (S.t - S.lastOffer > 90 && S.offers.length < 5 && isDay()) { S.lastOffer = S.t; makeOffer(); }
   S.offers = S.offers.filter(o => { if (S.t > o.expires) { log(`Запрос ${o.customer} истёк.`, 'muted'); return false; } return true; });
   for (let i = S.complaints.length - 1; i >= 0; i--) { const cpl = S.complaints[i]; if (S.t >= cpl.at) { S.money -= 350; S.stats.penalties += 350; S.rep = Math.max(0, S.rep - 4); log(`Рекламация от ${cpl.order}: брак восстановленной шины (−350 €, репутация −4).`, 'bad'); S.complaints.splice(i, 1); } }
@@ -675,6 +794,12 @@ function render() {
     }
     if (s.prog > 0 && (s.cur || s.kind === 'auto')) { ctx.fillStyle = '#111'; ctx.fillRect(px + 3, py - 5, pw - 6, 4); ctx.fillStyle = '#62c370'; ctx.fillRect(px + 3, py - 5, (pw - 6) * Math.min(1, s.prog), 4); }
   }
+  for (const m of MACHINES) if (m.broken) { // поломка: красная штриховка и ⚠
+    const px = m.x * TILE, py = m.y * TILE, pw = m.w * TILE, ph = m.h * TILE;
+    ctx.fillStyle = 'rgba(200,40,40,.35)'; ctx.fillRect(px, py, pw, ph); ctx.fillStyle = '#ffd24a'; ctx.font = 'bold 16px system-ui'; ctx.fillText('⚠', px + pw / 2 - 8, py + ph / 2 + 6);
+    if (m.broken.tech) { ctx.fillStyle = '#111'; ctx.fillRect(px + 3, py - 5, pw - 6, 4); ctx.fillStyle = '#ff9f1a'; ctx.fillRect(px + 3, py - 5, (pw - 6) * Math.min(1, m.broken.done / m.broken.need), 4); }
+  }
+  for (const f of S.forks) if (!f.by) { ctx.fillStyle = '#f2b230'; ctx.fillRect(f.x * TILE + 2, f.y * TILE + 4, 20, 14); ctx.fillStyle = '#555'; ctx.fillRect(f.x * TILE + 22, f.y * TILE + 6, 6, 2); ctx.fillRect(f.x * TILE + 22, f.y * TILE + 13, 6, 2); }
   if (S.hook) { // подвесной конвейер рисуем поверх станков, но под людьми
     const P = p => [p.x * TILE + TILE / 2, p.y * TILE + TILE / 2];
     ctx.beginPath(); LOOP.forEach((p, i) => { const [x, y] = P(p); i ? ctx.lineTo(x, y) : ctx.moveTo(x, y); }); ctx.closePath();
@@ -701,6 +826,7 @@ function render() {
     if (w.away) continue;
     const px = w.x * TILE + TILE / 2, py = w.y * TILE + TILE / 2;
     ctx.fillStyle = 'rgba(0,0,0,.3)'; ctx.beginPath(); ctx.ellipse(px, py + 7, 7, 3, 0, 0, 7); ctx.fill();
+    if (w.mounted) { ctx.fillStyle = '#f2b230'; ctx.fillRect(px - 10, py - 6, 20, 14); ctx.fillStyle = '#555'; ctx.fillRect(px + 10, py - 4, 6, 2); ctx.fillRect(px + 10, py + 3, 6, 2); if (w.load) { ctx.fillStyle = '#fff'; ctx.font = 'bold 9px system-ui'; ctx.fillText(String(w.load.length), px + 12, py - 6); } }
     ctx.fillStyle = w.color; ctx.beginPath(); ctx.arc(px, py + 1, 7, 0, 7); ctx.fill();
     ctx.fillStyle = '#f1c8a0'; ctx.beginPath(); ctx.arc(px, py - 6, 4.5, 0, 7); ctx.fill();
     if (w.carry) drawTire(px + 8, py + 2, 6, S.tires.get(w.carry) && S.tires.get(w.carry).stage === 'lack');
@@ -721,9 +847,29 @@ function jobText(w) {
   const j = w.job; if (!j) return 'Ждёт работу';
   if (j.type === 'home') return 'Идёт домой';
   if (j.type === 'break') return j.i === 0 ? 'Идёт на перерыв' : 'Перерыв ☕';
-  if (j.type === 'haul') { const to = j.dstTruck ? 'грузовик' : j.dst === 'schrott' ? 'лом' : ST[j.dst].de; return (j.i < 2 ? 'Идёт за шиной' : 'Несёт шину') + ` #${j.tire} → ${to}`; }
+  if (j.type === 'idle') {
+    const where = j.st ? ` — ${j.st.de}` : '';
+    const what = { sweep: 'Подметает резиновую пыль', inspect: 'Обход: осматривает станок', stack: 'Наводит порядок на складе', coffee: 'Пьёт кофе ☕' }[j.act];
+    return (j.i === 0 ? 'Идёт: ' : '') + what + where;
+  }
+  if (j.type === 'repair') {
+    const b = j.st.broken, st = j.steps[j.i] || {};
+    if (st.repair && b) return `🔧 Чинит ${j.st.de}: ${b.de} (${Math.round(Math.min(1, b.done / b.need) * 100)}%)`;
+    if (j.i <= 1) return `🔧 Идёт в мастерскую за инструментом → ${j.st.de}`;
+    if (j.i === 2) return `🔧 Несёт ящик с инструментами к ${j.st.de}`;
+    return '🔧 Относит инструмент в мастерскую';
+  }
+  if (j.type === 'haul') {
+    const to = j.dstTruck ? 'грузовик' : j.dst === 'schrott' ? 'лом' : ST[j.dst].de;
+    if (j.fork) {
+      if (!w.mounted && !w.load) return j.i <= 1 ? `🚜 Идёт к погрузчику ${j.forkId || ''}` : '🚜 Поставил погрузчик';
+      if (j.i >= 6) return '🚜 Ставит погрузчик на стоянку';
+      return `🚜 Погрузчик: ${!w.load ? 'едет за шинами' : `везёт ${w.load.length} шин`} → ${to}`;
+    }
+    return (j.i < 2 ? 'Идёт за шиной' : 'Несёт шину') + ` #${j.tire} → ${to}`;
+  }
   if (j.type === 'start') return `Запускает ${j.st.de}`;
-  if (j.type === 'work') return (j.i === 0 ? 'Идёт к станции ' : 'Работает: ') + j.st.de + (j.i === 1 ? ` (${Math.round(Math.min(1, j.st.prog) * 100)}%)` : '');
+  if (j.type === 'work') return j.i === 0 ? 'Идёт к станции ' + j.st.de : w.act === 'grab' ? 'Берёт инструмент: ' + j.st.de : 'Работает: ' + j.st.de + ` (${Math.round(Math.min(1, j.st.prog) * 100)}%)`;
   return '';
 }
 // Расчёт количества оборудования по методике проектирования: N = P · t / (T · Kз), для автоклава ещё / вместимость
@@ -752,9 +898,12 @@ function renderSel() {
       <div class="muted" style="font-size:11px;margin-top:4px">${WORKS.map(k => `${WORK_RU[k]} ${w.skills[k].toFixed(1)}`).join(' · ')}</div>`;
   } else if (sel.st) {
     const s = sel.st;
-    let q = s.kind === 'store' ? `На складе: ${s.items.length}/${s.cap}` : s.kind === 'auto' ? `Загружено: ${s.items.length}/${s.cap}, ${{ idle: 'идёт загрузка', running: 'вулканизация, ещё ' + Math.ceil(s.timer) + ' мин', done: 'готово к разгрузке' }[s.state]}` : `Вход: ${s.input.length}/${s.inCap} · в работе: ${s.cur ? 1 : 0} · выход: ${s.out.length}`;
+    let q = s === HOOK_DRIVE ? (S.hook ? 'Конвейер работает' : 'Конвейер выключен') : s.kind === 'store' ? `На складе: ${s.items.length}/${s.cap}` : s.kind === 'auto' ? `Загружено: ${s.items.length}/${s.cap}, ${{ idle: 'идёт загрузка', running: 'вулканизация, ещё ' + Math.ceil(s.timer) + ' мин', done: 'готово к разгрузке' }[s.state]}` : `Вход: ${s.input.length}/${s.inCap} · в работе: ${s.cur ? 1 : 0} · выход: ${s.out.length}`;
     if (s.mat) q += ` · расход: ${Object.entries(s.mat).map(([k, v]) => v + '× ' + MATS[k].de).join(', ')}`;
-    el.innerHTML = `<div class="row"><b>${s.de}</b><span class="muted">${s.ru}</span></div><div class="muted" style="margin:3px 0">${s.desc}</div><div>${q}</div>${s.work ? `<div class="muted">Работа: ${WORK_RU[s.work]}${s.time ? `, ~${s.time} мин на шину` : ''} · загрузка ${util(s)}%</div>` : ''}`;
+    const b = s.broken, tech = b && b.tech && S.workers.find(w => w.id === b.tech);
+    const br = b ? `<div class="bad" style="margin-top:3px">⚠ Поломка: ${b.de} — ${b.ru}. ${tech ? `Чинит ${tech.name.split(' ')[0]}: ${Math.round(Math.min(1, b.done / b.need) * 100)}%` : 'Ждёт техника.'} Простой ${Math.round(S.t - b.at)} мин.</div>`
+      : s.kind !== 'store' && s.wear !== undefined ? `<div class="muted">Износ ${Math.round(s.wear * 50)}% · пыль ${Math.round(s.dirt * 100)}% (пыль и износ → чаще поломки)</div>` : '';
+    el.innerHTML = `<div class="row"><b>${s.de}</b><span class="muted">${s.ru}</span></div><div class="muted" style="margin:3px 0">${s.desc}</div><div>${q}</div>${s.work ? `<div class="muted">Работа: ${WORK_RU[s.work]}${s.time ? `, ~${s.time} мин на шину` : ''} · загрузка ${util(s)}%</div>` : ''}${br}`;
   } else if (sel.d) el.innerHTML = `<b>${sel.d.label || sel.d.id}</b><div class="muted">${sel.d.desc}</div>`;
 }
 function renderPanel() {
@@ -765,7 +914,7 @@ function renderPanel() {
       if (s.kind === 'store') { load = `${s.items.length}/${s.cap}`; warn = s.items.length >= s.cap * 0.8; }
       else if (s.kind === 'auto') load = s.state === 'running' ? `🔥 ${Math.ceil(s.timer)} мин` : s.state === 'done' ? 'готово' : `${s.items.length}/${s.cap}`;
       else { load = `${s.input.length}▸${s.cur ? '●' : '○'}▸${s.out.length}`; warn = s.input.length >= s.inCap && !s.cur; }
-      const miss = s.kind === 'proc' && !matsOk(s) ? ' <span class="bad">нет материала</span>' : '';
+      const miss = (s.kind === 'proc' && !matsOk(s) ? ' <span class="bad">нет материала</span>' : '') + (s.broken ? ` <span class="bad">⚠ ${s.broken.tech ? 'ремонт' : 'сломан'}</span>` : '');
       const u = s.kind === 'proc' || s.kind === 'auto' ? `${util(s)}%` : '';
       return `<tr data-st="${s.id}" style="cursor:pointer"><td>${s.de}<div class="muted" style="font-size:11px">${s.ru}</div></td><td class="${warn ? 'warn' : ''}">${load}${miss}</td><td class="muted">${u}</td></tr>`;
     }).join('');
@@ -775,7 +924,9 @@ function renderPanel() {
         <div class="row"><span title="Durchlaufzeit: от выгрузки до склада готовой продукции">Среднее время прохождения</span><b>${avgLead() ? Math.floor(avgLead() / 60) + ' ч ' + (avgLead() % 60) + ' мин' : '—'}</b></div>
         <div class="row"><span title="Сколько метров прошли рабочие сегодня — главный показатель для оптимизации расстановки">Пройдено рабочими сегодня</span><b>${Math.round(S.stats.walkToday * 1.5).toLocaleString('de-DE')} м</b></div>
         <div class="row"><span title="Kanban: сколько шин одновременно пускать в линию. Мало — станки простаивают, много — заторы.">WIP-лимит: в линии <b>${wipCount()}</b> из</span><span><button data-wip="-2">−</button> <b>${S.wip}</b> <button data-wip="2">+</button></span></div>
-        <div class="row"><label title="Подвесной конвейер на крюках (Hängebahn): шины едут между участками сами, люди только снимают и вешают. Выключите — и шины будут катать вручную."><input type="checkbox" data-hookbahn ${S.hook ? 'checked' : ''}> Hängebahn — подвесной конвейер на крюках</label><span class="muted">${HOOKS.filter(h => h.tire).length}/${HOOKS.length} крюков заняты</span></div>
+        <div class="row"><label title="Подвесной конвейер на крюках (Hängebahn): шины едут между участками сами, люди только снимают и вешают. Выключите — и шины будут катать вручную."><input type="checkbox" data-hookbahn ${S.hook ? 'checked' : ''}> Hängebahn — подвесной конвейер на крюках</label><span class="${HOOK_DRIVE.broken ? 'bad' : 'muted'}">${HOOK_DRIVE.broken ? '⚠ привод сломан' : `${HOOKS.filter(h => h.tire).length}/${HOOKS.length} крюков заняты`}</span></div>
+        <div class="row"><span title="Станки ломаются чаще, если у них пыль и износ. Свободные рабочие подметают; техник (Instandhaltung) чинит.">Поломки сегодня / всего</span><b class="${MACHINES.some(m => m.broken) ? 'bad' : ''}">${S.breaksToday} / ${S.stats.breakdowns}${MACHINES.some(m => m.broken) ? ` · сейчас ⚠ ${MACHINES.filter(m => m.broken).length}` : ''}</b></div>
+        <div class="row"><span>Простой станков / запчасти</span><b>${Math.round(S.stats.downtime)} мин / ${eur(S.stats.repairs)}</b></div>
       </div>
       <h3>Технологический поток</h3>
       <table><tr><th>Станция</th><th>Очередь (вход▸работа▸выход)</th><th>Загр.</th></tr>${rows}</table>
@@ -800,7 +951,7 @@ function renderPanel() {
     const st = { incoming: 'грузовик с каркасами в пути', production: 'в производстве', done: 'закрыт' };
     const active = S.orders.filter(o => o.state !== 'done'), done = S.orders.filter(o => o.state === 'done').slice(-6).reverse();
     const card = o => `<div class="card"><div class="row"><b>${o.customer}</b><span class="${o.state === 'done' ? 'muted' : ''}">${st[o.state]}${o.pickupPending ? ' · грузовик едет' : ''}</span></div><div class="row"><span>Готово ${o.finished}/${o.qty}, отгружено ${o.shippedN}, лом ${o.scrapped}</span><span class="${S.t > o.deadline && o.state !== 'done' ? 'bad' : 'muted'}">до ${fmtDT(o.deadline)}</span></div><div class="bar"><i style="width:${(o.finished + o.scrapped) / o.qty * 100}%"></i></div></div>`;
-    p.innerHTML = `<h3>Запросы клиентов</h3>${offers}<h3>В работе (${active.length})</h3>${active.map(card).join('') || '<div class="muted">Нет.</div>'}<h3>Закрытые</h3>${done.map(card).join('') || '<div class="muted">Нет.</div>'}`;
+    p.innerHTML = `<div class="card"><label title="Мастер-автопилот: принимает первый запрос, пока в цехе и в пути меньше 90 шин. Выключите, чтобы выбирать заказы самому."><input type="checkbox" data-autoaccept ${S.autoAccept ? 'checked' : ''}> Принимать заказы автоматически</label></div><h3>Запросы клиентов</h3>${offers}<h3>В работе (${active.length})</h3>${active.map(card).join('') || '<div class="muted">Нет.</div>'}<h3>Закрытые</h3>${done.map(card).join('') || '<div class="muted">Нет.</div>'}`;
   } else if (tab === 'stock') {
     const rows = Object.entries(MATS).map(([k, m]) => { const coming = S.matOrders.filter(o => o.key === k).reduce((a, o) => a + o.qty, 0); return `<div class="card"><div class="row"><b>${m.de}</b><span class="${S.mats[k] < 10 ? 'bad' : ''}">${S.mats[k]} шт${coming ? ` <span class="muted">(+${coming} в пути)</span>` : ''}</span></div><div class="row"><span class="muted">${m.ru}</span><button data-buy="${k}">+${m.pack} за ${eur(m.price)}</button></div></div>`; }).join('');
     p.innerHTML = `<h3>Материалы</h3><div class="card"><label><input type="checkbox" data-autobuy ${S.autoBuy ? 'checked' : ''}> Автозаказ, когда остаток меньше 30</label></div>${rows}<div class="muted" style="font-size:11px">Поставка через 2 игровых часа. На одну шину: 1 протектор, 1 связующая резина, 1 клей, 1 ремонтная резина.</div>`;
@@ -826,7 +977,8 @@ function hire() {
   S.workers.push(w); log(`Нанят ${name} (${w.shift === 'F' ? 'Frühschicht' : 'Spätschicht'}).`, 'good');
 }
 document.addEventListener('click', e => {
-  const b = e.target.closest('button, [data-st], [data-selw], [data-autobuy], [data-hookbahn]'); if (!b) return;
+  const b = e.target.closest('button, [data-st], [data-selw], [data-autobuy], [data-autoaccept], [data-hookbahn]'); if (!b) return;
+  if (b.dataset.autoaccept !== undefined) S.autoAccept = b.checked;
   if (b.dataset.hookbahn !== undefined) setHook(b.checked);
   if (b.dataset.speed !== undefined) { S.speed = Number(b.dataset.speed); if (S.speed) S.lastSpeed = S.speed; }
   if (b.dataset.tab) { tab = b.dataset.tab; document.querySelectorAll('#tabs button').forEach(x => x.classList.toggle('on', x === b)); }
@@ -847,10 +999,17 @@ document.addEventListener('keydown', e => {
   if (e.key === '1') S.speed = 1; if (e.key === '2') S.speed = 3; if (e.key === '3') S.speed = 10;
   if (S.speed) S.lastSpeed = S.speed; renderTop();
 });
+const pixelOn = () => S.gfx === 'pixel' && window.PixelGfx;
 function hitTest(mx, my) {
-  const r = cv.getBoundingClientRect(), x = (mx - r.left) / scale / TILE - 0.5, y = (my - r.top) / scale / TILE - 0.5;
-  const w = S.workers.find(w => !w.away && Math.hypot(w.x - x, w.y - y) < 0.7); if (w) return { w };
+  const r = cv.getBoundingClientRect(), lx = (mx - r.left) / scale, ly = (my - r.top) / scale;
+  let x, y;
+  if (pixelOn()) { [x, y] = window.PixelGfx.toTile(lx / (MW * TILE), ly / (MH * TILE)); x -= 0.5; y -= 0.5; }
+  else { x = lx / TILE - 0.5; y = ly / TILE - 0.5; }
+  const lift = pixelOn() ? 0.55 : 0; // в пикселях человечек выше клетки — целимся в туловище
+  const w = S.workers.filter(w => !w.away).sort((a, b) => Math.hypot(a.x - x, a.y - lift - y) - Math.hypot(b.x - x, b.y - lift - y))[0];
+  if (w && Math.hypot(w.x - x, w.y - lift - y) < 0.8) return { w };
   const tx = Math.floor(x + 0.5), ty = Math.floor(y + 0.5);
+  if (tx === HOOK_DRIVE.x && ty === HOOK_DRIVE.y) return { st: HOOK_DRIVE };
   const s = STATIONS.find(s => tx >= s.x && tx < s.x + s.w && ty >= s.y && ty < s.y + s.h); if (s) return { st: s };
   const d = DECOR.find(d => tx >= d.x && tx < d.x + d.w && ty >= d.y && ty < d.y + d.h); if (d) return { d };
   return null;
@@ -862,24 +1021,65 @@ cv.addEventListener('mousemove', e => {
   else tip.style.display = 'none';
 });
 cv.addEventListener('mouseleave', () => { $('tip').style.display = 'none'; });
+// Камера пиксельного режима: колесо — зум, правая кнопка (или средняя) — тащить, WASD/стрелки — двигать
+const viewFrac = e => { const r = cv.getBoundingClientRect(); return [(e.clientX - r.left) / r.width, (e.clientY - r.top) / r.height]; };
+cv.addEventListener('wheel', e => { if (!pixelOn()) return; e.preventDefault(); const [fx, fy] = viewFrac(e); window.PixelGfx.zoomAt(e.deltaY < 0 ? 1.15 : 1 / 1.15, fx, fy); }, { passive: false });
+let drag = null;
+cv.addEventListener('contextmenu', e => { if (pixelOn()) e.preventDefault(); });
+cv.addEventListener('mousedown', e => { if (pixelOn() && (e.button === 2 || e.button === 1)) { drag = viewFrac(e); e.preventDefault(); } });
+window.addEventListener('mousemove', e => { if (!drag) return; const f = viewFrac(e); window.PixelGfx.pan(drag[0] - f[0], drag[1] - f[1]); drag = f; });
+window.addEventListener('mouseup', () => { drag = null; });
+const PAN = { KeyW: [0, -1], KeyS: [0, 1], KeyA: [-1, 0], KeyD: [1, 0], ArrowUp: [0, -1], ArrowDown: [0, 1], ArrowLeft: [-1, 0], ArrowRight: [1, 0] };
+document.addEventListener('keydown', e => { if (pixelOn() && PAN[e.code]) { window.PixelGfx.pan(PAN[e.code][0] * 0.08, PAN[e.code][1] * 0.08); e.preventDefault(); } if (pixelOn() && (e.key === '+' || e.key === '=')) window.PixelGfx.zoomAt(1.2, 0.5, 0.5); if (pixelOn() && e.key === '-') window.PixelGfx.zoomAt(1 / 1.2, 0.5, 0.5); });
+$('zoomIn').addEventListener('click', () => { if (!pixelOn()) setGfx('pixel'); window.PixelGfx.zoomAt(1.25, 0.5, 0.5); });
+$('zoomOut').addEventListener('click', () => { if (pixelOn()) window.PixelGfx.zoomAt(1 / 1.25, 0.5, 0.5); });
+
+// ================= Пиксельная графика (pixel.js) =================
+const VIEW = { ctx, TILE, MW, MH, S, grid, I, T_GRASS, T_ROAD, T_YARD, T_FLOOR, T_WALL, T_DOOR, ZONES, DECOR, DOCKS, SEATS, STATIONS, LOOP, HOOKS, HOOK_DRIVE, loopPos, clock, DAY_START, DAY_END, matsOk };
+function setGfx(m) {
+  S.gfx = m; try { localStorage.setItem('rw-gfx', m); } catch (e) { /* без хранилища */ }
+  const b = document.getElementById('gfxBtn'); if (b) b.textContent = m === 'pixel' ? '🎨 Графика: пиксели' : '🎨 Графика: схема';
+}
+document.getElementById('gfxBtn').addEventListener('click', () => setGfx(S.gfx === 'pixel' ? 'classic' : 'pixel'));
+setGfx(S.gfx);
 
 // ================= Главный цикл =================
 let last = performance.now(), uiT = 0;
 function frame(now) {
   const dt = Math.min(0.1, (now - last) / 1000); last = now;
   if (S.speed > 0) advance(dt * MIN_PER_SEC * S.speed);
-  render();
+  if (S.gfx === 'pixel' && window.PixelGfx) window.PixelGfx.render(VIEW); else render();
   uiT += dt; if (uiT > 0.3) { uiT = 0; renderTop(); renderSel(); if (!document.querySelector('#panel:hover') || tab === 'log') renderPanel(); }
   requestAnimationFrame(frame);
 }
-makeOffer(); makeOffer(); makeOffer();
+// Старт: цех уже работает — два заказа в производстве, шины на участках, автоклав греет, едет грузовик
+function prefill() {
+  const order = (customer, qty, price, dl, state = 'production') => { const o = { id: S.nextId++, customer, qty, price, deadline: S.t + dl, expires: S.t, state, finished: 0, scrapped: 0, shippedN: 0 }; S.orders.push(o); return o; };
+  const tire = (o, stage, bad = 0.04) => { const t = { id: S.nextTire++, order: o.id, badCasing: rnd() < bad, defect: false, rework: 0, stage, readyAt: 0, res: false, dest: null, tIn: S.t - RI(120, 900) }; S.tires.set(t.id, t); return t.id; };
+  const a = order('Spedition Krause', 36, 205, 1300), b = order('Busbetrieb Schäfer', 20, 215, 1900);
+  for (let k = 0; k < 12; k++) { ST.fertig.items.push(tire(a, 'lack', 0)); a.finished++; }  // готово к отгрузке → скоро приедет грузовик
+  for (let k = 0; k < 10; k++) ST.auto1.items.push(tire(a, 'huelle'));
+  Object.assign(ST.auto1, { state: 'running', timer: 140 });
+  for (let k = 0; k < 4; k++) ST.auto2.items.push(tire(a, 'huelle')); ST.auto2.lastLoad = S.t;
+  const PREV = { pruef: 'karkasse', rauen: 'pruef', ausschl: 'rauen', spray: 'ausschl', fuellen: 'spray', belegen: 'fuellen', huelle: 'belegen', entgr: 'auto', lack: 'entgr', endk: 'lack' };
+  for (const [id, o, n] of [['entgr1', a, 2], ['entgr2', a, 1], ['lack', a, 1], ['endk', a, 1], ['huelle', a, 2], ['belegen1', a, 1], ['belegen2', a, 1], ['fuellen', a, 1],
+    ['spray', b, 1], ['ausschl1', b, 1], ['ausschl2', b, 1], ['rauen1', b, 1], ['rauen2', b, 1], ['pruef', b, 1]]) {
+    for (let k = 0; k < n; k++) ST[id].input.push(tire(o, PREV[ST[id].g], ST[id].g === 'pruef' ? 0.13 : 0.04));
+  }
+  for (let k = 0; k < 14; k++) ST.eingang.items.push(tire(b, 'karkasse', 0.13));
+  const c = order('Kühltransporte Nord', 16, 210, 2400, 'incoming');
+  pendingTrucks.push({ kind: 'deliver', order: c, at: S.t + 12 });
+  for (const s of [ST.rauen1, ST.ausschl1, ST.entgr2]) s.dirt = 0.3; // с ночи осталась пыль — будет что подметать
+}
+if (params.get('empty') !== '1') prefill();
+makeOffer(); makeOffer();
 resize(); renderTop(); renderSel(); renderPanel();
-log('Добро пожаловать в Reifenwerk! 15 рабочих, две смены. Примите заказы во вкладке «Заказы».', 'info');
+log('Добро пожаловать в Reifenwerk! Цех уже работает: 2 заказа в производстве, грузовик с каркасами подъезжает. Новые заказы принимаются автоматически (вкладка «Заказы»). Станки иногда ломаются — техник чинит.', 'info');
 requestAnimationFrame(frame);
 
 // ================= API для автоматической игры и тестов =================
 window.RW = {
-  S, ST, STATIONS, GROUP, HOOKS, advance, acceptOffer, declineOffer, buy, hire, wipCount, setHook,
+  S, ST, STATIONS, GROUP, HOOKS, VIEW, advance, acceptOffer, declineOffer, buy, hire, wipCount, setHook, setGfx,
   setSpeed: v => { S.speed = v; renderTop(); },
   setPrio: (name, work, p) => { const w = S.workers.find(w => w.name.startsWith(name)); if (w) w.prio[work] = p; },
   summary: () => ({
@@ -890,7 +1090,10 @@ window.RW = {
     offers: S.offers.map(o => `${o.id} ${o.customer} ${o.qty}×${o.price}`),
     orders: S.orders.filter(o => o.state !== 'done').map(o => `${o.customer} ${o.state} ${o.finished}/${o.qty} лом ${o.scrapped}`),
     mats: { ...S.mats }, trucks: S.trucks.map(t => `${t.kind} ${t.state} ${t.cargo.length}`),
+    breakdowns: S.stats.breakdowns, broken: MACHINES.filter(m => m.broken).map(m => `${m.id}: ${m.broken.de} ${m.broken.tech ? Math.round(m.broken.done / m.broken.need * 100) + '%' : 'ждёт'}`),
+    downtimeMin: Math.round(S.stats.downtime), repairsEur: S.stats.repairs,
   }),
+  MACHINES, breakDown,
 };
 })();
 </script>
