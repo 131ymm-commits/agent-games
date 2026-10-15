@@ -7,5 +7,6 @@
 | `mindustry/SKILL.md` | Как агенту играть в Mindustry: управление, проверенные приёмы, грабли |
 | `mindustry/campaign.md` | Состояние кампании и журнал игры по датам |
 | `rimworld/SKILL.md` | Шпаргалка для RimWorld (игра пока не установлена) |
+| `reifenwerk/` | **Своя игра**: цех восстановления шин в стиле RimWorld (HTML, запуск — открыть `index.html`) |
 
 Навыки (`SKILL.md`) копируются в `~/.claude/skills/<игра>/SKILL.md`, чтобы Claude подхватывал их автоматически.
