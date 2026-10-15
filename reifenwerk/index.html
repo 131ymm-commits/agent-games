@@ -136,7 +136,7 @@ const INFO = {
   fuellen: ['Spachteln', 'Шпаклёвка дыр', 'Дыры и выемки зашпаклёвывают ремонтной резиной (Füllgummi) из экструдера и выравнивают. Большие пробои — пластырь изнутри.'],
   belegen: ['Belegen', 'Наложение протектора', 'Слой Bindegummi + готовый протектор (Laufstreifen) по длине окружности. Роликом выдавливают воздух (Anrollen).'],
   huelle: ['Einhüllen', 'Надевание чехла', 'Резиновый чехол (Hülle) и монтажное кольцо, вакуумная проверка герметичности.'],
-  auto: ['Autoklav', 'Автоклав', 'Партия до 12 шин, около 2,5 часов при ~120 °C и давлении. Связующий слой вулканизуется и намертво соединяет протектор с каркасом.'],
+  auto: ['Autoklav', 'Автоклав', 'Партия до 10 шин, цикл около 5 ч: нагрев, вулканизация при ~110–120 °C под давлением, охлаждение. Связующий слой намертво соединяет протектор с каркасом. Вечером запускают последнюю партию — автоклав работает ночью.'],
   entgr: ['Fehlerbeseitigung', 'Устранение дефектов', 'После автоклава: снять чехол и кольцо, обрезать облой (Entgraten), устранить мелкие дефекты (пузыри, наплывы). Серьёзный брак — на переделку или в лом.'],
   nacharb: ['Nacharbeit', 'Стеллаж переделки', 'Шины с серьёзным дефектом ждут повторной зачистки. Отдельный буфер не даёт линии заклинить по кругу.'],
   lack: ['Lackieren', 'Покраска', 'Покраска боковин восстановленной шины.'],
@@ -154,9 +154,11 @@ const STATIONS = [
   { id: 'fuellen', g: 'fuellen', kind: 'proc', work: 'reparatur', time: 6, mat: { fuellgummi: 1 }, x: 36, y: 3, w: 2, h: 2, ax: 36, ay: 5, inCap: 2, next: 'belegen', color: '#5d6b2f' },
   { id: 'belegen1', g: 'belegen', kind: 'proc', work: 'belegen', time: 9, mat: { laufstreifen: 1, bindegummi: 1 }, x: 39, y: 3, w: 3, h: 2, ax: 40, ay: 5, inCap: 2, next: 'huelle', color: '#a0662a' },
   { id: 'belegen2', g: 'belegen', kind: 'proc', work: 'belegen', time: 9, mat: { laufstreifen: 1, bindegummi: 1 }, x: 42, y: 3, w: 3, h: 2, ax: 43, ay: 5, inCap: 2, next: 'huelle', color: '#a0662a' },
-  { id: 'huelle', g: 'huelle', kind: 'proc', work: 'belegen', time: 4, x: 43, y: 8, w: 2, h: 2, ax: 42, ay: 8, inCap: 3, next: 'auto', color: '#4a4f73' },
-  { id: 'auto1', g: 'auto', kind: 'auto', work: 'vulkan', x: 38, y: 12, w: 6, h: 4, ax: 40, ay: 11, cap: 12, cycle: 150, next: 'entgr', color: '#56606e' },
-  { id: 'auto2', g: 'auto', kind: 'auto', work: 'vulkan', x: 38, y: 17, w: 6, h: 4, ax: 37, ay: 18, cap: 12, cycle: 150, next: 'entgr', color: '#56606e' },
+  { id: 'huelle', g: 'huelle', kind: 'proc', work: 'belegen', time: 4, x: 35, y: 8, w: 2, h: 2, ax: 35, ay: 10, inCap: 4, next: 'auto', color: '#4a4f73' },
+  { id: 'auto1', g: 'auto', kind: 'auto', work: 'vulkan', x: 40, y: 8, w: 5, h: 3, ax: 39, ay: 9, cap: 10, cycle: 300, next: 'entgr', color: '#56606e' },
+  { id: 'auto2', g: 'auto', kind: 'auto', work: 'vulkan', x: 40, y: 11, w: 5, h: 3, ax: 39, ay: 12, cap: 10, cycle: 300, next: 'entgr', color: '#56606e' },
+  { id: 'auto3', g: 'auto', kind: 'auto', work: 'vulkan', x: 40, y: 14, w: 5, h: 3, ax: 39, ay: 15, cap: 10, cycle: 300, next: 'entgr', color: '#56606e' },
+  { id: 'auto4', g: 'auto', kind: 'auto', work: 'vulkan', x: 40, y: 17, w: 5, h: 3, ax: 39, ay: 18, cap: 10, cycle: 300, next: 'entgr', color: '#56606e' },
   { id: 'entgr1', g: 'entgr', kind: 'proc', work: 'nacharbeit', time: 6, x: 40, y: 22, w: 2, h: 2, ax: 40, ay: 21, inCap: 3, next: 'lack', color: '#8a5a2a' },
   { id: 'entgr2', g: 'entgr', kind: 'proc', work: 'nacharbeit', time: 6, x: 37, y: 22, w: 2, h: 2, ax: 37, ay: 21, inCap: 3, next: 'lack', color: '#8a5a2a' },
   { id: 'nacharb', g: 'nacharb', kind: 'store', x: 33, y: 22, w: 3, h: 2, ax: 34, ay: 21, cap: 16, next: 'ausschl', color: '#7a3b4a' },
@@ -176,7 +178,7 @@ STATIONS.forEach(s => {
 
 // ================= Состояние =================
 const S = {
-  t: DAY_START, speed: 1, money: 40000, rep: 50, wip: 40, autoBuy: true,
+  t: DAY_START, speed: 1, money: 40000, rep: 50, wip: 64, autoBuy: true,
   tires: new Map(), nextTire: 1, nextId: 1,
   workers: [], trucks: [], offers: [], orders: [], matOrders: [], complaints: [],
   mats: { laufstreifen: 60, bindegummi: 60, loesung: 80, fuellgummi: 80 },
@@ -597,7 +599,7 @@ function render() {
     if (s.kind === 'store') drawPile(s.items, px + 2, py + 16, pw - 4, ph - 18, Math.max(2, s.w * 1.5 | 0));
     else if (s.kind === 'auto') {
       ctx.fillStyle = '#39414c'; ctx.beginPath(); ctx.ellipse(px + pw / 2, py + ph / 2 + 4, pw / 2 - 8, ph / 2 - 12, 0, 0, 7); ctx.fill();
-      drawPile(s.items, px + 14, py + 22, pw - 28, ph - 26, 6);
+      drawPile(s.items, px + 12, py + 18, pw - 24, ph - 20, 5);
       ctx.fillStyle = s.state === 'running' ? '#ff9f43' : s.state === 'done' ? '#62c370' : '#ccc'; ctx.font = 'bold 11px system-ui';
       ctx.fillText(s.state === 'running' ? `${Math.ceil(s.timer)} мин` : s.state === 'done' ? 'готово' : `${s.items.length}/${s.cap}`, px + pw - 58, py + 12);
       if (s.state === 'running') { ctx.fillStyle = 'rgba(255,120,40,.18)'; ctx.fillRect(px + 1, py + 1, pw - 2, ph - 2); }
@@ -650,6 +652,19 @@ function jobText(w) {
   if (j.type === 'work') return (j.i === 0 ? 'Идёт к станции ' : 'Работает: ') + j.st.de + (j.i === 1 ? ` (${Math.round(Math.min(1, j.st.prog) * 100)}%)` : '');
   return '';
 }
+// Расчёт количества оборудования по методике проектирования: N = P · t / (T · Kз), для автоклава ещё / вместимость
+const PLAN = { P: 80, T: 16 * 60, Tauto: 16.5 * 60, Kz: 0.85 };
+function equipCalc() {
+  const rows = [];
+  for (const [g, list] of Object.entries(GROUP)) {
+    const s = list[0]; if (s.kind === 'store') continue;
+    let need, formula;
+    if (s.kind === 'auto') { const tc = s.cycle + 30; need = PLAN.P * tc / (PLAN.Tauto * s.cap * PLAN.Kz); formula = `${PLAN.P}×${(tc / 60).toFixed(1)}ч / (${PLAN.Tauto / 60}ч×${s.cap}×${PLAN.Kz})`; }
+    else { need = PLAN.P * s.time / (PLAN.T * PLAN.Kz); formula = `${PLAN.P}×${s.time}мин / (${PLAN.T / 60}ч×${PLAN.Kz})`; }
+    rows.push({ g, name: INFO[g][0], have: list.length, need, n: Math.ceil(need - 1e-9), formula });
+  }
+  return rows;
+}
 const util = s => { const el = Math.max(1, S.t - DAY_START); return Math.round(100 * s.busy / el); };
 const avgLead = () => S.leadTimes.length ? Math.round(S.leadTimes.reduce((a, b) => a + b, 0) / S.leadTimes.length) : 0;
 function renderSel() {
@@ -695,7 +710,10 @@ function renderPanel() {
         <div class="row"><span>Аренда и энергия / рекламации</span><b>${eur(S.stats.overhead)} / ${eur(S.stats.penalties)}</b></div>
         <div class="row"><span>Лом всего</span><b>${S.scrap}</b></div>
       </div>
-      <div class="muted" style="font-size:11px">Красная рамка на станции и оранжевая очередь — узкое место.</div>`;
+      <div class="muted" style="font-size:11px">Красная рамка на станции и оранжевая очередь — узкое место.</div>
+      <h3 style="margin-top:12px">Расчёт оборудования на ${PLAN.P} шин/сутки</h3>
+      <div class="muted" style="font-size:11px;margin-bottom:4px">Методика проектирования шиноремонтных участков: N = P·t / (T·Kз), для автоклава ещё делим на вместимость. P — суточная программа, t — время на шину (цикл автоклава + 30 мин загрузки), T — рабочее время (2 смены; у автоклава + ночная партия), Kз — коэффициент загрузки.</div>
+      <table><tr><th>Участок</th><th>Расчёт</th><th>Нужно</th><th>Есть</th></tr>${equipCalc().map(r => `<tr><td>${r.name}</td><td class="muted" style="font-size:10px">${r.formula} = ${r.need.toFixed(2)}</td><td><b>${r.n}</b></td><td class="${r.have >= r.n ? 'good' : 'bad'}">${r.have}</td></tr>`).join('')}</table>`;
   } else if (tab === 'workers') {
     const head = WORKS.map(k => `<th title="${WORK_RU[k]}">${WORK_RU[k].slice(0, 5)}</th>`).join('');
     const rows = S.workers.map(w => `<tr><td><b data-selw="${w.id}" style="cursor:pointer">${w.name.split(' ')[0]}</b> <span class="shift">${w.shift === 'F' ? 'F' : 'S'}</span><div class="muted" style="font-size:10px">${jobText(w)}</div></td>${WORKS.map(k => `<td><button class="prio p${w.prio[k]}" data-prio="${w.id}:${k}" title="${WORK_RU[k]}: навык ${w.skills[k].toFixed(1)}">${w.prio[k] || '–'}</button></td>`).join('')}<td><button data-shift="${w.id}" title="Сменить смену">⇄</button></td></tr>`).join('');
