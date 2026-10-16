@@ -3,7 +3,7 @@
 // и растягиваем без сглаживания. Симуляция та же — меняется только отрисовка.
 (() => {
 const PT = 12, OUT = '#1e1c26';
-let V, pc, g, bgCanvas, lightCanvas, time = 0;
+let V, pc, oc, g, TG = null, bgCanvas, lightCanvas, time = 0; // TG — слой двойного разрешения (люди, шины)
 // Камера: зум 1..4, центр в пикселях маленького холста
 const cam = { z: 1.1, cx: 25.4 * PT, cy: 14.6 * PT };
 function clampCam() {
@@ -57,12 +57,22 @@ function ptext(s, x, y, col = '#fff', sh = OUT) {
 }
 
 // ---------- спрайты ----------
+// Шина 16×16 (в мире 8×8): протектор с блоками, боковина, диск-каркас; готовая — блестящий новый протектор и наклейка
+const tireCache = {};
+function tireHR(done) {
+  if (tireCache[done]) return tireCache[done];
+  const c = document.createElement('canvas'); c.width = 16; c.height = 16; const x = c.getContext('2d');
+  const ring = (r, col) => { x.fillStyle = col; for (let j = 0; j < 16; j++) for (let i = 0; i < 16; i++) { const d = Math.hypot(i - 7.5, j - 7.5); if (d <= r) x.fillRect(i, j, 1, 1); } };
+  ring(7.6, OUT); ring(6.8, done ? '#1d1d22' : '#2c2c33');
+  for (let k = 0; k < 16; k++) { const a = k / 16 * Math.PI * 2, i = Math.round(7.5 + Math.cos(a) * 6.2), j = Math.round(7.5 + Math.sin(a) * 6.2); x.fillStyle = k % 2 ? (done ? '#3a3a44' : '#45454e') : OUT; x.fillRect(i, j, 1, 1); } // блоки протектора
+  ring(4.6, done ? '#2a2a31' : '#3a3a42'); ring(3.3, done ? '#dfe3ea' : '#8b9099'); ring(1.4, OUT);
+  x.fillStyle = done ? '#ffffff' : '#a9aeb7'; x.fillRect(5, 5, 2, 1); x.fillRect(5, 6, 1, 1);           // блик на диске
+  x.fillStyle = done ? '#6a6a76' : '#55555e'; x.fillRect(3, 4, 1, 2); x.fillRect(4, 3, 2, 1);          // блик на резине
+  if (done) { x.fillStyle = '#ffa630'; x.fillRect(7, 1, 2, 2); }
+  tireCache[done] = c; return c;
+}
 function tire(x, y, done) {
-  x = Math.round(x); y = Math.round(y);
-  R(x + 1, y, 5, 7, OUT); R(x, y + 1, 7, 5, OUT);
-  R(x + 1, y + 1, 5, 5, '#34343b'); R(x + 1, y + 1, 2, 1, '#55555e');
-  R(x + 2, y + 2, 3, 3, done ? '#dfe3ea' : '#8b9099'); R(x + 3, y + 3, 1, 1, OUT);
-  if (done) R(x + 3, y, 1, 1, '#ffa630');
+  const t = TG || g; t.drawImage(tireHR(!!done), Math.round(x) - 0.5, Math.round(y) - 0.5, 8, 8);
 }
 // Человечек 12×17 (с контуром 14×19): волосы h, кожа s, глаза e, рот m, рубашка t/T, светоотражатели Y, ремень c, брюки p, ботинки b
 const BODY = ['...hhhhhh...', '..hhhhhhhh..', '..hssssssh..', '..sesssses..', '..ssssssss..', '...ssmmss...', '....ssss....',
@@ -91,6 +101,60 @@ function person(hair, skin, shirt, pose, arms) {
   spriteCache.set(key, c); return c;
 }
 
+// ---------- люди: детальные спрайты (вдвое больше пикселей, чем у мира) ----------
+// Холст 28×44 с контуром, в мире — 14×22. Каска или причёска, лицо, куртка, светоотражающий жилет цвета рабочего,
+// ремень, перчатки, ботинки, тени. Вид спереди или со спины; походка 4 кадра; руки: обычно, вверх, держит шину.
+const SKIN2 = [['#f2cba4', '#d6a57f'], ['#e3b38b', '#c48f66'], ['#c68e5f', '#a26f42'], ['#9a6440', '#7a4a2c'], ['#f6d7bf', '#ddb595']];
+const HAIR2 = ['#3b2a20', '#1d1a1a', '#c99a4a', '#8a3b20', '#6b5b4b', '#e2c56f', '#a7a7a7'];
+const HELMET2 = ['#f2c230', '#f5f5f5', '#3b7bd4', '#e8732a'];
+const hrCache = new Map();
+function personHR(o) {
+  const key = [o.skin[0], o.hair, o.vest, o.helmet, o.beard, o.view, o.pose, o.arms].join('|'); if (hrCache.has(key)) return hrCache.get(key);
+  const W = 26, H = 42, c = document.createElement('canvas'); c.width = W + 2; c.height = H + 2;
+  const x = c.getContext('2d');
+  const P = (px, py, w, h, col) => { if (w <= 0 || h <= 0) return; x.fillStyle = col; x.fillRect(px + 1, py + 1, w, h); };
+  const [sk, skD] = o.skin, hair = o.hair, vest = o.vest, vestD = shade(vest, -0.28), vestL = shade(vest, 0.3);
+  const jk = '#2f4a7a', jkD = '#223761', tr = '#2a3a5c', trD = '#1d2944', boot = '#2b221d', bootL = '#5a4636', glove = '#3a3a42', refl = '#e8eef5';
+  const back = o.view === 'back', pose = o.pose;
+  // ноги и ботинки (шаг: нога впереди ниже, сзади выше)
+  const leg = (lx, top, bot, dark) => { P(lx, top, 5, bot - top + 1, tr); if (dark) P(lx + 3, top, 2, bot - top + 1, trD); P(lx, top + 5, 5, 1, '#3a4c72'); P(lx - 1, bot + 1, 6, 3, boot); P(lx - 1, bot + 1, 6, 1, bootL); if (!back) P(lx - 1, bot + 3, 6, 1, '#1a1512'); };
+  if (pose === 'sit') { P(7, 28, 12, 4, tr); P(15, 28, 4, 4, trD); P(7, 32, 5, 3, tr); P(14, 32, 5, 3, trD); P(6, 35, 6, 3, boot); P(14, 35, 6, 3, boot); }
+  else { const f = pose === 'walk0' ? [2, -2] : pose === 'walk2' ? [-2, 2] : [0, 0], sx = pose === 'stand' ? 0 : 1; leg(7 - sx, 28, 37 + f[0], false); leg(14 + sx, 28, 37 + f[1], true); }
+  // туловище: куртка, жилет со светоотражающими полосами, ремень с пряжкой
+  P(7, 15, 12, 13, jk); P(6, 16, 14, 11, jk); P(17, 16, 3, 11, jkD);
+  if (!back) { P(7, 16, 5, 11, vest); P(14, 16, 5, 11, vest); P(16, 16, 3, 11, vestD); P(7, 16, 1, 11, vestL); for (const yy of [21, 24]) { P(7, yy, 5, 1, refl); P(14, yy, 5, 1, refl); } P(12, 16, 2, 11, jk); P(12, 17, 1, 9, '#5a6f96'); P(8, 18, 2, 1, '#ffffff'); }
+  else { P(7, 16, 12, 11, vest); P(16, 16, 3, 11, vestD); P(7, 20, 12, 1, refl); P(7, 23, 12, 1, refl); P(9, 25, 8, 1, refl); }
+  P(6, 27, 14, 1, '#1e1e22'); if (!back) P(12, 27, 2, 1, '#c9a227');
+  // руки в перчатках
+  const arm = (ax, top, bot, dark) => { P(ax, top, 3, bot - top + 1, dark ? jkD : jk); P(ax, bot + 1, 3, 3, glove); };
+  if (o.arms === 'up') { P(3, 9, 3, 8, jk); P(20, 9, 3, 8, jkD); P(3, 6, 3, 3, glove); P(20, 6, 3, 3, glove); }
+  else if (o.arms === 'carry') { P(3, 16, 3, 6, jk); P(20, 16, 3, 6, jkD); P(5, 21, 4, 2, jk); P(17, 21, 4, 2, jkD); P(8, 21, 3, 3, glove); P(15, 21, 3, 3, glove); }
+  else { const s2 = pose === 'walk0' ? 2 : pose === 'walk2' ? -2 : 0; arm(3, 16, 24 - s2, false); arm(20, 16, 24 + s2, true); }
+  // шея, голова, уши
+  P(10, 14, 6, 2, skD);
+  P(9, 3, 8, 12, sk); P(8, 4, 10, 10, sk); P(16, 4, 2, 10, skD); P(9, 13, 8, 1, skD);
+  P(7, 8, 1, 3, sk); P(18, 8, 1, 3, skD);
+  // каска или волосы
+  if (o.helmet) { const hl = o.helmet; P(8, 1, 10, 6, hl); P(7, 2, 12, 4, hl); P(6, 6, 14, 1, shade(hl, -0.25)); P(9, 2, 2, 2, shade(hl, 0.55)); P(12, 1, 2, 5, shade(hl, -0.12)); if (back) P(8, 7, 10, 3, hair); }
+  else if (back) { P(8, 2, 10, 12, hair); P(7, 4, 12, 8, hair); P(9, 3, 3, 1, shade(hair, 0.3)); }
+  else { P(8, 2, 10, 4, hair); P(7, 4, 2, 5, hair); P(17, 4, 2, 5, hair); P(9, 2, 4, 1, shade(hair, 0.3)); P(12, 5, 3, 1, hair); }
+  // лицо: брови, глаза с бликом, нос, румянец, рот или борода
+  if (!back) {
+    const brow = o.helmet ? shade(hair, -0.2) : hair; P(9, 7, 3, 1, brow); P(14, 7, 3, 1, brow);
+    P(10, 8, 1, 2, OUT); P(15, 8, 1, 2, OUT); P(11, 8, 1, 1, '#ffffff'); P(16, 8, 1, 1, '#ffffff');
+    P(12, 10, 2, 1, skD); P(9, 11, 1, 1, '#e8908a'); P(16, 11, 1, 1, '#e8908a');
+    if (o.beard) { P(9, 11, 8, 3, hair); P(10, 14, 6, 1, hair); P(11, 12, 4, 1, '#7a3b30'); } else P(11, 12, 4, 1, '#a0524a');
+  }
+  // контур по силуэту
+  const Wc = c.width, Hc = c.height, img = x.getImageData(0, 0, Wc, Hc), d = img.data, op = (i, j) => i >= 0 && j >= 0 && i < Wc && j < Hc && d[(j * Wc + i) * 4 + 3] > 0;
+  x.fillStyle = OUT; for (let j = 0; j < Hc; j++) for (let i = 0; i < Wc; i++) if (!op(i, j) && (op(i - 1, j) || op(i + 1, j) || op(i, j - 1) || op(i, j + 1))) x.fillRect(i, j, 1, 1);
+  hrCache.set(key, c); return c;
+}
+function looksOf(w) { // внешность рабочего: постоянная, по номеру и роли
+  const helm = /Lager|Heizer|Schlosser|Stapler/.test(w.role || '') || w.id % 3 === 0;
+  return { skin: SKIN2[(w.id * 7) % SKIN2.length], hair: HAIR2[w.id % HAIR2.length], vest: w.color, helmet: helm ? HELMET2[w.id % HELMET2.length] : null, beard: w.id % 5 === 2 };
+}
+
 // ---------- статический фон: пол, стены, зоны, мебель ----------
 function buildBackground() {
   const { MW, MH, grid, I, T_GRASS, T_ROAD, T_YARD, T_FLOOR, T_WALL, T_DOOR, ZONES, DECOR, DOCKS, SEATS } = V;
@@ -112,8 +176,10 @@ function buildBackground() {
       R(X, Y, PT, PT, (x + y) % 2 ? '#d3ccbc' : '#cdc6b5'); R(X + PT - 1, Y, 1, PT, '#bfb7a5'); R(X, Y + PT - 1, PT, 1, '#bfb7a5');
       if (r > 0.9) R(X + 4, Y + 4, 1, 1, '#b5ad9b');
     } else if (t === T_WALL) {
-      R(X, Y, PT, PT, '#8a5141'); R(X, Y, PT, 2, '#a5634f'); R(X, Y + PT - 1, PT, 1, '#5e3529');
-      R(X + (y % 2 ? 0 : 6), Y + 5, 1, 4, '#6e3f31'); R(X, Y + 5, PT, 1, '#6e3f31');
+      const below = y + 1 < MH && grid[I(x, y + 1)] === T_WALL, above = y > 0 && grid[I(x, y - 1)] === T_WALL;
+      R(X, Y, PT, PT, '#8a5141'); R(X + (y % 2 ? 0 : 6), Y + 5, 1, 4, '#6e3f31'); R(X, Y + 5, PT, 1, '#6e3f31');
+      if (!above) { R(X, Y, PT, 3, '#c08068'); R(X, Y, PT, 1, '#d89a80'); }                       // верх стены — светлый
+      if (!below) { R(X, Y + PT - 4, PT, 4, '#5e3529'); R(X, Y + PT - 4, PT, 1, '#7a4636'); R(X, Y + PT, PT, 2, 'rgba(0,0,0,.18)'); } // лицевая сторона и тень на пол
     } else if (t === T_DOOR) {
       R(X, Y, PT, PT, '#c58b45'); for (let k = 0; k < PT; k += 3) R(X + k, Y, 1, PT, '#a4702f'); R(X, Y, PT, 1, '#e0a862');
     }
@@ -155,6 +221,13 @@ function buildBackground() {
       ptext('WERKSTATT', X - 2, Y - 12, '#ffd84a');
     }
     if (d.id === 'werkbank') { /* нарисован выше */ }
+  }
+  // жёлтая разметка пола вокруг станков (зона станка)
+  for (const st of V.STATIONS) {
+    if (st.kind === 'store') continue;
+    const X = st.x * PT - 2, Y = st.y * PT - 2, w = st.w * PT + 4, h = st.h * PT + 4;
+    for (let k = 0; k < w; k += 4) { R(X + k, Y, 2, 1, '#e8c547'); R(X + k, Y + h - 1, 2, 1, '#e8c547'); }
+    for (let k = 0; k < h; k += 4) { R(X, Y + k, 1, 2, '#e8c547'); R(X + w - 1, Y + k, 1, 2, '#e8c547'); }
   }
   // стоянка погрузчиков
   for (const f of V.S.forks || []) { const X = f.home.x * PT - 6, Y = f.home.y * PT - 10; R(X, Y, 24, 1, '#f2c230'); R(X, Y + 24, 24, 1, '#f2c230'); R(X, Y, 1, 25, '#f2c230'); R(X + 23, Y, 1, 25, '#f2c230'); ptext('P' + f.id, X + 2, Y + 2, '#f2c230', null); }
@@ -226,8 +299,13 @@ function drawStation(s) {
     return;
   }
   // обычный станок: плита, корпус, детали
+  g.fillStyle = 'rgba(0,0,0,.22)'; g.fillRect(X + 3, Y + 3, Wp, Hp); // тень
   R(X, Y, Wp, Hp, '#a49f92'); for (let k = 0; k < Wp; k += 4) R(X + k, Y + Hp - 2, 2, 2, '#f2c230');
-  box(X + 1, Y + 1, Wp - 2, Hp - 5, c);
+  const fh = Hp >= 20 ? 4 : 2; // передняя стенка — видна «высота» станка
+  box(X + 1, Y + 1, Wp - 2, Hp - 5, c); R(X + 2, Y + Hp - 5 - fh, Wp - 4, fh, shade(c, -0.35)); R(X + 2, Y + Hp - 5 - fh, Wp - 4, 1, shade(c, -0.15));
+  R(X + 2, Y + 2, Wp - 4, 1, shade(c, 0.45)); R(X + 2, Y + 2, 1, Hp - 8 - fh, shade(c, 0.25));
+  for (const [bx, by] of [[X + 3, Y + 3], [X + Wp - 4, Y + 3]]) R(bx, by, 1, 1, shade(c, 0.6)); // болты
+  if (Hp >= 20) { box(X + Wp - 7, Y + Hp - 11, 5, 5, '#2a2d34'); R(X + Wp - 6, Y + Hp - 10, 1, 1, s.cur ? (Math.floor(time * 4) % 2 ? '#5ad65a' : '#2f8a2f') : '#3a3d47'); R(X + Wp - 4, Y + Hp - 10, 1, 1, s.broken ? '#ff4d4d' : '#6a2f2f'); }
   const cx = X + Wp / 2 | 0, cy = Y + Hp / 2 - 1 | 0, work = !!s.cur;
   if (s.g === 'rauen') { disc(X + Wp - 6, cy + 2, 4, OUT); disc(X + Wp - 6, cy + 2, 3, '#b8c0ca'); const a = work ? time * 20 : 0; R(X + Wp - 6 + Math.round(Math.cos(a) * 2), cy + 2 + Math.round(Math.sin(a) * 2), 1, 1, OUT); R(X + Wp - 4, Y + 1, 2, 5, '#c9a227'); }
   else if (s.g === 'pruef' || s.g === 'endk') { R(cx - 8, cy - 1, 3, 6, '#ffd24a'); R(cx + 5, cy - 1, 3, 6, '#ffd24a'); if (s.g === 'endk') { box(X + Wp - 9, Y + 3, 8, 6, '#222'); R(X + Wp - 7, Y + 5, 4, 2, '#62e08a'); } }
@@ -295,7 +373,7 @@ function forklift(px, py, face, driver, load) {
   R(7, -23, 3, 24, '#3a3d47'); R(7, -23, 1, 24, '#5d6270');           // мачта
   R(10, lift, 9, 1, '#9aa0ad'); R(10, lift - 1, 1, 2, OUT);           // вилы
   if (n) flatTires(10, lift - 3, n);
-  if (driver) g.drawImage(driver, -9, -26);
+  if (driver) g.drawImage(driver, -8, -28, driver.width / 2, driver.height / 2);
   box(-12, -10, 20, 10, '#f2b230'); R(-11, -9, 4, 8, '#c98a14'); R(-2, -9, 7, 2, '#ffd36a'); // корпус, противовес
   disc(-7, 0, 2, OUT); disc(4, 0, 2, OUT); R(-7, 0, 1, 1, '#888'); R(4, 0, 1, 1, '#888');   // колёса
   R(-11, -29, 1, 19, OUT); R(5, -29, 1, 19, OUT); R(-12, -30, 19, 2, '#3a3d47');            // защитная крыша
@@ -304,7 +382,7 @@ function forklift(px, py, face, driver, load) {
 }
 
 // ---------- люди ----------
-const prevPos = new Map(), facing = new Map();
+const prevPos = new Map(), facing = new Map(), views = new Map();
 // Инструмент в руке по участку: лампа, шлифмашинка, распылитель, пистолет-экструдер, ролик…
 const TOOL_G = { pflaster: 'roller', pruef: 'lamp', endk: 'tablet', rauen: 'pendant', ausschl: 'grinder', entgr: 'knife', spray: 'spray', fuellen: 'extruder', aufbau: 'pendant', scan: 'scangun' };
 function toolOf(w) {
@@ -382,22 +460,31 @@ function drawWorker(w) {
   const j = w.job, st = j && j.st;
   if (!moving && st && st.w && (w.state === 'work' || w.state === 'act')) { const c = st.x + st.w / 2 - 0.5; if (Math.abs(c - w.x) > 0.6) face = c > w.x ? 1 : -1; }
   facing.set(w.id, face);
-  const hair = HAIRS[w.id % HAIRS.length], skin = SKINS[(w.id * 7) % SKINS.length], nm = w.name.split(' ')[0];
+  const look = looksOf(w), nm = w.name.split(' ')[0];
+  // куда смотрит: идёт от нас или работает у станка, который выше, — видна спина
+  const dyv = prev ? w.y - prev[1] : 0; let view = views.get(w.id) || 'front';
+  if (moving) view = Math.abs(dyv) > Math.abs(dx) * 1.2 && dyv < 0 ? 'back' : 'front';
+  else if (st && st.h && (w.state === 'work' || w.state === 'act')) view = st.y + st.h / 2 < w.y ? 'back' : 'front';
+  else if (!w.job || w.state === 'break') view = 'front';
+  views.set(w.id, view);
   if (w.mounted) { // за рулём погрузчика
-    forklift(px, py, face, person(hair, skin, w.color, 'sit', null), w.load);
+    forklift(px, py, face, personHR({ ...look, view: 'front', pose: 'sit', arms: null }), w.load);
     if (S.selected && S.selected.w === w) brackets(px - 14, py - 33, 34, 37);
     ptext(nm, px - textW(nm) / 2, py + 4, '#f4f4f4'); return;
   }
   const tool = w.carry ? null : toolOf(w), grab = w.act === 'grab';
   const on = !grab && (w.state === 'work' || w.state === 'act');
-  const pose = w.state === 'break' ? 'sit' : moving && Math.floor(time * 7) % 2 ? 'walk' : 'stand';
+  const frame = w.state === 'break' ? 'sit' : moving ? ['walk0', 'stand', 'walk2', 'stand'][Math.floor(time * 8 + w.id) % 4] : 'stand';
   const cart = !!(j && j.type === 'haul' && j.cart);
   const arms = w.carry && !cart ? 'carry' : (tool === 'hands' && on && Math.floor(time * 4) % 2) || (grab && Math.floor(time * 5) % 2) ? 'up' : null;
-  const sp = person(hair, skin, w.color, pose, arms), bob = pose === 'walk' ? -1 : 0;
+  const sp = personHR({ ...look, view, pose: frame, arms });
+  const bob = frame === 'walk0' || frame === 'walk2' ? -0.5 : !moving && Math.floor(time * 0.9 + w.id * 0.37) % 2 ? -0.5 : 0; // шаг и дыхание
   g.save(); g.translate(px, py); g.scale(face, 1);
   R(-6, 0, 12, 2, 'rgba(0,0,0,.28)');
-  g.drawImage(sp, -7, -sp.height + 1 + bob);
-  if (tool && tool !== 'hands') { g.save(); g.translate(0, bob + (grab ? 3 : 0)); drawTool(tool, on, time + w.id * 0.37); g.restore(); }
+  const drawT = () => { if (tool && tool !== 'hands') { g.save(); g.translate(0, Math.round(bob) + (grab ? 3 : 0)); drawTool(tool, on, time + w.id * 0.37); g.restore(); } };
+  if (view === 'back') drawT(); // со спины инструмент за телом
+  g.drawImage(sp, -7, -21.5 + bob, sp.width / 2, sp.height / 2);
+  if (view !== 'back') drawT();
   if (cart) { // тележка (Rollwagen) с шинами стопкой
     R(6, -11, 1, 8, '#5d6270'); box(7, -5, 15, 4, '#8d96a3'); disc(9, 0, 1, OUT); disc(20, 0, 1, OUT);
     if (w.load) flatTires(9, -8, w.load.length);
@@ -423,6 +510,10 @@ function render(view) {
   if (!pc) { pc = document.createElement('canvas'); pc.width = MW * PT; pc.height = MH * PT; lightCanvas = document.createElement('canvas'); lightCanvas.width = pc.width; lightCanvas.height = pc.height; for (let y = 11; y < MH - 2; y += 6) for (let x = 4; x < MW - 2; x += 7) if (V.grid[V.I(x, y)] === V.T_FLOOR) LAMPS.push([x * PT, y * PT]); }
   if (!bgCanvas) buildBackground();
   g = pc.getContext('2d'); g.imageSmoothingEnabled = false;
+  const [vx, vy, vw, vh] = viewRect();
+  if (!oc) { oc = document.createElement('canvas'); oc.width = pc.width * 2; oc.height = pc.height * 2; }
+  const g2 = oc.getContext('2d'); g2.setTransform(1, 0, 0, 1, 0, 0); g2.clearRect(Math.floor(vx * 2) - 64, Math.floor(vy * 2) - 64, Math.ceil(vw * 2) + 128, Math.ceil(vh * 2) + 128);
+  g2.imageSmoothingEnabled = false; g2.setTransform(2, 0, 0, 2, 0, 0); TG = g2;
   g.drawImage(bgCanvas, 0, 0);
   for (const s of STATIONS) drawStation(s);
   if (S.selected && S.selected.st) { const s = S.selected.st; brackets(s.x * PT - 1, s.y * PT - 1, s.w * PT + 2, s.h * PT + 2); }
@@ -465,8 +556,8 @@ function render(view) {
   for (const s of STATIONS) progress(s);
   // свободные погрузчики на стоянке
   for (const f of S.forks || []) if (!f.by) forklift(Math.round(f.x * PT + PT / 2), Math.round(f.y * PT + PT / 2 + 4), 1, null, null);
-  // люди — по глубине
-  [...present].sort((a, b) => a.y - b.y).forEach(drawWorker);
+  // люди — по глубине, на слое двойного разрешения (детальнее мира)
+  const keepG = g; g = g2; [...present].sort((a, b) => a.y - b.y).forEach(drawWorker); g = keepG;
   // счётчик лома
   const sc = V.DECOR.find(o => o.id === 'schrott'); if (sc) ptext(String(S.scrap), sc.x * PT + 4, sc.y * PT + 12, '#ffffff');
   // ночь и лампы
@@ -479,10 +570,13 @@ function render(view) {
     const keep = g; g = lg;
     for (const [lx, ly] of LAMPS) for (const [r, a] of [[30, 0.25], [22, 0.25], [14, 0.3]]) { g.fillStyle = `rgba(0,0,0,${a})`; for (let dy = -r; dy <= r; dy++) { const dx = Math.floor(Math.sqrt(r * r - dy * dy)); g.fillRect(lx - dx, ly + dy, dx * 2 + 1, 1); } }
     g = keep; lg.globalCompositeOperation = 'source-over';
-    g.drawImage(lightCanvas, 0, 0);
   }
-  const [sx, sy, sw, sh] = viewRect();
-  ctx.save(); ctx.imageSmoothingEnabled = false; ctx.clearRect(0, 0, MW * TILE, MH * TILE); ctx.drawImage(pc, sx, sy, sw, sh, 0, 0, MW * TILE, MH * TILE); ctx.restore();
+  const [sx, sy, sw, sh] = viewRect(), W = MW * TILE, H = MH * TILE;
+  ctx.save(); ctx.imageSmoothingEnabled = false; ctx.clearRect(0, 0, W, H);
+  ctx.drawImage(pc, sx, sy, sw, sh, 0, 0, W, H);
+  ctx.drawImage(oc, sx * 2, sy * 2, sw * 2, sh * 2, 0, 0, W, H);
+  if (dark > 0) ctx.drawImage(lightCanvas, sx, sy, sw, sh, 0, 0, W, H);
+  ctx.restore();
 }
-window.PixelGfx = { render, reset: () => { bgCanvas = null; }, toTile, zoomAt, pan, cam };
+window.PixelGfx = { render, reset: () => { bgCanvas = null; }, toTile, zoomAt, pan, cam, personHR, looksOf };
 })();
