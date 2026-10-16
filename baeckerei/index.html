@@ -1,0 +1,1050 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Bäckerei</title>
+<style>
+  :root { --bg: #17191e; --panel: #22252c; --panel2: #2a2e37; --line: #363b46; --text: #e7e7e7; --muted: #9aa0aa; --accent: #e8a04a; --good: #62c370; --bad: #e35d5d; --info: #5aa8e6; }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; }
+  body { margin: 0; background: var(--bg); color: var(--text); font: 13px/1.35 system-ui, "Segoe UI", Roboto, sans-serif; display: flex; overflow: hidden; }
+  #main { flex: 1; display: flex; flex-direction: column; min-width: 0; }
+  #topbar { display: flex; flex-wrap: wrap; gap: 6px 16px; align-items: center; padding: 6px 12px; background: var(--panel); border-bottom: 1px solid var(--line); }
+  #topbar .title { font-weight: 700; letter-spacing: .5px; color: var(--accent); }
+  button { background: var(--panel2); color: var(--text); border: 1px solid var(--line); border-radius: 4px; padding: 3px 8px; cursor: pointer; font: inherit; }
+  button:hover { border-color: var(--accent); } button:disabled { opacity: .45; cursor: default; }
+  button.on { background: var(--accent); color: #1a1a1a; border-color: var(--accent); }
+  #wrap { flex: 1; position: relative; overflow: hidden; display: flex; align-items: center; justify-content: center; }
+  canvas { display: block; }
+  #tip { position: absolute; pointer-events: none; background: rgba(20,22,27,.95); border: 1px solid var(--line); border-radius: 6px; padding: 8px 10px; max-width: 320px; display: none; font-size: 12px; }
+  #side { width: 420px; background: var(--panel); border-left: 1px solid var(--line); display: flex; flex-direction: column; min-height: 0; }
+  #sel { padding: 10px 12px; border-bottom: 1px solid var(--line); min-height: 64px; }
+  #tabs { display: flex; border-bottom: 1px solid var(--line); }
+  #tabs button { flex: 1; border: 0; border-radius: 0; background: transparent; padding: 8px 2px; color: var(--muted); }
+  #tabs button.on { color: var(--accent); box-shadow: inset 0 -2px var(--accent); background: transparent; }
+  #panel { flex: 1; overflow-y: auto; padding: 10px 12px; }
+  .muted { color: var(--muted); } .good { color: var(--good); } .bad { color: var(--bad); } .warn { color: var(--accent); } .info { color: var(--info); }
+  table { border-collapse: collapse; width: 100%; } th, td { padding: 3px 4px; text-align: left; border-bottom: 1px solid var(--line); vertical-align: middle; }
+  th { color: var(--muted); font-weight: 600; font-size: 11px; }
+  .prio { width: 24px; padding: 2px 0; text-align: center; font-weight: 700; }
+  .p1 { background: #2f6b3a; } .p2 { background: #4f6b2f; } .p3 { background: #6b5d2f; } .p0 { background: #2a2e37; color: #555; }
+  .card { background: var(--panel2); border: 1px solid var(--line); border-radius: 6px; padding: 8px 10px; margin-bottom: 8px; }
+  .row { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+  .log div { padding: 2px 0; border-bottom: 1px dashed #30343d; }
+  h3 { margin: 4px 0 8px; font-size: 13px; color: var(--accent); }
+  #tut { position: absolute; left: 50%; bottom: 14px; transform: translateX(-50%); width: min(520px, calc(100% - 24px)); background: rgba(28,30,37,.97); border: 2px solid var(--accent); border-radius: 10px; padding: 12px 14px; display: none; box-shadow: 0 8px 30px rgba(0,0,0,.5); font-size: 14px; line-height: 1.45; z-index: 5; }
+  #tut button { min-height: 34px; padding: 4px 12px; }
+  @media (max-width: 900px) {
+    body { flex-direction: column; }
+    #main { flex: 1 1 auto; min-height: 0; }
+    #side { width: 100%; height: 40vh; border-left: 0; border-top: 1px solid var(--line); }
+    #topbar { gap: 4px 10px; padding: 4px 8px; font-size: 12px; }
+    #topbar button, #panel button { min-height: 34px; min-width: 36px; }
+    #tabs { overflow-x: auto; } #tabs button { flex: 0 0 auto; padding: 10px 12px; }
+    #sel { min-height: 0; max-height: 16vh; overflow-y: auto; padding: 6px 10px; }
+    .prio { width: 32px; height: 32px; }
+    #tut { bottom: 6px; font-size: 12.5px; padding: 8px 10px; line-height: 1.35; }
+    #tut b { font-size: 14px !important; }
+  }
+</style>
+</head>
+<body>
+<div id="main">
+  <div id="topbar">
+    <span class="title">BÄCKEREI</span>
+    <span><span id="lDay">День</span> <b id="tDay">1</b>, <b id="tClock">05:00</b> <span id="tPhase" class="muted"></span></span>
+    <span><span id="lMoney">Касса:</span> <b id="tMoney">0 €</b></span>
+    <span><span id="lToday">Сегодня:</span> <b id="tToday">0 €</b></span>
+    <span><button id="langBtn" title="Deutsch / Русский">DE</button> <button id="tutBtn">❓ Обучение</button></span>
+    <span><button id="zoomOut" title="Отдалить (−, колесо мыши)">🔍−</button> <button id="zoomIn" title="Приблизить (+). Двигать: WASD или правая кнопка мыши">🔍+</button></span>
+    <span class="speed"><button data-speed="0" title="Пауза (Пробел)">⏸</button> <button data-speed="1">1×</button> <button data-speed="3">3×</button> <button data-speed="10">10×</button></span>
+  </div>
+  <div id="wrap"><canvas id="cv"></canvas><div id="tip"></div><div id="tut"></div></div>
+</div>
+<div id="side">
+  <div id="sel"></div>
+  <div id="tabs">
+    <button data-tab="overview" class="on">Пекарня</button>
+    <button data-tab="plan">План</button>
+    <button data-tab="people">Люди</button>
+    <button data-tab="stock">Склад</button>
+    <button data-tab="upgrades">Апгрейды</button>
+    <button data-tab="log">Журнал</button>
+  </div>
+  <div id="panel"></div>
+</div>
+<script>
+'use strict';
+(() => {
+// ================= Константы =================
+const TILE = 24, MW = 40, MH = 30, PT = 12;   // 1 клетка ≈ 1 м
+const MIN_PER_SEC = 0.75;                      // игровых минут в секунду на 1×
+const WALK = 22;                               // клеток в минуту
+const OPEN = 6 * 60, CLOSE = 18 * 60 + 30;     // магазин
+const WAGE = 15.5, OVERHEAD = 160;             // €/ч на человека; аренда и энергия в день
+
+function mulberry32(a) { return function () { a |= 0; a = a + 0x6D2B79F5 | 0; let t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
+const params = new URLSearchParams(location.search);
+const rnd = mulberry32(Number(params.get('seed')) || 20261016);
+const R = (a, b) => a + rnd() * (b - a), RI = (a, b) => Math.floor(R(a, b + 1)), pick = a => a[Math.floor(rnd() * a.length)];
+
+// ================= Карта =================
+const T_GRASS = 0, T_ROAD = 1, T_PAVE = 2, T_TILE = 3, T_WOOD = 4, T_WALL = 5, T_DOOR = 6, T_CONC = 7, T_YARD = 8, T_WIN = 9;
+const grid = new Uint8Array(MW * MH), blocked = new Uint8Array(MW * MH);
+const I = (x, y) => y * MW + x;
+const area = (x0, y0, x1, y1, t) => { for (let y = y0; y <= y1; y++) for (let x = x0; x <= x1; x++) grid[I(x, y)] = t; };
+const wallH = (y, x0, x1) => area(x0, y, x1, y, T_WALL), wallV = (x, y0, y1) => area(x, y0, x, y1, T_WALL);
+area(0, 0, MW - 1, MH - 1, T_GRASS);
+area(0, 0, MW - 1, 1, T_ROAD); area(0, 2, MW - 1, 3, T_YARD);        // задняя улица и двор
+area(0, 25, MW - 1, 26, T_PAVE); area(0, 27, MW - 1, MH - 1, T_ROAD); // тротуар и улица
+area(4, 4, 35, 24, T_TILE);
+area(5, 5, 12, 9, T_CONC); area(14, 5, 18, 9, T_CONC); area(20, 5, 26, 9, T_WOOD); area(28, 5, 34, 9, T_WOOD); area(5, 19, 34, 23, T_WOOD);
+wallH(4, 4, 35); wallH(24, 4, 35); wallV(4, 4, 24); wallV(35, 4, 24);
+wallH(10, 4, 35); wallV(13, 4, 10); wallV(19, 4, 10); wallV(27, 4, 10); wallH(18, 4, 35);
+for (let x = 6; x <= 33; x++) if (x < 18 || x > 21) grid[I(x, 24)] = T_WIN; // витрины
+for (const [x, y] of [[8, 4], [16, 4], [10, 10], [16, 10], [23, 10], [31, 10], [9, 18], [33, 18], [19, 24], [20, 24]]) grid[I(x, y)] = T_DOOR;
+
+const ZONES = [
+  { name: 'LAGER', x: 5, y: 5, w: 8, h: 5, tint: 'rgba(120,110,90,.10)' },
+  { name: 'KÜHLRAUM', x: 14, y: 5, w: 5, h: 5, tint: 'rgba(120,180,255,.18)' },
+  { name: 'BÜRO', x: 20, y: 5, w: 7, h: 5, tint: null },
+  { name: 'PAUSE', x: 28, y: 5, w: 7, h: 5, tint: null },
+  { name: 'BACKSTUBE', x: 5, y: 11, w: 30, h: 7, tint: null },
+  { name: 'LADEN', x: 5, y: 19, w: 30, h: 5, tint: null },
+];
+const DECOR = [
+  { id: 'mehl', x: 5, y: 5, w: 3, h: 3, desc: 'Мешки муки по 25 кг. Сюда их носят из фургона мельницы.', desc_de: 'Mehlsäcke à 25 kg. Hierher werden sie vom Lieferwagen der Mühle getragen.' },
+  { id: 'regal', x: 10, y: 5, w: 3, h: 1, desc: 'Стеллаж: щёлок (Lauge), сахар, соль, семечки.', desc_de: 'Regal: Lauge, Zucker, Salz, Saaten.' },
+  { id: 'kuehlregal', x: 14, y: 5, w: 5, h: 1, desc: 'Холодильная камера: масло, яйца, дрожжи, молоко.', desc_de: 'Kühlraum: Butter, Eier, Hefe, Milch.' },
+  { id: 'desk', x: 21, y: 6, w: 2, h: 1, desc: 'Стол мастера: план выпечки, заказы, бухгалтерия. Мастер — это вы.', desc_de: 'Meisterbüro: Backplan, Aufträge, Buchhaltung. Der Meister bist du.' },
+  { id: 'werkzeug', x: 25, y: 5, w: 2, h: 1, desc: 'Шкаф с инструментами: отсюда мастер берёт ящик, когда что-то ломается.', desc_de: 'Werkzeugschrank: Hier holt der Meister den Werkzeugkoffer, wenn etwas kaputt ist.' },
+  { id: 'pausetisch', x: 30, y: 7, w: 3, h: 1, desc: 'Комната отдыха.', desc_de: 'Pausenraum.' },
+  { id: 'kaffee_p', x: 34, y: 5, w: 1, h: 1, desc: 'Кофе для своих.', desc_de: 'Kaffee fürs Team.' },
+  { id: 'spuele', x: 32, y: 11, w: 3, h: 1, desc: 'Мойка: противни, миски, инструменты.', desc_de: 'Spüle: Bleche, Schüsseln, Werkzeug.' },
+  { id: 'theke', x: 22, y: 20, w: 2, h: 1, desc: 'Прилавок.', desc_de: 'Theke.' },
+  { id: 'kasse', x: 24, y: 20, w: 2, h: 1, desc: 'Касса.', desc_de: 'Kasse.' },
+  { id: 'theke', x: 26, y: 20, w: 1, h: 1, desc: 'Прилавок.', desc_de: 'Theke.' },
+  { id: 'kaffee', x: 27, y: 20, w: 2, h: 1, desc: 'Кофемашина для покупателей: кофе с собой — 3,20 €.', desc_de: 'Kaffeemaschine für Kundschaft: Kaffee to go — 3,20 €.' },
+  { id: 'cafe', x: 30, y: 21, w: 2, h: 1, desc: 'Столик кафе.', desc_de: 'Cafétisch.' },
+  { id: 'cafe', x: 30, y: 23, w: 2, h: 1, desc: 'Столик кафе.', desc_de: 'Cafétisch.' },
+];
+for (const d of DECOR) for (let y = d.y; y < d.y + d.h; y++) for (let x = d.x; x < d.x + d.w; x++) blocked[I(x, y)] = 1;
+const MEHL_ACC = { x: 8, y: 6 }, LAUGE_ACC = { x: 11, y: 6 }, KUEHL_ACC = { x: 16, y: 6 }, WERKZEUG = { x: 25, y: 6 }, COFFEE_P = { x: 33, y: 6 }, SPUELE = { x: 33, y: 12 };
+const SEATS = [[29, 7], [33, 7], [30, 6], [32, 6], [30, 8], [32, 8], [31, 8]];
+const ENTRY = { x: 0, y: 2 }, BACKDOOR = { x: 8, y: 3 };
+const VAN_OWN = { x: 6.5, y: 2.5, board: { x: 8, y: 3 } }, VAN_SUP = { x: 16.5, y: 2.5, acc: { x: 16, y: 3 } };
+
+// ================= Продукция и материалы =================
+const PRODUCTS = {
+  broetchen: { de: 'Brötchen', ru: 'Булочки', perTray: 30, price: 0.60, mats: { mehl: 2.0, kuehl: 0.2 }, knead: 12, rest: 15, shape: 4, at: 'presse', proof: 40, bake: 20, cool: 15, batch: 4, col: '#c98a3c', raw: '#efe2c4' },
+  brezel: { de: 'Laugenbrezel', ru: 'Брецели', perTray: 20, price: 1.20, mats: { mehl: 1.6, kuehl: 0.2, lauge: 0.6 }, knead: 10, rest: 10, shape: 9, at: 'tisch', proof: 25, bake: 18, cool: 10, batch: 3, col: '#7a3f18', raw: '#efe2c4', lauge: true },
+  croissant: { de: 'Croissant', ru: 'Круассаны', perTray: 12, price: 1.80, mats: { mehl: 0.8, kuehl: 1.2 }, knead: 8, rest: 30, shape: 10, at: 'tisch', proof: 60, bake: 17, cool: 15, batch: 2, col: '#e0a14a', raw: '#f3e6c8' },
+  brot: { de: 'Mischbrot', ru: 'Хлеб', perTray: 8, price: 4.90, mats: { mehl: 6.0, kuehl: 0.1 }, knead: 15, rest: 25, shape: 7, at: 'tisch', proof: 55, bake: 50, cool: 40, batch: 3, col: '#9a5a26', raw: '#e8d8b6' },
+};
+const PROD_KEYS = Object.keys(PRODUCTS);
+const MATS = {
+  mehl: { de: 'Mehl', deLong: 'Weizen- und Roggenmehl, Säcke à 25 kg', ru: 'Мука, мешки по 25 кг', unit: 'кг', pack: 25, packName: 'мешок', price: 13, min: 100, auto: 8, carry: 'sack', acc: MEHL_ACC },
+  kuehl: { de: 'Kühlware', deLong: 'Butter, Eier, Hefe', ru: 'Масло, яйца, дрожжи', unit: 'ед.', pack: 10, packName: 'ящик', price: 30, min: 15, auto: 3, carry: 'box', acc: KUEHL_ACC },
+  lauge: { de: 'Lauge', deLong: 'Natronlauge für Brezeln', ru: 'Щёлок для брецелей', unit: 'л', pack: 10, packName: 'канистра', price: 40, min: 8, auto: 2, carry: 'can', acc: LAUGE_ACC },
+};
+const WORKS = ['backen', 'transport', 'verkauf', 'fahren', 'technik'];
+const WORK_RU = { backen: 'Выпечка', transport: 'Переноска', verkauf: 'Продажа', fahren: 'Поставки/доставка', technik: 'Ремонт' };
+const STAFF = [
+  { name: 'Konrad Brenner', role: 'Bäckermeister', outfit: 'baker', from: 150, to: 630, speed: 1.15, prio: { backen: 1, transport: 2, verkauf: 0, fahren: 3, technik: 1 } },
+  { name: 'Lena Vogt', role: 'Bäckergesellin', outfit: 'baker', from: 180, to: 660, speed: 1.0, prio: { backen: 1, transport: 2, verkauf: 0, fahren: 1, technik: 3 } },
+  { name: 'Timo Schulz', role: 'Azubi', outfit: 'baker', from: 240, to: 720, speed: 0.8, prio: { backen: 2, transport: 1, verkauf: 3, fahren: 2, technik: 0 } },
+  { name: 'Petra Lange', role: 'Verkäuferin', outfit: 'seller', from: 330, to: 810, speed: 1.0, prio: { backen: 0, transport: 2, verkauf: 1, fahren: 0, technik: 0 } },
+  { name: 'Aylin Demir', role: 'Verkäuferin', outfit: 'seller', from: 660, to: 1140, speed: 1.0, prio: { backen: 0, transport: 2, verkauf: 1, fahren: 0, technik: 0 } },
+];
+
+// ================= Станции =================
+const STATIONS = [
+  { id: 'waage', kind: 'waage', x: 5, y: 11, w: 2, h: 1, ax: 6, ay: 12, de: 'Waage', ru: 'Весы', desc: 'Отвешивание муки и холодного сырья по рецептуре.', desc_de: 'Mehl und Kühlware nach Rezept abwiegen.' },
+  { id: 'kneter', kind: 'kneter', x: 8, y: 11, w: 2, h: 2, ax: 8, ay: 13, de: 'Spiralkneter', ru: 'Спиральная тестомесилка', desc: 'Замес теста: 8–15 минут. Машина работает сама, человек загружает и выгружает.', desc_de: 'Teig kneten: 8–15 Minuten. Die Maschine läuft allein, das Team belädt und entleert sie.' },
+  { id: 'tisch1', kind: 'tisch', x: 11, y: 11, w: 4, h: 2, ax: 12, ay: 13, de: 'Arbeitstisch 1', ru: 'Рабочий стол 1', desc: 'Тесто отлёживается, потом его делят и формуют руками: брецели, круассаны, хлеб.', desc_de: 'Teigruhe, dann von Hand teilen und formen: Brezeln, Croissants, Brot.' },
+  { id: 'tisch2', kind: 'tisch', x: 16, y: 11, w: 4, h: 2, ax: 17, ay: 13, de: 'Arbeitstisch 2', ru: 'Рабочий стол 2', desc: 'Второй стол для отлёжки и формовки.', desc_de: 'Zweiter Tisch für Teigruhe und Aufarbeiten.' },
+  { id: 'presse', kind: 'presse', x: 21, y: 11, w: 2, h: 2, ax: 21, ay: 13, de: 'Brötchenpresse', ru: 'Делитель-округлитель', desc: 'Делит кусок теста на 30 частей и округляет их — булочки на противень за 4 минуты.', desc_de: 'Teilt den Teig in 30 Stück und schleift sie rund — ein Blech Brötchen in 4 Minuten.' },
+  { id: 'lauge', kind: 'lauge', x: 24, y: 11, w: 2, h: 2, ax: 24, ay: 13, de: 'Laugenbad', ru: 'Ванна со щёлоком', desc: 'Брецели перед печью окунают в щелочной раствор — отсюда тёмная блестящая корочка.', desc_de: 'Brezeln werden vor dem Backen in Natronlauge getaucht — daher die dunkle, glänzende Kruste.' },
+  { id: 'gaer', kind: 'gaer', x: 5, y: 16, w: 3, h: 2, ax: 6, ay: 15, cap: 16, de: 'Gärschrank', ru: 'Расстоечный шкаф', desc: 'Тёплый влажный шкаф: тесто подходит 25–60 минут.', desc_de: 'Warm und feucht: Der Teig geht 25–60 Minuten.' },
+  { id: 'ofen', kind: 'ofen', x: 10, y: 16, w: 5, h: 2, ax: 12, ay: 15, decks: 3, perDeck: 2, de: 'Etagenofen', ru: 'Подовая печь', desc: 'Три яруса по два противня. Не достанешь через 8 минут после готовности — сгорит.', desc_de: 'Drei Etagen à zwei Bleche. Wer nicht innerhalb von 8 Minuten ausbäckt, verbrennt die Ware.' },
+  { id: 'stikken', kind: 'ofen', x: 16, y: 16, w: 3, h: 2, ax: 17, ay: 15, decks: 1, perDeck: 8, locked: true, de: 'Stikkenofen', ru: 'Ротационная печь', desc: 'Тележка на 8 противней крутится в печи. Покупается во вкладке «Апгрейды».', desc_de: 'Ein Stikkenwagen mit 8 Blechen dreht sich im Ofen. Im Tab „Upgrades“ kaufen.' },
+  { id: 'kuehl', kind: 'rack', x: 21, y: 16, w: 5, h: 2, ax: 23, ay: 15, cap: 24, de: 'Auskühlregal', ru: 'Стеллажи остывания', desc: 'Горячая выпечка остывает 10–40 минут, потом её несут в магазин.', desc_de: 'Heiße Ware kühlt 10–40 Minuten aus, dann kommt sie in den Laden.' },
+  { id: 'pack', kind: 'pack', x: 28, y: 16, w: 3, h: 2, ax: 29, ay: 15, de: 'Packtisch', ru: 'Стол заказов', desc: 'Сюда собирают ежедневный заказ отеля. Пекарь отвозит его на фургоне.', desc_de: 'Hier wird der tägliche Hotelauftrag gepackt. Die Gesellin fährt ihn aus.' },
+];
+const DISPLAYS = [
+  { id: 'd_broetchen', kind: 'display', prod: 'broetchen', x: 8, y: 20, w: 4, h: 1, ax: 9, ay: 19, capTrays: 4 },
+  { id: 'd_brezel', kind: 'display', prod: 'brezel', x: 12, y: 20, w: 3, h: 1, ax: 13, ay: 19, capTrays: 3 },
+  { id: 'd_croissant', kind: 'display', prod: 'croissant', x: 15, y: 20, w: 3, h: 1, ax: 16, ay: 19, capTrays: 3 },
+  { id: 'd_brot', kind: 'display', prod: 'brot', x: 18, y: 20, w: 4, h: 1, ax: 20, ay: 19, capTrays: 4 },
+];
+const ST = {};
+for (const s of [...STATIONS, ...DISPLAYS]) {
+  Object.assign(s, { trays: [], resIn: 0, batch: null, res: false, worker: null, broken: null, dirt: 0, stock: 0, busy: 0 });
+  ST[s.id] = s; for (let y = s.y; y < s.y + s.h; y++) for (let x = s.x; x < s.x + s.w; x++) blocked[I(x, y)] = 1;
+}
+for (const d of DISPLAYS) { const p = PRODUCTS[d.prod]; d.de = 'Theke: ' + p.de; d.ru = 'Витрина: ' + p.ru; d.desc = `Прилавок-витрина. Вмещает ${d.capTrays * p.perTray} шт.`; }
+for (const o of STATIONS.filter(s => s.kind === 'ofen')) o.deck = Array.from({ length: o.decks }, () => ({ state: 'idle', prod: null, trays: [], incoming: 0, t: 0, doneAt: 0, res: false }));
+const MACHINES = STATIONS.filter(s => ['kneter', 'presse', 'gaer', 'ofen'].includes(s.kind));
+const FAULTS = {
+  kneter: [['Antriebsriemen gerissen', 'порвался приводной ремень'], ['Knethaken lose', 'разболтался спиральный крюк']],
+  presse: [['Teilmesser stumpf', 'затупились ножи делителя'], ['Pneumatik undicht', 'течёт пневматика']],
+  gaer: [['Befeuchtung defekt', 'не работает увлажнитель'], ['Thermostat spinnt', 'сбоит термостат']],
+  ofen: [['Heizregister defekt', 'сгорел нагреватель яруса'], ['Schwadenanlage verstopft', 'забился парогенератор']],
+};
+const SP = [{ c: { x: 10, y: 21 }, s: { x: 10, y: 19 } }, { c: { x: 16, y: 21 }, s: { x: 16, y: 19 } }, { c: { x: 21, y: 21 }, s: { x: 21, y: 19 } }];
+SP.forEach(p => { p.cust = null; p.server = null; });
+const QUEUE = []; for (let y = 22; y <= 23; y++) for (let x = 7; x <= 28; x++) QUEUE.push({ x, y });
+QUEUE.sort((a, b) => Math.abs(a.x - 16) + (a.y - 22) * 3 - (Math.abs(b.x - 16) + (b.y - 22) * 3));
+const DOOR_IN = { x: 19, y: 23 }, DOOR_OUT = { x: 20, y: 26 };
+const acc = s => ({ x: s.ax, y: s.ay });
+
+// ================= Состояние =================
+const S = {
+  t: 5 * 60, speed: 1, money: 15000, rep: 60, nextId: 1, log: [],
+  mats: { mehl: 250, kuehl: 30, lauge: 20 }, autoBuy: true, supOrders: [], supVan: null,
+  plan: { broetchen: 16, brezel: 5, croissant: 4, brot: 7 }, started: {}, pending: {},
+  trays: new Map(), workers: [], customers: [], selected: null,
+  order: null, van: { state: 'home', x: VAN_OWN.x, y: VAN_OWN.y, t: 0, driver: null },
+  up: {}, d: null, y: null, lang: (() => { try { return params.get('lang') || localStorage.getItem('bw-lang') || ((navigator.language || '').startsWith('de') ? 'de' : 'ru'); } catch (e) { return 'ru'; } })(), stats: { wages: 0, mats: 0, overhead: 0, repairs: 0, upgrades: 0, revenue: 0 },
+};
+const L = (ru, de) => (S.lang === 'de' ? de : ru);
+const emptyDay = () => ({ baked: {}, sold: {}, lost: {}, waste: {}, burnt: 0, served: 0, left: 0, shop: 0, hotel: 0, coffee: 0, breaks: 0 });
+S.d = emptyDay(); S.y = emptyDay();
+for (const p of PROD_KEYS) { S.started[p] = 0; S.pending[p] = 0; }
+const day = () => Math.floor(S.t / 1440) + 1, clock = () => S.t % 1440;
+const fmt = m => { m = ((m % 1440) + 1440) % 1440; return String(Math.floor(m / 60)).padStart(2, '0') + ':' + String(Math.floor(m % 60)).padStart(2, '0'); };
+const eur = v => (Math.round(v * 100) / 100).toLocaleString('de-DE', { minimumFractionDigits: 0, maximumFractionDigits: 2 }) + ' €';
+function log(msg, cls = '') { S.log.unshift({ t: `Д${day()} ${fmt(clock())}`, msg, cls }); if (S.log.length > 160) S.log.pop(); }
+const SHIRTS = ['#2f8a5a', '#c2435a', '#3b7bd4', '#e8732a', '#8a5ac2'];
+STAFF.forEach((p, k) => S.workers.push({ ...p, id: S.nextId++, prio: { ...p.prio }, x: ENTRY.x, y: ENTRY.y, path: null, job: null, away: true, state: 'home', energy: R(85, 100), color: SHIRTS[k], carry: null, load: null, act: null, seat: null }));
+
+// ================= Поиск пути (A*) =================
+const passable = (x, y) => x >= 0 && y >= 0 && x < MW && y < MH && grid[I(x, y)] !== T_WALL && grid[I(x, y)] !== T_WIN && !blocked[I(x, y)];
+function findPath(sx, sy, tx, ty) {
+  sx = Math.round(sx); sy = Math.round(sy); tx = Math.round(tx); ty = Math.round(ty);
+  if (sx === tx && sy === ty) return [];
+  if (!passable(tx, ty)) return null;
+  const N = MW * MH, gs = new Float32Array(N).fill(Infinity), came = new Int32Array(N).fill(-1), closed = new Uint8Array(N), heap = [];
+  const push = (f, i) => { heap.push([f, i]); let k = heap.length - 1; while (k > 0) { const p = (k - 1) >> 1; if (heap[p][0] <= heap[k][0]) break; [heap[p], heap[k]] = [heap[k], heap[p]]; k = p; } };
+  const pop = () => { const top = heap[0], last = heap.pop(); if (heap.length) { heap[0] = last; let k = 0; for (;;) { const l = 2 * k + 1, r = l + 1; let m = k; if (l < heap.length && heap[l][0] < heap[m][0]) m = l; if (r < heap.length && heap[r][0] < heap[m][0]) m = r; if (m === k) break; [heap[m], heap[k]] = [heap[k], heap[m]]; k = m; } } return top; };
+  const h = (x, y) => { const dx = Math.abs(x - tx), dy = Math.abs(y - ty); return dx + dy + (Math.SQRT2 - 2) * Math.min(dx, dy); };
+  const s0 = I(sx, sy); gs[s0] = 0; push(h(sx, sy), s0);
+  while (heap.length) {
+    const [, cur] = pop(); if (closed[cur]) continue; closed[cur] = 1;
+    const cx = cur % MW, cy = (cur / MW) | 0;
+    if (cx === tx && cy === ty) { const path = []; let k = cur; while (k !== s0) { path.push({ x: k % MW, y: (k / MW) | 0 }); k = came[k]; } return path.reverse(); }
+    for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) {
+      if (!dx && !dy) continue; const nx = cx + dx, ny = cy + dy; if (!passable(nx, ny)) continue;
+      if (dx && dy && (!passable(cx + dx, cy) || !passable(cx, cy + dy))) continue;
+      const ni = I(nx, ny); if (closed[ni]) continue; const ng = gs[cur] + (dx && dy ? Math.SQRT2 : 1);
+      if (ng < gs[ni]) { gs[ni] = ng; came[ni] = cur; push(ng + h(nx, ny), ni); }
+    }
+  }
+  return null;
+}
+// идти по пути; true — дошёл
+function walk(e, to, dt, speed) {
+  if (!e.path) { e.path = findPath(e.x, e.y, to.x, to.y); if (!e.path) { e.x = to.x; e.y = to.y; e.path = null; return true; } }
+  let move = speed * dt;
+  while (move > 0 && e.path.length) {
+    const p = e.path[0], dx = p.x - e.x, dy = p.y - e.y, d = Math.hypot(dx, dy);
+    if (d <= move) { e.x = p.x; e.y = p.y; e.path.shift(); move -= d; } else { e.x += dx / d * move; e.y += dy / d * move; move = 0; }
+  }
+  if (!e.path.length) { e.path = null; return true; }
+  return false;
+}
+
+// ================= Противни, тесто, печь =================
+const newTray = prod => { const t = { id: S.nextId++, prod, stage: 'raw', readyAt: 0, res: false }; S.trays.set(t.id, t); return t; };
+const gaer = () => ST.gaer, rack = () => ST.kuehl;
+const gaerCap = () => (S.up.gva ? 28 : 16);
+const proofTime = p => PRODUCTS[p].proof * (S.up.gva ? 0.75 : 1);
+const shapeTime = p => p === 'broetchen' && S.up.presse2 ? 1.5 : PRODUCTS[p].shape;
+const planEff = p => S.plan[p] + (S.order && S.order.need[p] ? S.order.need[p] : 0);
+const matsFor = (p, n) => Object.entries(PRODUCTS[p].mats).every(([k, v]) => S.mats[k] >= v * n);
+function nextProduct() {
+  let best = null, bs = -1;
+  const w = { broetchen: 1.4, croissant: 1.15, brezel: 1.1, brot: 1.25 };
+  for (const p of PROD_KEYS) {
+    const plan = planEff(p), left = plan - S.started[p] - S.pending[p]; if (left <= 0 || !plan) continue;
+    const sc = w[p] * left / plan; if (sc > bs) { bs = sc; best = p; }
+  }
+  return best;
+}
+const tableFor = p => PRODUCTS[p].at === 'presse' ? [ST.presse] : [ST.tisch1, ST.tisch2];
+function startBake(o, d) { if (!d.trays.length) { d.state = 'idle'; d.prod = null; return; } d.state = 'baking'; d.t = PRODUCTS[d.prod].bake; for (const t of d.trays) S.trays.get(t).stage = 'baking'; }
+const readyFor = (p) => { const src = PRODUCTS[p].lauge ? ST.lauge : gaer(); return src.trays.filter(id => { const t = S.trays.get(id); return t.prod === p && !t.res && (PRODUCTS[p].lauge ? t.stage === 'dipped' : t.stage === 'proof' && t.readyAt <= S.t); }); };
+const OVENS = STATIONS.filter(s => s.kind === 'ofen');
+
+// ================= Задачи =================
+function genJobs() {
+  const J = [], c = clock();
+  // ремонт
+  for (const m of MACHINES) if (m.broken && !m.broken.tech && !m.locked) J.push({ type: 'repair', work: 'technik', urg: 1500, st: m });
+  // выгрузить печь — срочно, иначе сгорит
+  for (const o of OVENS) if (!o.locked) o.deck.forEach((d, k) => { if (d.state === 'done' && !d.res && rack().trays.length + rack().resIn < rack().cap) J.push({ type: 'unload', work: 'backen', urg: 1200, st: o, k }); });
+  // загрузить печь
+  for (const o of OVENS) {
+    if (o.locked || o.broken) continue;
+    o.deck.forEach((d, k) => {
+      if (d.res || !(d.state === 'idle' || d.state === 'filling')) return;
+      const room = o.perDeck - d.trays.length - d.incoming; if (room <= 0) return;
+      const prods = d.state === 'filling' ? [d.prod] : PROD_KEYS;
+      let best = null; for (const p of prods) { const r = readyFor(p); if (r.length && (!best || S.trays.get(r[0]).readyAt < S.trays.get(best.ids[0]).readyAt)) best = { p, ids: r }; }
+      if (best) J.push({ type: 'load', work: 'backen', urg: 600, st: o, k, prod: best.p, ids: best.ids.slice(0, Math.min(2, room)) });
+    });
+  }
+  // брецели в щёлок
+  const L = ST.lauge;
+  if (!L.worker && L.trays.length < 2) { const ids = gaer().trays.filter(id => { const t = S.trays.get(id); return t.prod === 'brezel' && t.stage === 'proof' && t.readyAt <= S.t && !t.res; }); if (ids.length) J.push({ type: 'dip', work: 'backen', urg: 500, st: L, id: ids[0] }); }
+  // выгрузить тесто из месилки
+  const K = ST.kneter;
+  if (K.batch && K.batch.stage === 'mixed' && !K.res) J.push({ type: 'doughOut', work: 'backen', urg: 400, st: K });
+  // формовка
+  for (const s of [ST.tisch1, ST.tisch2, ST.presse]) {
+    const b = s.batch; if (!b || b.stage !== 'rest' || b.readyAt > S.t || b.left <= 0 || s.worker || s.broken) continue;
+    if (gaer().trays.length + gaer().resIn >= gaerCap()) continue;
+    J.push({ type: 'shape', work: 'backen', urg: 300, st: s });
+  }
+  // новый замес по плану
+  if (!K.batch && !K.res && !K.broken) {
+    const p = nextProduct();
+    if (p) { const n = Math.min(PRODUCTS[p].batch, planEff(p) - S.started[p] - S.pending[p]); const tgt = tableFor(p).find(s => !s.batch && !s.res); if (tgt && matsFor(p, n)) J.push({ type: 'batch', work: 'backen', urg: 200, st: K, prod: p, n, tgt }); }
+  }
+  // остывшее — в магазин или на заказ отеля
+  const cool = rack().trays.filter(id => { const t = S.trays.get(id); return t.stage === 'cool' && t.readyAt <= S.t && !t.res; });
+  for (const id of cool) {
+    const t = S.trays.get(id), o = S.order;
+    if (o && o.state === 'open' && (o.need[t.prod] || 0) > (o.have[t.prod] || 0) + (o.resv[t.prod] || 0)) { J.push({ type: 'move', work: 'transport', urg: 350, id, dst: 'pack' }); continue; }
+    const d = DISPLAYS.find(x => x.prod === t.prod), cap = d.capTrays * PRODUCTS[t.prod].perTray;
+    if (d.stock + d.resIn + PRODUCTS[t.prod].perTray <= cap && c >= 4 * 60) J.push({ type: 'move', work: 'transport', urg: 250, id, dst: d.id });
+  }
+  // отвезти заказ отеля
+  if (S.order && S.order.state === 'open' && S.van.state === 'home' && PROD_KEYS.every(p => (S.order.have[p] || 0) >= (S.order.need[p] || 0)) && !S.order.res) J.push({ type: 'drive', work: 'fahren', urg: 700 });
+  // разгрузить фургон поставщика
+  const V = S.supVan; if (V && V.state === 'docked' && V.packs.length > V.res) J.push({ type: 'unloadSup', work: 'fahren', urg: 100 });
+  // обслужить покупателя
+  for (const sp of SP) if (sp.cust && !sp.server) { const cu = S.customers.find(x => x.id === sp.cust); if (cu && cu.state === 'atSP') J.push({ type: 'serve', work: 'verkauf', urg: 800 + Math.min(600, (S.t - cu.t0) * 40), sp }); }
+  return J;
+}
+function stepsFor(j, w) {
+  const go = to => ({ go: to });
+  if (j.type === 'repair') {
+    const m = j.st; m.broken.tech = w.id;
+    return { cancel: () => { if (m.broken && m.broken.tech === w.id) m.broken.tech = null; w.tool = null; },
+      steps: [go(WERKZEUG), { t: 0.4, act: 'grab', fn: () => { w.tool = 'kit'; } }, go(acc(m)), { act: 'repair', until: (w2, dt) => { const b = m.broken; if (!b) return true; b.done += dt * w.speed; if (b.done >= b.need) { const cost = Math.round(R(60, 280)); S.money -= cost; S.stats.repairs += cost; log(L(`🔧 ${w.name}: ${m.de} снова работает (${b.de}), запчасти ${eur(cost)}.`, `🔧 ${w.name}: ${m.de} läuft wieder (${b.de}), Ersatzteile ${eur(cost)}.`), 'good'); m.broken = null; return true; } return false; } }, go(WERKZEUG), { t: 0.3, act: 'grab', fn: () => { w.tool = null; } }] };
+  }
+  if (j.type === 'unload') {
+    const o = j.st, d = o.deck[j.k], n = Math.min(2, d.trays.length); d.res = true; rack().resIn += n; let got = [];
+    return { cancel: () => { d.res = false; rack().resIn -= n; if (got.length) { for (const id of got) { const t = S.trays.get(id); t.stage = 'cool'; t.readyAt = S.t + PRODUCTS[t.prod].cool; rack().trays.push(id); } w.load = null; } },
+      steps: [go(acc(o)), { t: 0.5, act: 'oven', fn: () => { got = d.trays.splice(0, n); w.load = got; for (const id of got) { const t = S.trays.get(id); t.stage = 'hot'; S.d.baked[t.prod] = (S.d.baked[t.prod] || 0) + PRODUCTS[t.prod].perTray; } if (!d.trays.length) { d.state = 'idle'; d.prod = null; } } },
+        go(acc(rack())), { t: 0.3, act: 'put', fn: () => { for (const id of got) { const t = S.trays.get(id); t.stage = 'cool'; t.readyAt = S.t + PRODUCTS[t.prod].cool; rack().trays.push(id); } rack().resIn -= n; d.res = false; got = []; w.load = null; } }] };
+  }
+  if (j.type === 'load') {
+    const o = j.st, d = o.deck[j.k], src = PRODUCTS[j.prod].lauge ? ST.lauge : gaer(); let got = [];
+    for (const id of j.ids) S.trays.get(id).res = true; d.state = 'filling'; d.prod = j.prod; d.incoming += j.ids.length; d.res = true;
+    return { cancel: () => { for (const id of j.ids) S.trays.get(id).res = false; d.incoming -= j.ids.length; d.res = false; if (got.length) { src.trays.push(...got); w.load = null; } if (!d.trays.length && !d.incoming) { d.state = 'idle'; d.prod = null; } },
+      steps: [go(acc(src)), { t: 0.4, act: 'pick', fn: () => { got = j.ids.filter(id => src.trays.includes(id)); src.trays = src.trays.filter(id => !got.includes(id)); w.load = got; } },
+        go(acc(o)), { t: 0.6, act: 'oven', fn: () => { d.trays.push(...got); for (const id of j.ids) { const t = S.trays.get(id); if (t) t.res = false; } d.incoming -= j.ids.length; d.res = false; w.load = null; got = []; if (!d.trays.length) { d.state = 'idle'; d.prod = null; } else if (d.trays.length >= o.perDeck || !readyFor(d.prod).length) startBake(o, d); } }] };
+  }
+  if (j.type === 'dip') {
+    const L = j.st, t = S.trays.get(j.id); t.res = true; L.worker = w.id; let held = false;
+    return { cancel: () => { t.res = false; L.worker = null; if (held) { gaer().trays.push(t.id); w.load = null; } },
+      steps: [go(acc(gaer())), { t: 0.3, act: 'pick', fn: () => { gaer().trays = gaer().trays.filter(id => id !== t.id); w.load = [t.id]; held = true; } },
+        go(acc(L)), { t: 1.2, act: 'dip', fn: () => { t.stage = 'dipped'; t.res = false; L.trays.push(t.id); L.worker = null; w.load = null; held = false; } }] };
+  }
+  if (j.type === 'doughOut') {
+    const K = j.st, b = K.batch; K.res = true;
+    return { cancel: () => { K.res = false; w.carry = null; },
+      steps: [go(acc(K)), { t: 1, act: 'dough', fn: () => { w.carry = 'dough'; } }, go(acc(b.tgt)), { t: 0.5, act: 'put', fn: () => { b.stage = 'rest'; b.readyAt = S.t + PRODUCTS[b.prod].rest; b.left = b.n; b.tgt.batch = b; b.tgt.res = false; K.batch = null; K.res = false; w.carry = null; } }] };
+  }
+  if (j.type === 'shape') {
+    const s = j.st, b = s.batch; s.worker = w.id; gaer().resIn++; let tr = null;
+    return { cancel: () => { s.worker = null; gaer().resIn--; if (tr) { tr.stage = 'proof'; tr.readyAt = S.t + proofTime(tr.prod); gaer().trays.push(tr.id); w.load = null; } },
+      steps: [go(acc(s)), { t: shapeTime(b.prod), act: 'shape', speed: true, fn: () => { tr = newTray(b.prod); b.left--; w.load = [tr.id]; s.busy += shapeTime(b.prod); if (b.left <= 0) s.batch = null; s.worker = null; s.dirt = Math.min(1, s.dirt + 0.04); } },
+        go(acc(gaer())), { t: 0.3, act: 'put', fn: () => { tr.stage = 'proof'; tr.readyAt = S.t + proofTime(tr.prod); gaer().trays.push(tr.id); gaer().resIn--; w.load = null; tr = null; } }] };
+  }
+  if (j.type === 'batch') {
+    const K = j.st, p = j.prod, P = PRODUCTS[p], n = j.n; K.res = true; j.tgt.res = true; S.pending[p] += n; let weighed = false;
+    const steps = [go(MEHL_ACC), { t: 0.5, act: 'pick', fn: () => { w.carry = 'sack'; } }];
+    if (P.mats.kuehl) steps.push(go(KUEHL_ACC), { t: 0.3, act: 'pick' });
+    if (P.mats.lauge) steps.push(go(LAUGE_ACC), { t: 0.3, act: 'pick' });
+    steps.push(go(acc(ST.waage)), { t: 2.5, act: 'weigh', speed: true, fn: () => { for (const [k, v] of Object.entries(P.mats)) S.mats[k] -= v * n; weighed = true; } },
+      go(acc(K)), { t: 1, act: 'load', fn: () => { K.batch = { prod: p, n, stage: 'mix', readyAt: S.t + P.knead, tgt: j.tgt }; K.res = false; S.pending[p] -= n; S.started[p] += n; w.carry = null; K.dirt = Math.min(1, K.dirt + 0.08); } });
+    return { cancel: () => { if (!K.batch || K.batch.tgt !== j.tgt) { K.res = false; j.tgt.res = false; S.pending[p] -= n; if (weighed) for (const [k, v] of Object.entries(P.mats)) S.mats[k] += v * n; } w.carry = null; }, steps };
+  }
+  if (j.type === 'move') {
+    const t = S.trays.get(j.id), P = PRODUCTS[t.prod]; t.res = true; const toPack = j.dst === 'pack', d = toPack ? ST.pack : ST[j.dst];
+    if (toPack) S.order.resv[t.prod] = (S.order.resv[t.prod] || 0) + 1; else d.resIn += P.perTray;
+    let held = false;
+    const undo = () => { if (toPack) S.order.resv[t.prod]--; else d.resIn -= P.perTray; };
+    return { cancel: () => { t.res = false; undo(); if (held) { rack().trays.push(t.id); w.load = null; } },
+      steps: [go(acc(rack())), { t: 0.3, act: 'pick', fn: () => { rack().trays = rack().trays.filter(id => id !== t.id); w.load = [t.id]; held = true; } },
+        go(acc(d)), { t: 0.6, act: 'place', fn: () => { undo(); held = false; w.load = null; S.trays.delete(t.id);
+          if (toPack) { S.order.have[t.prod] = (S.order.have[t.prod] || 0) + 1; ST.pack.trays.push(t.prod); } else d.stock += P.perTray; } }] };
+  }
+  if (j.type === 'drive') {
+    S.order.res = true;
+    return { cancel: () => { if (S.order) S.order.res = false; w.carry = null; },
+      steps: [go(acc(ST.pack)), { t: 0.5, act: 'pick', fn: () => { w.carry = 'crates'; } }, go(VAN_OWN.board), { t: 0.5, act: 'put', fn: () => { w.carry = null; ST.pack.trays = []; S.order.state = 'out'; S.van.state = 'out'; S.van.t = 0; S.van.driver = w.id; w.away = 'van'; w.job = null; log(L(`🚐 ${w.name} везёт заказ в отель «Seeblick».`, `🚐 ${w.name} fährt den Auftrag zum Hotel „Seeblick“.`), 'info'); } }] };
+  }
+  if (j.type === 'unloadSup') {
+    const V = S.supVan; V.res++; let pk = null;
+    return { cancel: () => { V.res--; if (pk) { V.packs.push(pk); w.carry = null; } },
+      steps: [go(VAN_SUP.acc), { t: 0.4, act: 'pick', fn: () => { pk = V.packs.shift(); V.res--; w.carry = MATS[pk].carry; } }, go(MATS[0] || MEHL_ACC), { t: 0.3, act: 'put', fn: () => {} }], dyn: () => pk };
+  }
+  if (j.type === 'serve') {
+    const sp = j.sp, cu = S.customers.find(x => x.id === sp.cust); sp.server = w.id; let sold = null;
+    const time = (0.7 + 0.12 * cu.items + (cu.coffee ? 0.6 : 0)) * (S.up.kasse ? 0.7 : 1);
+    return { cancel: () => { sp.server = null; w.tool = null; },
+      steps: [go(sp.s), { t: time, act: 'serve', speed: true, start: () => { cu.state = 'serving'; sold = sell(cu); w.tool = 'bag'; }, fn: () => { w.tool = null; sp.server = null; sp.cust = null; cu.state = 'out'; cu.path = null; cu.bag = sold > 0; } }] };
+  }
+  return null;
+}
+// продажа: снимаем со витрины что есть, недостающее — упущенная продажа
+function sell(cu) {
+  let sum = 0, got = 0;
+  for (const [p, q] of Object.entries(cu.want)) {
+    const d = DISPLAYS.find(x => x.prod === p), n = Math.min(q, d.stock); d.stock -= n; got += n;
+    sum += n * PRODUCTS[p].price; S.d.sold[p] = (S.d.sold[p] || 0) + n; if (n < q) S.d.lost[p] = (S.d.lost[p] || 0) + (q - n);
+  }
+  if (cu.coffee) { sum += 3.2; S.d.coffee++; got++; }
+  S.money += sum; S.d.shop += sum; S.stats.revenue += sum; S.d.served++;
+  return got;
+}
+// поставка: назначение тащим динамически (мешок — на склад муки, ящик — в холодильник, канистра — на стеллаж)
+function fixSupSteps(j, w) { const m = j.steps; m[2] = { go: null }; }
+function assignJobs() {
+  const cand = S.workers.filter(w => !w.away && (!w.job || w.job.type === 'idle'));
+  if (!cand.length) return;
+  let jobs = null;
+  for (const w of cand) {
+    if (!onShift(w)) { if (!w.job || w.job.type === 'idle') { w.path = null; w.job = { type: 'home', steps: [{ go: ENTRY }, { t: 0, act: 'leave', fn: () => { w.away = true; w.state = 'home'; } }], i: 0 }; } continue; }
+    if (w.energy < 28 && (!w.job || w.job.type === 'idle')) { const seat = SEATS.find(s => !S.workers.some(o => o.seat === s)) || SEATS[0]; w.seat = seat; w.path = null; w.job = { type: 'break', steps: [{ go: { x: seat[0], y: seat[1] } }, { act: 'rest', until: (w2, dt) => { w.energy = Math.min(100, w.energy + 1.4 * dt); return w.energy >= 95; } }, { t: 0, fn: () => { w.seat = null; } }], i: 0 }; S.d.breaks++; continue; }
+    jobs = jobs || genJobs();
+    let best = null, bs = Infinity;
+    for (const j of jobs) {
+      if (j.taken) continue; const p = w.prio[j.work]; if (!p) continue;
+      const tgt = j.st ? acc(j.st) : j.sp ? j.sp.s : j.type === 'drive' ? acc(ST.pack) : j.type === 'unloadSup' ? VAN_SUP.acc : j.id ? acc(rack()) : { x: w.x, y: w.y };
+      const sc = p * 1000 + Math.abs(tgt.x - w.x) + Math.abs(tgt.y - w.y) - (j.urg || 0) * 0.5;
+      if (sc < bs) { bs = sc; best = j; }
+    }
+    if (best) {
+      const r = stepsFor(best, w); if (!r) continue;
+      if (best.type === 'unloadSup') { r.steps[3] = { go: null, dynGo: true }; }
+      best.taken = true; w.path = null; w.act = null;
+      w.job = { type: best.type, work: best.work, st: best.st || null, sp: best.sp || null, steps: r.steps, cancel: r.cancel, dyn: r.dyn, i: 0 };
+    } else if (!w.job) w.job = idleJob(w);
+  }
+}
+function cancelJob(w) { const j = w.job; if (j && j.cancel) j.cancel(); w.job = null; w.path = null; w.act = null; w.load = null; w.carry = null; }
+function idleJob(w) {
+  const wait = (go, act, t, fn) => ({ type: 'idle', act, steps: [{ go }, { t, act, fn }], i: 0 });
+  if (w.energy < 60 && rnd() < 0.3) return wait(COFFEE_P, 'coffee', R(1.5, 3), () => { w.energy = Math.min(100, w.energy + 12); });
+  const dirty = [...STATIONS].filter(s => s.dirt > 0.2).sort((a, b) => b.dirt - a.dirt)[0];
+  if (dirty && w.outfit === 'baker') return wait(acc(dirty), 'sweep', R(1.5, 3), () => { dirty.dirt = Math.max(0, dirty.dirt - 0.5); });
+  if (w.outfit === 'seller') { const x = RI(8, 27); return wait({ x, y: 19 }, 'wipe', R(1, 2.5)); }
+  return rnd() < 0.5 ? wait(SPUELE, 'wash', R(2, 4)) : wait({ x: RI(6, 33), y: RI(13, 14) }, 'check', R(1, 2));
+}
+const onShift = w => { const c = clock(); return c >= w.from && c < w.to; };
+function updateWorker(w, dt) {
+  if (w.away === 'van') return;
+  if (w.away) { const c = clock(); if (c >= w.from && c < w.to - 30) { w.away = false; w.x = ENTRY.x; w.y = ENTRY.y; w.energy = Math.max(w.energy, 92); w.state = 'idle'; } return; }
+  if (!w.job) { w.state = 'idle'; return; }
+  const j = w.job, st = j.steps[j.i];
+  if (!st) { w.job = null; w.state = 'idle'; w.act = null; return; }
+  if (st.dynGo !== undefined || st.go !== undefined && st.go === null) { // поставка: куда нести — по тому, что взял
+    const pk = j.dyn && j.dyn(); st.go = pk ? MATS[pk].acc : MEHL_ACC; delete st.dynGo;
+    j.steps[j.i + 1] = { t: 0.3, act: 'put', fn: () => { if (pk) { S.mats[pk] += MATS[pk].pack; } w.carry = null; } };
+  }
+  if (st.go) {
+    w.state = 'walk';
+    const done = walk(w, st.go, dt, WALK * (w.energy < 15 ? 0.7 : 1));
+    w.energy = Math.max(0, w.energy - 0.02 * dt);
+    if (done) j.i++;
+    return;
+  }
+  w.state = st.act === 'rest' ? 'break' : 'work'; w.act = st.act || null;
+  if (!st.started) { st.started = true; st.el = 0; if (st.start && st.start(w) === false) { cancelJob(w); return; } }
+  if (st.until) { if (st.until(w, dt)) { j.i++; } }
+  else { st.el += dt * (st.speed ? w.speed : 1); if (st.el >= (st.t || 0)) { if (st.fn) st.fn(w); if (w.job === j) j.i++; } }
+  w.energy = Math.max(0, w.energy - 0.045 * dt);
+  if (w.job === j && j.i >= j.steps.length) { w.job = null; w.state = 'idle'; w.act = null; }
+}
+
+// ================= Покупатели =================
+function custRate(c) {
+  if (c < OPEN || c >= CLOSE) return 0;
+  if (c < 9 * 60) return c >= 6.5 * 60 && c < 8 * 60 ? 0.75 : 0.5;
+  if (c < 12 * 60) return 0.25; if (c < 14 * 60) return 0.32; if (c < 16 * 60) return 0.22; if (c < 18 * 60) return 0.25; return 0.12;
+}
+const COATS = ['#5a6f96', '#8a3b3b', '#3b6b4a', '#6b5b4b', '#c27a2a', '#4a4f73', '#9a6ad6', '#2f8a8a', '#d9534f', '#777b85'];
+function spawnCustomer() {
+  const want = {}; let items = 0;
+  if (rnd() < 0.55) { want.broetchen = RI(2, 5); items += 1; }
+  if (rnd() < 0.25) { want.brezel = RI(1, 3); items += 1; }
+  if (rnd() < 0.15) { want.croissant = RI(1, 2); items += 1; }
+  if (rnd() < 0.3) { want.brot = 1; items += 1; }
+  const coffee = rnd() < (S.up.kaffee ? 0.4 : 0.22) * (clock() < 11 * 60 ? 1 : 1.4);
+  if (!items && !coffee) want.broetchen = RI(2, 4), items = 1;
+  const side = rnd() < 0.5, id = S.nextId++;
+  S.customers.push({ id, x: side ? -1 : MW, y: 25 + RI(0, 1), path: null, state: 'in', want, items, coffee, t0: S.t, coat: pick(COATS), hair: pick(['#3b2a20', '#1d1a1a', '#c99a4a', '#8a3b20', '#a7a7a7', '#e2c56f']), skin: RI(0, 4), spot: null });
+}
+function updateCustomers(dt) {
+  const sp = WALK * 0.75;
+  for (const cu of S.customers) {
+    if (cu.state === 'in') { if (walk(cu, DOOR_IN, dt, sp)) { const q = QUEUE.find(p => !S.customers.some(o => o.spot === p)); cu.spot = q || DOOR_IN; cu.state = 'toQ'; } }
+    else if (cu.state === 'toQ') { if (walk(cu, cu.spot, dt, sp)) cu.state = 'queue'; }
+    else if (cu.state === 'toSP') { if (walk(cu, cu.sp.c, dt, sp)) cu.state = 'atSP'; }
+    else if (cu.state === 'out' || cu.state === 'angry') {
+      cu.spot = null;
+      if (!cu.exit) { if (walk(cu, DOOR_OUT, dt, sp)) { cu.exit = true; cu.path = [{ x: cu.x < 20 ? -2 : MW + 1, y: 26 }]; } }
+      else if (walk(cu, cu.path ? cu.path[cu.path.length - 1] : { x: -2, y: 26 }, dt, sp)) cu.gone = true;
+    }
+    if (['queue', 'toQ', 'toSP', 'atSP'].includes(cu.state) && S.t - cu.t0 > 15) { // ждать надоело
+      const p = SP.find(x => x.cust === cu.id); if (p && p.server) continue; if (p) p.cust = null;
+      cu.state = 'angry'; cu.path = null; S.d.left++; S.rep = Math.max(0, S.rep - 0.4);
+      for (const [k, q] of Object.entries(cu.want)) S.d.lost[k] = (S.d.lost[k] || 0) + q;
+    }
+  }
+  S.customers = S.customers.filter(c => !c.gone);
+  // свободное окно — первому в очереди
+  for (const p of SP) if (!p.cust) { const nx = S.customers.filter(c => c.state === 'queue').sort((a, b) => a.t0 - b.t0)[0]; if (nx) { p.cust = nx.id; nx.sp = p; nx.state = 'toSP'; nx.spot = null; nx.path = null; } }
+}
+
+// ================= Время, машины, заказы =================
+function breakDown(m) {
+  if (m.broken) return; const [de, ru] = pick(FAULTS[m.kind]); m.broken = { de, ru, need: R(15, 35), done: 0, tech: null, at: S.t };
+  if (m.worker) { const w = S.workers.find(x => x.id === m.worker); if (w && w.job && w.job.st === m) cancelJob(w); }
+  log(L(`⚠ Поломка: ${m.de} — ${de} (${ru}). Нужен мастер.`, `⚠ Störung: ${m.de} — ${de}. Der Meister muss ran.`), 'bad');
+}
+function orderSupplies(k, packs, auto) {
+  const m = MATS[k], cost = m.price * packs; if (S.money < cost) return;
+  S.money -= cost; S.stats.mats += cost;
+  const c = clock(), at = c >= 6 * 60 && c < 15 * 60 ? S.t + RI(120, 240) : S.t + ((7 * 60 - c + 1440) % 1440 || 1440);
+  S.supOrders.push({ k, packs, at }); log(L(`${auto ? 'Автозаказ' : 'Заказано'}: ${packs} × ${m.packName} ${m.de} (${eur(cost)}).`, `${auto ? 'Automatisch bestellt' : 'Bestellt'}: ${packs} × ${m.de} (${eur(cost)}).`));
+}
+function simulate(dt) {
+  const prev = clock(); S.t += dt; const c = clock();
+  const present = S.workers.filter(w => !w.away || w.away === 'van').length;
+  const wage = present * WAGE / 60 * dt; S.money -= wage; S.stats.wages += wage;
+  if (c < prev) { // полночь
+    S.money -= OVERHEAD; S.stats.overhead += OVERHEAD;
+    log(L(`День ${day() - 1}: обслужено ${S.d.served}, ушли без покупки ${S.d.left}, магазин ${eur(S.d.shop)}, отель ${eur(S.d.hotel)}. Аренда и энергия −${eur(OVERHEAD)}.`, `Tag ${day() - 1}: ${S.d.served} bedient, ${S.d.left} ohne Kauf gegangen, Laden ${eur(S.d.shop)}, Hotel ${eur(S.d.hotel)}. Miete und Energie −${eur(OVERHEAD)}.`), 'info');
+    S.y = S.d; S.d = emptyDay(); for (const p of PROD_KEYS) S.started[p] = 0;
+  }
+  if (prev < 3 * 60 && c >= 3 * 60) { S.order = { need: { broetchen: 2, croissant: 2 }, have: {}, resv: {}, state: 'open', due: 7 * 60, res: false }; log(L('Заказ отеля «Seeblick» на сегодня: 60 булочек и 24 круассана к 07:00.', 'Auftrag Hotel „Seeblick“ für heute: 60 Brötchen und 24 Croissants bis 07:00.'), 'info'); }
+  if (prev < CLOSE + 15 && c >= CLOSE + 15) { let w = 0; for (const d of DISPLAYS) { S.d.waste[d.prod] = (S.d.waste[d.prod] || 0) + d.stock; w += d.stock * PRODUCTS[d.prod].price; d.stock = 0; } if (w) log(L(`Закрытие: непроданное списано (Retoure) на ${eur(w)}.`, `Ladenschluss: Retoure im Wert von ${eur(w)}.`), 'warn'); }
+  if (prev < OPEN && c >= OPEN) log(L('06:00 — магазин открыт.', '06:00 — der Laden ist offen.'), 'good');
+  // месилка
+  const K = ST.kneter; if (K.batch && K.batch.stage === 'mix' && !K.broken) { K.busy += dt; if (rnd() < dt / 1500) breakDown(K); else if (S.t >= K.batch.readyAt) K.batch.stage = 'mixed'; }
+  // печи
+  for (const o of OVENS) for (const d of o.deck) {
+    if (d.state === 'baking' && !o.broken) { d.t -= dt; o.busy += dt / o.decks; if (rnd() < dt / 5000) breakDown(o); if (d.t <= 0) { d.state = 'done'; d.doneAt = S.t; } }
+    else if (d.state === 'done' && S.t - d.doneAt > 8) { // передержали — сгорело
+      const n = d.trays.length; for (const id of d.trays) S.trays.delete(id); d.trays = []; d.state = 'idle'; d.prod = null; S.d.burnt += n; log(L(`🔥 ${o.de}: ${n} противня сгорели — никто не достал вовремя.`, `🔥 ${o.de}: ${n} Bleche verbrannt — niemand hat rechtzeitig ausgebacken.`), 'bad');
+    } else if (d.state === 'filling' && !d.incoming && !d.res && d.trays.length && !readyFor(d.prod).length) startBake(o, d);
+  }
+  if (gaer().trays.length && rnd() < dt / 9000) breakDown(gaer());
+  // фургон отеля
+  const V = S.van;
+  if (V.state === 'out') { V.t += dt; if (V.t >= 40) { V.state = 'home'; const w = S.workers.find(x => x.id === V.driver); if (w) { w.away = false; w.x = VAN_OWN.board.x; w.y = VAN_OWN.board.y; w.job = null; }
+    const o = S.order, late = S.t % 1440 > o.due + 20; let sum = 0; for (const [p, n] of Object.entries(o.need)) sum += n * PRODUCTS[p].perTray * PRODUCTS[p].price * 0.7; if (late) sum *= 0.8;
+    S.money += sum; S.d.hotel += sum; S.stats.revenue += sum; o.state = 'done'; log(L(`🚐 Заказ доставлен в отель: ${eur(sum)}${late ? ' (опоздание −20%)' : ''}.`, `🚐 Hotelauftrag geliefert: ${eur(sum)}${late ? ' (verspätet −20 %)' : ''}.`), late ? 'warn' : 'good'); } }
+  // поставщик
+  for (let i = S.supOrders.length - 1; i >= 0; i--) if (S.t >= S.supOrders[i].at && !S.supVan) {
+    const ready = S.supOrders.filter(o => S.t >= o.at); S.supOrders = S.supOrders.filter(o => S.t < o.at);
+    const packs = []; for (const o of ready) for (let k = 0; k < o.packs; k++) packs.push(o.k);
+    S.supVan = { state: 'arrive', x: -6, y: VAN_SUP.y, packs, res: 0 }; log(L(`🚚 Приехал поставщик: ${packs.length} мест (мука, холодное, щёлок).`, `🚚 Lieferung ist da: ${packs.length} Stück (Mehl, Kühlware, Lauge).`), 'info'); break;
+  }
+  const SV = S.supVan;
+  if (SV) { if (SV.state === 'arrive') { SV.x = Math.min(VAN_SUP.x, SV.x + 14 * dt); if (SV.x >= VAN_SUP.x) SV.state = 'docked'; } else if (SV.state === 'docked' && !SV.packs.length && !SV.res) SV.state = 'leave'; else if (SV.state === 'leave') { SV.x += 14 * dt; if (SV.x > MW + 6) S.supVan = null; } }
+  if (S.autoBuy) for (const [k, m] of Object.entries(MATS)) if (S.mats[k] < m.min && !S.supOrders.some(o => o.k === k) && !(S.supVan && S.supVan.packs.includes(k))) orderSupplies(k, m.auto, true);
+  // покупатели
+  if (rnd() < custRate(c) * dt) spawnCustomer();
+  updateCustomers(dt);
+  assignJobs();
+  for (const w of S.workers) updateWorker(w, dt);
+}
+function advance(min) { let left = min; while (left > 0) { const d = Math.min(0.2, left); simulate(d); left -= d; } }
+
+// ================= Старт: 05:00, ночная смена уже работает =================
+function prefill() {
+  const at = (s, list) => list.forEach(t => s.trays.push(t.id));
+  const tr = (p, stage, readyIn) => { const t = newTray(p); t.stage = stage; t.readyAt = S.t + readyIn; return t; };
+  at(rack(), [tr('broetchen', 'cool', -1), tr('broetchen', 'cool', 2), tr('brot', 'cool', 10), tr('croissant', 'cool', 4)]);
+  at(gaer(), [tr('broetchen', 'proof', 5), tr('broetchen', 'proof', 12), tr('brezel', 'proof', 3), tr('brezel', 'proof', 8), tr('croissant', 'proof', 20), tr('croissant', 'proof', 25)]);
+  const o = ST.ofen; o.deck[0] = { state: 'baking', prod: 'broetchen', trays: [tr('broetchen', 'baking', 0).id, tr('broetchen', 'baking', 0).id], incoming: 0, t: 6, doneAt: 0, res: false };
+  o.deck[1] = { state: 'baking', prod: 'brot', trays: [tr('brot', 'baking', 0).id, tr('brot', 'baking', 0).id], incoming: 0, t: 31, doneAt: 0, res: false };
+  ST.tisch1.batch = { prod: 'brot', n: 3, stage: 'rest', readyAt: S.t + 6, left: 3, tgt: ST.tisch1 };
+  ST.presse.batch = { prod: 'broetchen', n: 4, stage: 'rest', readyAt: S.t + 2, left: 3, tgt: ST.presse };
+  ST.kneter.batch = { prod: 'broetchen', n: 4, stage: 'mix', readyAt: S.t + 7, tgt: ST.tisch2 }; ST.tisch2.res = true; // ошибочно? стол2 для булочек не нужен — переназначим ниже
+  ST.tisch2.res = false; ST.kneter.batch = { prod: 'brezel', n: 3, stage: 'mix', readyAt: S.t + 7, tgt: ST.tisch2 }; ST.tisch2.res = true;
+  Object.assign(S.started, { broetchen: 12, brot: 5, croissant: 4, brezel: 5 });
+  S.order = { need: { broetchen: 2, croissant: 2 }, have: {}, resv: {}, state: 'open', due: 7 * 60, res: false };
+  for (const w of S.workers) if (onShift(w)) { w.away = false; w.x = RI(8, 30); w.y = RI(13, 14); w.state = 'idle'; }
+  ST.kneter.dirt = 0.35; ST.tisch1.dirt = 0.25;
+}
+if (params.get('empty') !== '1') prefill();
+
+// ================= Пиксельная графика =================
+const OUT = '#1e1c26';
+let pc, oc, g, TG, bgCanvas, lightCanvas, time = 0;
+const cam = { z: 1.25, cx: 20 * PT, cy: 14.5 * PT };
+const hash = (x, y) => { let h = (x * 374761393 + y * 668265263) | 0; h = Math.imul(h ^ (h >>> 13), 1274126177); return ((h ^ (h >>> 16)) >>> 0) / 4294967295; };
+const Rr = (x, y, w, h, c) => { g.fillStyle = c; g.fillRect(Math.round(x), Math.round(y), Math.round(w), Math.round(h)); };
+const shadeCache = new Map();
+function shade(hex, f) { const k = hex + f; if (shadeCache.has(k)) return shadeCache.get(k); const n = parseInt(hex.slice(1), 16), m = v => Math.max(0, Math.min(255, Math.round(f >= 0 ? v + (255 - v) * f : v * (1 + f)))); const o = '#' + [n >> 16, (n >> 8) & 255, n & 255].map(v => m(v).toString(16).padStart(2, '0')).join(''); shadeCache.set(k, o); return o; }
+function box(x, y, w, h, c) { Rr(x, y, w, h, OUT); Rr(x + 1, y + 1, w - 2, h - 2, c); Rr(x + 1, y + 1, w - 2, 1, shade(c, 0.35)); Rr(x + 1, y + h - 2, w - 2, 1, shade(c, -0.35)); }
+function disc(cx, cy, r, c) { for (let dy = -r; dy <= r; dy++) { const dx = Math.floor(Math.sqrt(r * r - dy * dy) + 0.35); Rr(cx - dx, cy + dy, dx * 2 + 1, 1, c); } }
+const GLYPH = {
+  A: '010101111101101', B: '110101110101110', C: '011100100100011', D: '110101101101110', E: '111100110100111', F: '111100110100100', G: '011100101101011', H: '101101111101101', I: '111010010010111', J: '001001001101010', K: '101101110101101', L: '100100100100111', M: '101111111101101',
+  N: '110101101101101', O: '010101101101010', P: '110101110100100', Q: '010101101110011', R: '110101110101101', S: '011100010001110', T: '111010010010010', U: '101101101101111', V: '101101101101010', W: '101101111111101', X: '101101010101101', Y: '101101010010010', Z: '111001010100111',
+  0: '111101101101111', 1: '010110010010111', 2: '110001010100111', 3: '110001010001110', 4: '101101111001001', 5: '111100110001110', 6: '011100111101111', 7: '111001010010010', 8: '111101111101111', 9: '111101111001110',
+  '.': '000000000000010', ':': '000010000010000', '/': '001001010100100', '-': '000000111000000', '%': '101001010100101', '!': '010010010000010', ' ': '000000000000000', '€': '011100110100011', '+': '000010111010000',
+};
+const norm = s => String(s).normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/ß/g, 'SS').toUpperCase();
+const textW = s => norm(s).length * 4 - 1;
+function ptext(s, x, y, col = '#fff', sh = OUT) { const str = norm(s); for (const pass of sh ? [0, 1] : [1]) { let cx = Math.round(x); for (const ch of str) { const gl = GLYPH[ch]; if (gl) for (let i = 0; i < 15; i++) if (gl[i] === '1') Rr(cx + i % 3 + (pass ? 0 : 1), y + ((i / 3) | 0) + (pass ? 0 : 1), 1, 1, pass ? col : sh); cx += 4; } } }
+function brackets(X, Y, w, h) { const c = '#ffb020'; for (const [x, y, dx, dy] of [[X, Y, 1, 1], [X + w - 1, Y, -1, 1], [X, Y + h - 1, 1, -1], [X + w - 1, Y + h - 1, -1, -1]]) { Rr(Math.min(x, x + dx * 3), y, 4, 1, c); Rr(x, Math.min(y, y + dy * 3), 1, 4, c); } }
+function clampCam() { const W = MW * PT, H = MH * PT; cam.z = Math.max(1, Math.min(4, cam.z)); const vw = W / cam.z, vh = H / cam.z; cam.cx = Math.max(vw / 2, Math.min(W - vw / 2, cam.cx)); cam.cy = Math.max(vh / 2, Math.min(H - vh / 2, cam.cy)); }
+function viewRect() { const W = MW * PT, H = MH * PT, vw = W / cam.z, vh = H / cam.z; return [cam.cx - vw / 2, cam.cy - vh / 2, vw, vh]; }
+function toTile(fx, fy) { const [sx, sy, sw, sh] = viewRect(); return [(sx + fx * sw) / PT, (sy + fy * sh) / PT]; }
+function zoomAt(f, fx, fy) { const [sx, sy, sw, sh] = viewRect(), wx = sx + fx * sw, wy = sy + fy * sh; cam.z *= f; clampCam(); const [, , sw2, sh2] = viewRect(); cam.cx = wx - (fx - 0.5) * sw2; cam.cy = wy - (fy - 0.5) * sh2; clampCam(); }
+function pan(dfx, dfy) { const [, , sw, sh] = viewRect(); cam.cx += dfx * sw; cam.cy += dfy * sh; clampCam(); }
+clampCam();
+
+// ---- человек: детальный спрайт (вдвое больше пикселей мира). Наряд: пекарь (белая куртка, колпак, брюки в клетку), продавец (поло и фартук), покупатель
+const SKIN2 = [['#f2cba4', '#d6a57f'], ['#e3b38b', '#c48f66'], ['#c68e5f', '#a26f42'], ['#9a6440', '#7a4a2c'], ['#f6d7bf', '#ddb595']];
+const hrCache = new Map();
+function personHR(o) {
+  const key = [o.skin[0], o.hair, o.top, o.legs, o.apron, o.cap, o.check, o.beard, o.view, o.pose, o.arms].join('|'); if (hrCache.has(key)) return hrCache.get(key);
+  const W = 26, H = 42, c = document.createElement('canvas'); c.width = W + 2; c.height = H + 2; const x = c.getContext('2d');
+  const P = (px, py, w, h, col) => { if (w <= 0 || h <= 0) return; x.fillStyle = col; x.fillRect(px + 1, py + 1, w, h); };
+  const [sk, skD] = o.skin, hair = o.hair, top = o.top, topD = shade(top, -0.22), legs = o.legs, legsD = shade(legs, -0.3), boot = '#2b221d';
+  const back = o.view === 'back', pose = o.pose;
+  const leg = (lx, t0, b0, dark) => { P(lx, t0, 5, b0 - t0 + 1, dark ? legsD : legs); if (o.check) for (let yy = t0; yy <= b0; yy += 2) for (let xx = lx + ((yy / 2) % 2); xx < lx + 5; xx += 2) P(xx, yy, 1, 1, '#e8e8e8'); P(lx - 1, b0 + 1, 6, 3, boot); P(lx - 1, b0 + 1, 6, 1, '#4a3b30'); };
+  if (pose === 'sit') { P(7, 28, 12, 4, legs); P(7, 32, 5, 3, legs); P(14, 32, 5, 3, legsD); P(6, 35, 6, 3, boot); P(14, 35, 6, 3, boot); }
+  else { const f = pose === 'walk0' ? [2, -2] : pose === 'walk2' ? [-2, 2] : [0, 0], sx = pose === 'stand' ? 0 : 1; leg(7 - sx, 28, 37 + f[0], false); leg(14 + sx, 28, 37 + f[1], true); }
+  P(7, 15, 12, 13, top); P(6, 16, 14, 11, top); P(17, 16, 3, 11, topD); P(7, 16, 1, 10, shade(top, 0.3));
+  if (!back && o.baker) { for (const yy of [18, 21, 24]) { P(10, yy, 1, 1, '#b8b8b4'); P(15, yy, 1, 1, '#b8b8b4'); } P(12, 16, 2, 11, shade(top, -0.08)); }
+  if (o.apron && !back) { P(8, 19, 10, 9, o.apron); P(8, 19, 10, 1, shade(o.apron, 0.3)); P(15, 20, 3, 8, shade(o.apron, -0.15)); P(11, 22, 4, 2, shade(o.apron, -0.25)); }
+  if (o.apron && back) { P(7, 21, 12, 1, shade(o.apron, -0.2)); }
+  if (!o.apron && !o.baker && !back) { P(12, 16, 2, 11, topD); P(9, 17, 2, 1, shade(top, 0.4)); }
+  P(6, 27, 14, 1, o.baker ? '#d8d8d4' : '#1e1e22');
+  const arm = (ax, t0, b0, dark) => { P(ax, t0, 3, b0 - t0 + 1, dark ? topD : top); P(ax, b0 + 1, 3, 3, sk); };
+  if (o.arms === 'up') { P(3, 9, 3, 8, top); P(20, 9, 3, 8, topD); P(3, 6, 3, 3, sk); P(20, 6, 3, 3, sk); }
+  else if (o.arms === 'carry') { P(3, 16, 3, 6, top); P(20, 16, 3, 6, topD); P(5, 21, 4, 2, top); P(17, 21, 4, 2, topD); P(8, 21, 3, 3, sk); P(15, 21, 3, 3, sk); }
+  else { const s2 = pose === 'walk0' ? 2 : pose === 'walk2' ? -2 : 0; arm(3, 16, 24 - s2, false); arm(20, 16, 24 + s2, true); }
+  P(10, 14, 6, 2, skD); P(9, 3, 8, 12, sk); P(8, 4, 10, 10, sk); P(16, 4, 2, 10, skD); P(9, 13, 8, 1, skD); P(7, 8, 1, 3, sk); P(18, 8, 1, 3, skD);
+  if (o.cap === 'baker') { P(8, 0, 10, 6, '#fbfbf8'); P(7, 1, 12, 4, '#fbfbf8'); P(7, 5, 12, 2, '#e4e4e0'); P(9, 1, 3, 2, '#ffffff'); if (back) P(8, 7, 10, 3, hair); }
+  else if (o.cap) { P(8, 1, 10, 5, o.cap); P(7, 3, 12, 3, o.cap); P(9, 1, 2, 1, shade(o.cap, 0.4)); if (back) P(8, 6, 10, 4, hair); }
+  else if (back) { P(8, 2, 10, 12, hair); P(7, 4, 12, 8, hair); P(9, 3, 3, 1, shade(hair, 0.3)); }
+  else { P(8, 2, 10, 4, hair); P(7, 4, 2, 5, hair); P(17, 4, 2, 5, hair); P(9, 2, 4, 1, shade(hair, 0.3)); }
+  if (!back) { P(9, 7, 3, 1, hair); P(14, 7, 3, 1, hair); P(10, 8, 1, 2, OUT); P(15, 8, 1, 2, OUT); P(11, 8, 1, 1, '#fff'); P(16, 8, 1, 1, '#fff'); P(12, 10, 2, 1, skD); P(9, 11, 1, 1, '#e8908a'); P(16, 11, 1, 1, '#e8908a');
+    if (o.beard) { P(9, 11, 8, 3, hair); P(10, 14, 6, 1, hair); P(11, 12, 4, 1, '#7a3b30'); } else P(11, 12, 4, 1, '#a0524a'); }
+  const Wc = c.width, Hc = c.height, img = x.getImageData(0, 0, Wc, Hc), d = img.data, op = (i, j) => i >= 0 && j >= 0 && i < Wc && j < Hc && d[(j * Wc + i) * 4 + 3] > 0;
+  x.fillStyle = OUT; for (let j = 0; j < Hc; j++) for (let i = 0; i < Wc; i++) if (!op(i, j) && (op(i - 1, j) || op(i + 1, j) || op(i, j - 1) || op(i, j + 1))) x.fillRect(i, j, 1, 1);
+  hrCache.set(key, c); return c;
+}
+const HAIRS = ['#3b2a20', '#1d1a1a', '#c99a4a', '#8a3b20', '#6b5b4b'];
+function looksOfWorker(w) {
+  const base = { skin: SKIN2[(w.id * 7) % 5], hair: HAIRS[w.id % HAIRS.length], beard: w.id === 1 };
+  if (w.outfit === 'baker') return { ...base, top: '#f4f4f0', legs: '#3a3a40', check: true, cap: 'baker', baker: true };
+  return { ...base, top: w.color, legs: '#2a2a33', apron: '#f3ead8' };
+}
+const looksOfCust = cu => ({ skin: SKIN2[cu.skin], hair: cu.hair, top: cu.coat, legs: '#3b4f7a', cap: cu.id % 5 === 0 ? '#5a3b2a' : null });
+
+// ---- предметы
+function trayArt(x, y, prod, stage) {
+  const P = PRODUCTS[prod]; Rr(x, y, 12, 4, OUT); Rr(x + 1, y + 1, 10, 2, '#9aa0ad');
+  const col = stage === 'baking' || stage === 'hot' || stage === 'cool' ? P.col : stage === 'dipped' ? '#c9a46a' : P.raw;
+  for (let k = 0; k < 4; k++) { const px = x + 1 + k * 3; if (prod === 'brot') { Rr(px, y - 1, 3, 2, col); Rr(px + 1, y - 1, 1, 1, shade(col, 0.3)); } else if (prod === 'brezel') { Rr(px, y, 2, 1, col); Rr(px + 1, y - 1, 1, 1, col); } else if (prod === 'croissant') { Rr(px, y, 3, 1, col); Rr(px + 1, y - 1, 1, 1, shade(col, 0.25)); } else { Rr(px, y, 2, 1, col); Rr(px, y - 1, 2, 1, shade(col, 0.2)); } }
+}
+const SPARK = ['#fff3a0', '#ffd24a', '#ff9f1a'];
+function drawItem(kind, on, t, w) {
+  const f2 = Math.floor(t * 8) % 2;
+  if (kind === 'sack') { box(2, -12, 9, 11, '#e8dcc0'); Rr(4, -9, 5, 3, '#c9a227'); Rr(5, -12, 3, 1, '#b8a888'); }
+  else if (kind === 'box') { box(2, -10, 10, 8, '#3b7bd4'); Rr(4, -8, 6, 1, '#a9cbf0'); }
+  else if (kind === 'can') { box(3, -11, 7, 9, '#f2f2f2'); Rr(4, -9, 5, 2, '#3b7bd4'); Rr(5, -12, 2, 1, OUT); }
+  else if (kind === 'dough') { box(1, -10, 11, 6, '#8d96a3'); Rr(2, -11, 9, 2, '#efe2c4'); Rr(4, -12, 5, 1, '#f6ecd4'); }
+  else if (kind === 'crates') { box(1, -12, 12, 6, '#c27a2a'); box(1, -7, 12, 6, '#c27a2a'); Rr(3, -13, 8, 1, '#c98a3c'); }
+  else if (kind === 'bag') { box(4, -11, 6, 8, '#c9a46a'); Rr(5, -11, 4, 1, '#8a6a3a'); }
+  else if (kind === 'kit') { box(2, -8, 10, 7, '#c0392b'); Rr(4, -9, 6, 1, OUT); }
+  else if (kind === 'broom') { const sw = on ? (f2 ? 2 : -1) : 0; for (let k = 0; k < 13; k++) Rr(5 + Math.round(k * (0.45 + sw * 0.06)), -14 + k, 1, 1, '#8a5a2a'); Rr(8 + sw, -2, 8, 2, '#d9b25a'); if (on) for (let k = 0; k < 3; k++) { const ph = (t * 1.5 + k / 3) % 1; Rr(15 + ph * 5 + sw, -1 - ph * 5, 2, 2, `rgba(240,235,220,${(0.8 - ph * 0.7).toFixed(2)})`); } }
+  else if (kind === 'cloth') { Rr(5 + (on && f2 ? 2 : 0), -9, 4, 3, '#7ad0ff'); }
+  else if (kind === 'cup') { Rr(4, -10, 3, 4, '#f5f5f5'); if (on) { const ph = t % 1; Rr(5, -12 - ph * 5, 1, 2, `rgba(255,255,255,${(0.7 - ph * 0.7).toFixed(2)})`); } }
+  else if (kind === 'flour') { if (on) for (let k = 0; k < 6; k++) Rr(6 + hash(k, Math.floor(t * 10)) * 10, -6 + hash(Math.floor(t * 10), k) * 6, 1, 1, 'rgba(250,248,240,.9)'); }
+}
+// ---- фон
+function buildBackground() {
+  bgCanvas = document.createElement('canvas'); bgCanvas.width = MW * PT; bgCanvas.height = MH * PT;
+  const keep = g; g = bgCanvas.getContext('2d');
+  for (let y = 0; y < MH; y++) for (let x = 0; x < MW; x++) {
+    const t = grid[I(x, y)], X = x * PT, Y = y * PT, r = hash(x, y);
+    if (t === T_GRASS) { Rr(X, Y, PT, PT, r < 0.5 ? '#6cbf4f' : '#64b649'); for (let k = 0; k < 3; k++) { const a = hash(x * 3 + k, y * 7); Rr(X + (a * 10 | 0), Y + (hash(y, x + k) * 10 | 0), 1, 2, '#89d965'); } if (r > 0.93) { Rr(X + 5, Y + 5, 2, 2, r > 0.97 ? '#ff7070' : '#ffe066'); } }
+    else if (t === T_ROAD) { Rr(X, Y, PT, PT, '#54575f'); if (r > 0.6) Rr(X + (r * 9 | 0), Y + 3, 1, 1, '#646872'); if ((y === 28) && x % 3 === 0) Rr(X + 2, Y + 5, 7, 2, '#efe6c8'); }
+    else if (t === T_PAVE) { Rr(X, Y, PT, PT, '#b8b2a6'); Rr(X, Y, PT, 1, '#a49e92'); Rr(X + (y % 2 ? 0 : 6), Y, 1, PT, '#a49e92'); }
+    else if (t === T_YARD) { Rr(X, Y, PT, PT, '#a9adb3'); if (x % 2 === 0) Rr(X, Y, 1, PT, '#979ba2'); if (r > 0.85) Rr(X + 3, Y + 6, 4, 1, '#8f939a'); }
+    else if (t === T_TILE) { Rr(X, Y, PT, PT, '#ecebe6'); Rr(X + 6, Y, 1, PT, '#d8d6cf'); Rr(X, Y + 6, PT, 1, '#d8d6cf'); Rr(X, Y, PT, 1, '#d8d6cf'); Rr(X, Y, 1, PT, '#d8d6cf'); }
+    else if (t === T_WOOD) { Rr(X, Y, PT, PT, (y % 2) ? '#c69a63' : '#ba8c55'); Rr(X + ((x * 5 + y * 3) % 12), Y, 1, PT, '#a87a46'); }
+    else if (t === T_CONC) { Rr(X, Y, PT, PT, '#b9b8b2'); if (r > 0.8) Rr(X + 4, Y + 4, 2, 1, '#a5a49e'); }
+    else if (t === T_WALL || t === T_WIN) {
+      const below = y + 1 < MH && (grid[I(x, y + 1)] === T_WALL || grid[I(x, y + 1)] === T_WIN), above = y > 0 && (grid[I(x, y - 1)] === T_WALL || grid[I(x, y - 1)] === T_WIN);
+      Rr(X, Y, PT, PT, '#b07a54'); Rr(X + (y % 2 ? 0 : 6), Y + 5, 1, 4, '#8a5a3c'); Rr(X, Y + 5, PT, 1, '#8a5a3c');
+      if (!above) { Rr(X, Y, PT, 3, '#d4a07a'); Rr(X, Y, PT, 1, '#e8b890'); }
+      if (!below) { Rr(X, Y + PT - 4, PT, 4, '#7a4a30'); Rr(X, Y + PT, PT, 2, 'rgba(0,0,0,.16)'); }
+      if (t === T_WIN) { Rr(X + 1, Y + 2, PT - 2, PT - 5, '#9fd3ff'); Rr(X + 2, Y + 3, 3, 1, '#e8f6ff'); Rr(X + 1, Y + 2, 1, PT - 5, '#6a9cc0'); }
+    } else if (t === T_DOOR) { Rr(X, Y, PT, PT, '#c58b45'); for (let k = 0; k < PT; k += 3) Rr(X + k, Y, 1, PT, '#a4702f'); Rr(X, Y, PT, 1, '#e0a862'); }
+  }
+  for (const z of ZONES) { if (z.tint) { g.fillStyle = z.tint; g.fillRect(z.x * PT, z.y * PT, z.w * PT, z.h * PT); } ptext(z.name, z.x * PT + 2, z.y * PT - 9, '#ffd84a'); }
+  // вывеска над входом и коврик
+  box(15 * PT, 24 * PT + 4, 10 * PT, 9, '#7a3b1e'); ptext('BACKEREI', 16 * PT + 4, 24 * PT + 6, '#ffd84a', null); Rr(19 * PT, 23 * PT + 4, 2 * PT, 7, '#6b4a2a');
+  for (const d of DECOR) {
+    const X = d.x * PT, Y = d.y * PT, w = d.w * PT, h = d.h * PT;
+    if (d.id === 'regal') { box(X, Y, w, h, '#8a6038'); for (let k = 0; k < 6; k++) box(X + 2 + k * 5, Y + 2, 4, 7, k % 2 ? '#f2f2f2' : '#e8c547'); }
+    else if (d.id === 'kuehlregal') { box(X, Y, w, h, '#9aa3ad'); for (let k = 0; k < 10; k++) box(X + 2 + k * 6, Y + 2, 5, 7, ['#f2e8b0', '#ffffff', '#e8c547', '#a9cbf0'][k % 4]); }
+    else if (d.id === 'desk') { box(X, Y, w, h, '#5a5f7a'); box(X + 4, Y + 1, 10, 8, '#222'); Rr(X + 6, Y + 3, 6, 4, '#62e08a'); }
+    else if (d.id === 'werkzeug') { box(X, Y, w, h, '#c0392b'); Rr(X + 3, Y + 3, w - 6, 1, '#7a1f1f'); }
+    else if (d.id === 'pausetisch') box(X, Y, w, h, '#b07a45');
+    else if (d.id === 'kaffee_p') { box(X + 1, Y, 10, 11, '#3a2c2a'); Rr(X + 3, Y + 2, 6, 3, '#9fd3ff'); }
+    else if (d.id === 'spuele') { box(X, Y, w, h, '#b8c0ca'); Rr(X + 4, Y + 3, 10, 6, '#7a8a9a'); Rr(X + 22, Y + 3, 10, 6, '#7a8a9a'); Rr(X + 16, Y + 1, 2, 3, '#9aa3ad'); }
+    else if (d.id === 'theke') { box(X, Y, w, h, '#8a5a32'); Rr(X + 1, Y + 1, w - 2, 3, '#d8eef8'); }
+    else if (d.id === 'kasse') { box(X, Y, w, h, '#8a5a32'); box(X + 6, Y + 1, 12, 9, '#2a2d34'); Rr(X + 8, Y + 3, 8, 3, '#62e08a'); }
+    else if (d.id === 'kaffee') { box(X, Y, w, h, '#8a5a32'); box(X + 3, Y - 4, 18, 13, '#30323a'); Rr(X + 6, Y - 2, 5, 3, '#c0c4cc'); Rr(X + 14, Y - 2, 4, 2, '#ff9f1a'); }
+    else if (d.id === 'cafe') { disc(X + 6, Y + 6, 5, OUT); disc(X + 6, Y + 6, 4, '#f2e8d8'); disc(X + 18, Y + 6, 5, OUT); disc(X + 18, Y + 6, 4, '#f2e8d8'); }
+    else if (d.id === 'mehl') { /* мешки рисуются по остатку */ }
+  }
+  for (const [sx, sy] of SEATS) box(sx * PT + 3, sy * PT + 3, 6, 6, '#7a5230');
+  // фонари на улице
+  for (const lx of [3, 14, 26, 37]) { Rr(lx * PT + 5, 25 * PT - 6, 2, 10, '#3a3d47'); Rr(lx * PT + 3, 25 * PT - 8, 6, 3, '#ffe9a8'); }
+  g = keep;
+}
+const NEWC = { broetchen: '#c98a3c', brezel: '#7a3f18', croissant: '#e0a14a', brot: '#9a5a26' };
+function brokenFx(s, X, Y, Wp, Hp) {
+  if (!s.broken) return; g.fillStyle = 'rgba(25,10,10,.35)'; g.fillRect(X + 1, Y + 1, Wp - 2, Hp - 2);
+  for (let k = 0; k < 3; k++) { const ph = (time * 0.55 + k / 3) % 1; disc(X + Wp / 2 + Math.round(Math.sin(k * 2 + time) * 3), Y + 1 - Math.round(ph * 14), 1 + Math.floor(ph * 3), `rgba(60,60,66,${(0.8 - ph * 0.75).toFixed(2)})`); }
+  if (Math.floor(time * 3) % 2 || s.broken.tech) { Rr(X + Wp / 2 - 3, Y + Hp / 2 - 4, 7, 7, OUT); Rr(X + Wp / 2 - 2, Y + Hp / 2 - 3, 5, 5, '#ffd24a'); Rr(X + Wp / 2, Y + Hp / 2 - 2, 1, 2, OUT); Rr(X + Wp / 2, Y + Hp / 2 + 1, 1, 1, OUT); }
+  if (s.broken.tech) { Rr(X + 1, Y - 4, Wp - 2, 3, OUT); Rr(X + 2, Y - 3, Math.round((Wp - 4) * Math.min(1, s.broken.done / s.broken.need)), 1, '#ff9f1a'); }
+}
+function drawStation(s) {
+  if (s.locked) { const X = s.x * PT, Y = s.y * PT; for (let k = 0; k < s.w * PT; k += 4) { Rr(X + k, Y, 2, 1, '#9aa0ad'); Rr(X + k, Y + s.h * PT - 1, 2, 1, '#9aa0ad'); } ptext('?', X + s.w * PT / 2 - 1, Y + 8, '#9aa0ad', null); return; }
+  const X = s.x * PT, Y = s.y * PT, Wp = s.w * PT, Hp = s.h * PT, blink = Math.floor(time * 3) % 2;
+  g.fillStyle = 'rgba(0,0,0,.18)'; g.fillRect(X + 3, Y + 3, Wp, Hp);
+  if (s.kind === 'display') {
+    const P = PRODUCTS[s.prod], cap = s.capTrays * P.perTray; box(X, Y, Wp, Hp, '#8a5a32'); Rr(X + 1, Y + 1, Wp - 2, Hp - 4, '#d8eef8');
+    const n = Math.ceil(Math.min(1, s.stock / cap) * (s.w * 4)); for (let k = 0; k < n; k++) { const px = X + 2 + (k % (s.w * 2)) * 5, py = Y + 2 + Math.floor(k / (s.w * 2)) * 4; Rr(px, py, 4, 3, OUT); Rr(px, py, 3, 2, P.col); Rr(px, py, 1, 1, shade(P.col, 0.4)); }
+    const lab = String(s.stock); Rr(X + Wp - textW(lab) - 3, Y + Hp - 6, textW(lab) + 2, 6, '#fff7e0'); ptext(lab, X + Wp - textW(lab) - 2, Y + Hp - 5, s.stock ? '#3a2a1a' : '#c0392b', null);
+    return;
+  }
+  if (s.kind === 'waage') { box(X, Y, Wp, Hp, '#c9ced8'); box(X + 2, Y + 2, 9, 7, '#9aa3ad'); Rr(X + 14, Y + 3, 8, 5, '#1a2a1a'); ptext('KG', X + 15, Y + 3, '#62e08a', null); }
+  else if (s.kind === 'kneter') {
+    box(X, Y, Wp, Hp, '#5d6470'); const cx = X + 12, cy = Y + 12; disc(cx, cy, 9, OUT); disc(cx, cy, 8, '#c9ced8'); disc(cx, cy, 6, s.batch ? '#efe2c4' : '#9aa3ad');
+    if (s.batch && s.batch.stage === 'mix' && !s.broken) { const a = time * 7; for (let k = 0; k < 5; k++) Rr(cx + Math.round(Math.cos(a + k) * (k + 1)), cy + Math.round(Math.sin(a + k) * (k + 1)), 1, 1, '#8a8f98'); }
+    Rr(X + 2, Y + 2, 3, 3, s.batch && s.batch.stage === 'mixed' ? (blink ? '#5ad65a' : '#2f8a2f') : s.batch ? (blink ? '#ffb347' : '#a06a2a') : '#3a3d47');
+  }
+  else if (s.kind === 'tisch' || s.kind === 'presse') {
+    box(X, Y, Wp, Hp, s.kind === 'presse' ? '#5d6470' : '#b07a45'); if (s.kind === 'tisch') Rr(X + 2, Y + 2, Wp - 4, Hp - 5, '#c9905a');
+    if (s.kind === 'presse') { disc(X + 12, Y + 10, 7, OUT); disc(X + 12, Y + 10, 6, '#9aa3ad'); disc(X + 12, Y + 10, 3, '#5d6470'); }
+    const b = s.batch;
+    if (b) { const P = PRODUCTS[b.prod]; if (b.stage === 'rest' && b.readyAt > S.t) { disc(X + 9, Y + 9, 5, OUT); disc(X + 9, Y + 9, 4, P.raw); Rr(X + 7, Y + 7, 2, 1, '#ffffff'); }
+      for (let k = 0; k < Math.min(8, b.left * 2); k++) { const px = X + 16 + (k % 4) * 6, py = Y + 5 + Math.floor(k / 4) * 7; if (px < X + Wp - 4) { Rr(px, py, 4, 3, OUT); Rr(px, py, 3, 2, P.raw); } } }
+    if (s.dirt > 0.1) for (let k = 0; k < s.dirt * 12; k++) Rr(X + hash(k, s.x) * Wp, Y + Hp + 1 + hash(s.y, k) * 8, 1, 1, '#f8f6ee');
+  }
+  else if (s.kind === 'lauge') { box(X, Y, Wp, Hp, '#9aa3ad'); Rr(X + 3, Y + 3, Wp - 6, Hp - 8, '#c9b46a'); Rr(X + 4, Y + 4, 6, 1, '#efe2a8'); s.trays.forEach((id, k) => trayArt(X + 2 + k * 6, Y + Hp - 6, 'brezel', 'dipped')); }
+  else if (s.kind === 'gaer') {
+    box(X, Y, Wp, Hp, '#9aa3ad'); Rr(X + 3, Y + 3, Wp - 6, Hp - 8, '#e8d8c0'); const warm = s.trays.length ? 'rgba(255,190,110,.35)' : 'rgba(0,0,0,0)'; g.fillStyle = warm; g.fillRect(X + 3, Y + 3, Wp - 6, Hp - 8);
+    s.trays.slice(0, 8).forEach((id, k) => { const t = S.trays.get(id); if (t) trayArt(X + 4 + (k % 2) * 14, Y + 4 + Math.floor(k / 2) * 4, t.prod, 'raw'); });
+    ptext(`${s.trays.length}/${gaerCap()}`, X + 3, Y + Hp - 6, '#1e1c26', null); Rr(X + Wp - 6, Y + 2, 3, 3, s.trays.length ? (blink ? '#ffb347' : '#a06a2a') : '#3a3d47');
+  }
+  else if (s.kind === 'ofen') {
+    box(X, Y, Wp, Hp, '#3a3d47'); Rr(X + 2, Y + 2, Wp - 4, 2, '#5d6270');
+    const dh = Math.floor((Hp - 6) / s.decks);
+    s.deck.forEach((d, k) => { const dy = Y + 4 + k * dh, glow = d.state === 'baking' ? (blink ? '#ff9a3a' : '#ff7a2a') : d.state === 'done' ? (blink ? '#ffe066' : '#ff5050') : '#2a2a30';
+      Rr(X + 3, dy, Wp - 10, dh - 1, '#202024'); Rr(X + 4, dy + 1, Wp - 12, dh - 3, glow);
+      if (d.prod && d.trays.length) for (let m = 0; m < Math.min(d.trays.length, 4); m++) { const c2 = d.state === 'done' || d.state === 'baking' ? PRODUCTS[d.prod].col : PRODUCTS[d.prod].raw; Rr(X + 6 + m * 7, dy + 1, 5, Math.max(1, dh - 4), c2); }
+      if (d.state === 'baking') ptext(String(Math.ceil(d.t)), X + Wp - 6 - textW(String(Math.ceil(d.t))), dy, '#ffe9a8', null); });
+    Rr(X + Wp - 5, Y + 3, 3, Hp - 6, '#5d6270');
+    if (s.deck.some(d => d.state === 'baking')) for (let k = 0; k < 3; k++) { const ph = (time * 0.7 + k / 3) % 1; Rr(X + 6 + k * 10, Y - ph * 10, 3, 2, `rgba(255,255,255,${(0.6 - ph * 0.6).toFixed(2)})`); }
+  }
+  else if (s.kind === 'rack') { box(X, Y, Wp, Hp, '#9aa3ad'); for (let r2 = 0; r2 < 3; r2++) Rr(X + 2, Y + 4 + r2 * 6, Wp - 4, 1, '#6b7280'); s.trays.slice(0, 15).forEach((id, k) => { const t = S.trays.get(id); if (t) trayArt(X + 3 + (k % 5) * 11, Y + 2 + Math.floor(k / 5) * 6, t.prod, t.stage); }); }
+  else if (s.kind === 'pack') { box(X, Y, Wp, Hp, '#b07a45'); s.trays.forEach((p, k) => { box(X + 3 + (k % 3) * 10, Y + 3 + Math.floor(k / 3) * 9, 9, 7, '#c27a2a'); Rr(X + 5 + (k % 3) * 10, Y + 4 + Math.floor(k / 3) * 9, 5, 2, NEWC[p]); }); if (S.order && S.order.state === 'open') ptext('HOTEL', X + 3, Y + Hp - 7, '#1e1c26', null); }
+  ptext(s.de.split(' ')[0].toUpperCase().slice(0, Math.floor((Wp - 2) / 4)), X + 2, Y - 7, '#ffffff');
+  brokenFx(s, X, Y, Wp, Hp);
+}
+function drawVan(x, y, col, label, load) {
+  const cx = Math.round(x * PT + PT / 2), cy = Math.round(y * PT + PT / 2); const L = 44, Wd = 18, x0 = cx - L / 2, y0 = cy - Wd / 2;
+  g.fillStyle = 'rgba(0,0,0,.25)'; g.fillRect(x0 + 3, y0 + 3, L, Wd);
+  for (const wx of [x0 + 6, x0 + 32]) { Rr(wx, y0 - 1, 6, 2, OUT); Rr(wx, y0 + Wd - 1, 6, 2, OUT); }
+  box(x0, y0, 32, Wd, '#f2f2f2'); Rr(x0 + 2, y0 + Wd / 2 - 2, 28, 4, col); ptext(label, x0 + 3, y0 + 2, '#1e1c26', null);
+  box(x0 + 32, y0 + 1, 12, Wd - 2, '#e8e8e8'); Rr(x0 + 39, y0 + 3, 3, Wd - 6, '#9fd3ff');
+  if (load) ptext(String(load), x0 + 3, y0 + Wd - 7, '#1e1c26', null);
+}
+const prevPos = new Map(), facing = new Map(), views = new Map();
+function drawPerson(e, look, opts) {
+  const px = Math.round(e.x * PT + PT / 2), py = Math.round(e.y * PT + PT / 2 + 4);
+  const prev = prevPos.get(e.id), dx = prev ? e.x - prev[0] : 0, dyv = prev ? e.y - prev[1] : 0, moving = !!prev && Math.hypot(dx, dyv) > 0.0005; prevPos.set(e.id, [e.x, e.y]);
+  let face = facing.get(e.id) || 1; if (moving && Math.abs(dx) > 0.0004) face = dx > 0 ? 1 : -1; facing.set(e.id, face);
+  let view = views.get(e.id) || 'front'; if (moving) view = Math.abs(dyv) > Math.abs(dx) * 1.2 && dyv < 0 ? 'back' : 'front'; else if (opts.faceUp) view = 'back'; else if (opts.faceDown) view = 'front'; views.set(e.id, view);
+  const frame = opts.sit ? 'sit' : moving ? ['walk0', 'stand', 'walk2', 'stand'][Math.floor(time * 8 + e.id) % 4] : 'stand';
+  const sp = personHR({ ...look, view, pose: frame, arms: opts.arms || null }), bob = frame === 'walk0' || frame === 'walk2' ? -0.5 : 0;
+  g.save(); g.translate(px, py); g.scale(face, 1); Rr(-6, 0, 12, 2, 'rgba(0,0,0,.28)');
+  const drawT = () => { if (opts.item) { g.save(); g.translate(0, Math.round(bob)); drawItem(opts.item, opts.on, time + e.id * 0.37); g.restore(); } };
+  if (view === 'back') drawT(); g.drawImage(sp, -7, -21.5 + bob, sp.width / 2, sp.height / 2); if (view !== 'back') drawT();
+  g.restore();
+  if (opts.load && opts.load.length) opts.load.slice(0, 2).forEach((id, k) => { const t = S.trays.get(id); if (t) trayArt(px - 6, py - 12 - k * 3 + bob, t.prod, t.stage); });
+  return [px, py];
+}
+const ACT_ITEM = { sweep: 'broom', wipe: 'cloth', coffee: 'cup', serve: 'bag', shape: 'flour', weigh: 'flour', dough: 'dough' };
+function drawWorker(w) {
+  const j = w.job, st = j && j.st; const look = looksOfWorker(w);
+  const item = w.tool || w.carry || ACT_ITEM[w.act] || null;
+  const faceUp = w.state === 'work' && ((st && st.y !== undefined && st.y < w.y) || (j && j.type === 'serve'));
+  const [px, py] = drawPerson(w, look, { item, on: w.state === 'work' || w.state === 'act', load: w.load, arms: w.load && w.load.length ? 'carry' : w.act === 'shape' && Math.floor(time * 4) % 2 ? 'up' : null, sit: w.state === 'break', faceUp, faceDown: j && j.type === 'serve' ? false : undefined });
+  if (S.selected && S.selected.w === w) brackets(px - 9, py - 21, 18, 24);
+  const nm = w.name.split(' ')[0]; ptext(nm, px - textW(nm) / 2, py + 3, '#f4f4f4');
+}
+function drawCustomer(cu) {
+  const atSP = cu.state === 'atSP' || cu.state === 'serving';
+  const [px, py] = drawPerson(cu, looksOfCust(cu), { item: cu.bag ? 'bag' : null, faceUp: atSP || cu.state === 'queue' });
+  if (cu.state === 'angry') ptext('!', px + 5, py - 24, '#ff5050');
+  else if (atSP && cu.coffee) { Rr(px + 6, py - 25, 3, 3, '#f5f5f5'); }
+}
+const LAMPS = []; for (let y = 12; y <= 22; y += 5) for (let x = 7; x <= 33; x += 6) LAMPS.push([x * PT, y * PT]); for (const lx of [3, 14, 26, 37]) LAMPS.push([lx * PT + 6, 25 * PT - 6]);
+function render() {
+  time = performance.now() / 1000;
+  if (!pc) { pc = document.createElement('canvas'); pc.width = MW * PT; pc.height = MH * PT; lightCanvas = document.createElement('canvas'); lightCanvas.width = pc.width; lightCanvas.height = pc.height; oc = document.createElement('canvas'); oc.width = pc.width * 2; oc.height = pc.height * 2; }
+  if (!bgCanvas) buildBackground();
+  g = pc.getContext('2d'); g.imageSmoothingEnabled = false; g.drawImage(bgCanvas, 0, 0);
+  const [vx, vy, vw, vh] = viewRect();
+  const g2 = oc.getContext('2d'); g2.setTransform(1, 0, 0, 1, 0, 0); g2.clearRect(Math.floor(vx * 2) - 64, Math.floor(vy * 2) - 64, Math.ceil(vw * 2) + 128, Math.ceil(vh * 2) + 128); g2.imageSmoothingEnabled = false; g2.setTransform(2, 0, 0, 2, 0, 0);
+  // мешки муки по остатку
+  const sacks = Math.min(9, Math.ceil(S.mats.mehl / 25)); for (let k = 0; k < sacks; k++) { const X = 5 * PT + 2 + (k % 3) * 11, Y = 5 * PT + 2 + Math.floor(k / 3) * 11; box(X, Y, 10, 10, '#e8dcc0'); Rr(X + 3, Y + 4, 4, 2, '#c9a227'); }
+  for (const s of STATIONS) drawStation(s); for (const d of DISPLAYS) drawStation(d);
+  if (S.selected && S.selected.st) { const s = S.selected.st; brackets(s.x * PT - 1, s.y * PT - 1, s.w * PT + 2, s.h * PT + 2); }
+  for (const p of SP) { Rr(p.c.x * PT + 2, p.c.y * PT + PT - 2, PT - 4, 1, '#e8c547'); }
+  // фургоны
+  if (S.van.state === 'home') drawVan(VAN_OWN.x, VAN_OWN.y, '#c27a2a', 'BACKEREI', 0);
+  if (S.supVan) drawVan(S.supVan.x, S.supVan.y, '#3b7bd4', 'MUHLE', S.supVan.packs.length);
+  // люди на слое двойного разрешения
+  const keep = g; g = g2;
+  const ents = [...S.workers.filter(w => !w.away).map(w => ({ y: w.y, f: () => drawWorker(w) })), ...S.customers.map(c => ({ y: c.y, f: () => drawCustomer(c) }))];
+  ents.sort((a, b) => a.y - b.y).forEach(e => e.f());
+  if (tutArea) { const [x, y, w, h] = tutArea, a = 0.55 + 0.45 * Math.sin(time * 5); g2.strokeStyle = `rgba(232,160,74,${a.toFixed(2)})`; g2.lineWidth = 1.5; g2.strokeRect(x * PT + 1, y * PT + 1, w * PT - 2, h * PT - 2); }
+  g = keep;
+  // ночь
+  const c = clock(); let dark = 0; if (c < 5 * 60 || c >= 20 * 60) dark = 0.6; else if (c < 6.5 * 60) dark = 0.6 * (1 - (c - 5 * 60) / 90); else if (c > 18.5 * 60) dark = 0.6 * ((c - 18.5 * 60) / 90);
+  if (dark > 0) { const lg = lightCanvas.getContext('2d'); lg.globalCompositeOperation = 'source-over'; lg.clearRect(0, 0, pc.width, pc.height); lg.fillStyle = `rgba(14,18,48,${dark})`; lg.fillRect(0, 0, pc.width, pc.height); lg.globalCompositeOperation = 'destination-out';
+    for (const [lx, ly] of LAMPS) for (const [r, a] of [[30, 0.25], [20, 0.3], [12, 0.35]]) { lg.fillStyle = `rgba(0,0,0,${a})`; lg.beginPath(); lg.arc(lx, ly, r, 0, 7); lg.fill(); }
+    lg.globalCompositeOperation = 'source-over'; }
+  const [sx, sy, sw, sh] = viewRect(), W = MW * TILE, H = MH * TILE;
+  ctx.save(); ctx.imageSmoothingEnabled = false; ctx.clearRect(0, 0, W, H); ctx.drawImage(pc, sx, sy, sw, sh, 0, 0, W, H); ctx.drawImage(oc, sx * 2, sy * 2, sw * 2, sh * 2, 0, 0, W, H); if (dark > 0) ctx.drawImage(lightCanvas, sx, sy, sw, sh, 0, 0, W, H); ctx.restore();
+}
+
+// ================= Интерфейс =================
+const $ = id => document.getElementById(id);
+const cv = $('cv'), ctx = cv.getContext('2d'); let scale = 1;
+function resize() { const wrap = $('wrap'), dpr = window.devicePixelRatio || 1; scale = Math.min(wrap.clientWidth / (MW * TILE), wrap.clientHeight / (MH * TILE)); cv.style.width = MW * TILE * scale + 'px'; cv.style.height = MH * TILE * scale + 'px'; cv.width = Math.round(MW * TILE * scale * dpr); cv.height = Math.round(MH * TILE * scale * dpr); ctx.setTransform(scale * dpr, 0, 0, scale * dpr, 0, 0); }
+window.addEventListener('resize', resize);
+let tab = 'overview';
+function jobText(w) {
+  if (w.away === 'van') return L('🚐 Везёт заказ в отель', '🚐 Fährt den Hotelauftrag aus');
+  if (w.away) return L(`Дома (смена ${fmt(w.from)}–${fmt(w.to)})`, `Zu Hause (Schicht ${fmt(w.from)}–${fmt(w.to)})`);
+  const j = w.job; if (!j) return L('Ждёт работу', 'Wartet auf Arbeit');
+  const T = {
+    batch: ['🥣 Замес: сырьё → весы → месилка', '🥣 Teig: Rohstoffe → Waage → Kneter'], doughOut: ['🥣 Выгружает тесто на стол', '🥣 Teig auf den Tisch'], shape: ['🥖 Формует противень', '🥖 Formt ein Blech'],
+    dip: ['🥨 Окунает брецели в щёлок', '🥨 Brezeln in die Lauge'], load: ['🔥 Ставит противни в печь', '🔥 Bleche in den Ofen'], unload: ['🔥 Достаёт выпечку из печи', '🔥 Bäckt aus'],
+    move: ['🧺 Несёт противень', '🧺 Trägt ein Blech'], drive: ['🚐 Грузит заказ отеля', '🚐 Lädt den Hotelauftrag'], unloadSup: ['📦 Разгружает поставку', '📦 Lädt die Lieferung ab'],
+    serve: ['🛍 Обслуживает покупателя', '🛍 Bedient Kundschaft'], home: ['Идёт домой', 'Geht nach Hause'], break: ['Перерыв ☕', 'Pause ☕'],
+  }[j.type];
+  if (j.type === 'repair') return L('🔧 Ремонт: ', '🔧 Reparatur: ') + (j.st ? j.st.de : '');
+  if (T) return L(T[0], T[1]);
+  const A = { sweep: ['Подметает муку', 'Fegt Mehl'], wipe: ['Протирает прилавок', 'Wischt die Theke'], coffee: ['Пьёт кофе ☕', 'Trinkt Kaffee ☕'], wash: ['Моет противни', 'Spült Bleche'], check: ['Проверяет тесто', 'Prüft den Teig'] }[j.act];
+  return A ? L(A[0], A[1]) : '';
+}
+const pName = p => L(PRODUCTS[p].ru, PRODUCTS[p].de);
+const stName = s => L(`${s.de} — ${s.ru}`, s.de);
+const stDesc = s => s.kind === 'display' ? L(`Прилавок-витрина. Вмещает ${s.capTrays * PRODUCTS[s.prod].perTray} шт.`, `Theke mit Auslage. Platz für ${s.capTrays * PRODUCTS[s.prod].perTray} Stück.`) : L(s.desc, s.desc_de || s.desc);
+function renderSel() {
+  const sel = S.selected, el = $('sel');
+  if (!sel) { el.innerHTML = `<span class="muted">${L('Нажмите на человечка, станок или витрину. Пробел — пауза, 1/2/3 — скорость.', 'Tippe auf Menschen, Geräte oder die Theke. Leertaste — Pause, 1/2/3 — Tempo.')}</span>`; return; }
+  if (sel.w) { const w = sel.w; el.innerHTML = `<div class="row"><b>${w.name}</b><span class="muted">${w.role} · ${fmt(w.from)}–${fmt(w.to)}</span></div><div>${jobText(w)}</div><div class="muted">${L('Силы', 'Kraft')}: ${Math.round(w.energy)}%</div>`; }
+  else if (sel.st) { const s = sel.st; let q = '';
+    if (s.kind === 'display') q = L(`На витрине: ${s.stock} шт · сегодня продано ${S.d.sold[s.prod] || 0}, не хватило ${S.d.lost[s.prod] || 0}`, `In der Auslage: ${s.stock} Stück · heute verkauft ${S.d.sold[s.prod] || 0}, gefehlt ${S.d.lost[s.prod] || 0}`);
+    else if (s.kind === 'ofen') q = s.locked ? L('Не куплена.', 'Noch nicht gekauft.') : s.deck.map((d, k) => `${L('ярус', 'Etage')} ${k + 1}: ${d.state === 'baking' ? pName(d.prod) + L(', ещё ', ', noch ') + Math.ceil(d.t) + ' min' : d.state === 'done' ? `<span class="bad">${L('готово — доставать!', 'fertig — ausbacken!')}</span>` : d.state === 'filling' ? L('загружается', 'wird beladen') : L('свободен', 'frei')}`).join('<br>');
+    else if (s.kind === 'gaer') q = `${L('Противней', 'Bleche')}: ${s.trays.length}/${gaerCap()}`;
+    else if (s.kind === 'rack') q = `${L('Остывает противней', 'Bleche zum Auskühlen')}: ${s.trays.length}/${s.cap}`;
+    else if (s.batch) { const b = s.batch; q = `${L('Тесто', 'Teig')}: ${pName(b.prod)}, ${b.stage === 'mix' ? L('замес', 'wird geknetet') : b.stage === 'mixed' ? L('готово к выгрузке', 'fertig geknetet') : b.readyAt > S.t ? L('отлёжка ещё ', 'Teigruhe noch ') + Math.ceil(b.readyAt - S.t) + ' min' : L('формовка, осталось противней: ', 'Aufarbeiten, Bleche übrig: ') + b.left}`; }
+    if (s.broken) q += `<div class="bad">⚠ ${s.broken.de}${L(' — ' + s.broken.ru, '')}</div>`;
+    el.innerHTML = `<div class="row"><b>${stName(s)}</b></div><div class="muted" style="margin:3px 0">${stDesc(s)}</div><div>${q}</div>`; }
+  else if (sel.d) el.innerHTML = `<div class="muted">${L(sel.d.desc, sel.d.desc_de || sel.d.desc)}</div>`;
+  else if (sel.c) { const cu = sel.c; el.innerHTML = `<b>${L('Покупатель', 'Kundschaft')}</b><div>${L('Хочет', 'Möchte')}: ${Object.entries(cu.want).map(([p, q]) => q + ' × ' + pName(p)).join(', ')}${cu.coffee ? L(', кофе', ', Kaffee') : ''}</div><div class="muted">${L('Ждёт', 'Wartet')} ${Math.round(S.t - cu.t0)} min</div>`; }
+}
+function planHint(p) { const y = S.y, sold = y.sold[p] || 0, lost = y.lost[p] || 0, waste = y.waste[p] || 0; if (!sold && !lost && !waste) return ''; if (lost > 0.1 * (sold + lost)) return `<span class="bad">${L('↑ не хватило', '↑ zu wenig')}</span>`; if (waste > 0.15 * (sold + waste)) return `<span class="warn">${L('↓ много осталось', '↓ zu viel übrig')}</span>`; return '<span class="good">✓</span>'; }
+function renderPanel() {
+  const p = $('panel');
+  if (tab === 'overview') {
+    const c = clock(), phase = c < OPEN ? L('ночь: печём', 'Nacht: es wird gebacken') : c < CLOSE ? L('магазин открыт', 'Laden geöffnet') : L('закрыто', 'geschlossen');
+    const prod = PROD_KEYS.map(k => `<tr><td>${pName(k)}</td><td>${S.started[k]}/${planEff(k)}</td><td>${gaer().trays.filter(id => S.trays.get(id).prod === k).length}</td><td>${OVENS.reduce((a, o) => a + o.deck.filter(d => d.prod === k).reduce((b, d) => b + d.trays.length, 0), 0)}</td><td>${DISPLAYS.find(d => d.prod === k).stock}</td><td>${S.d.sold[k] || 0}</td><td class="${(S.d.lost[k] || 0) ? 'bad' : 'muted'}">${S.d.lost[k] || 0}</td></tr>`).join('');
+    const o = S.order;
+    const ord = o ? (o.state === 'open' ? `${L('собрано', 'gepackt')} ${PROD_KEYS.filter(k => o.need[k]).map(k => (o.have[k] || 0) + '/' + o.need[k]).join(', ')} ${L('противня', 'Bleche')}` : o.state === 'out' ? L('в пути', 'unterwegs') : L('✓ доставлен', '✓ geliefert')) : '—';
+    p.innerHTML = `<h3>${L('Сегодня', 'Heute')} — ${phase}</h3>
+      <div class="card"><div class="row"><span>${L('Обслужено / ушли без покупки', 'Bedient / ohne Kauf gegangen')}</span><b>${S.d.served} / <span class="${S.d.left ? 'bad' : ''}">${S.d.left}</span></b></div>
+      <div class="row"><span>${L('В очереди сейчас', 'In der Schlange')}</span><b>${S.customers.filter(x => ['queue', 'toQ', 'toSP', 'atSP'].includes(x.state)).length}</b></div>
+      <div class="row"><span>${L('Выручка магазин / отель', 'Umsatz Laden / Hotel')}</span><b>${eur(S.d.shop)} / ${eur(S.d.hotel)}</b></div>
+      <div class="row"><span>${L('Кофе продано', 'Kaffee verkauft')}</span><b>${S.d.coffee}</b></div>
+      <div class="row"><span>${L('Сгорело противней', 'Verbrannte Bleche')}</span><b class="${S.d.burnt ? 'bad' : ''}">${S.d.burnt}</b></div>
+      <div class="row"><span>${L('Заказ отеля «Seeblick»', 'Hotelauftrag „Seeblick“')}</span><b>${ord}</b></div></div>
+      <h3>${L('Производство', 'Produktion')}</h3><table><tr><th>${L('Продукт', 'Produkt')}</th><th>${L('План', 'Plan')}</th><th>${L('Расст.', 'Gare')}</th><th>${L('Печь', 'Ofen')}</th><th>${L('Витрина', 'Theke')}</th><th>${L('Продано', 'Verkauft')}</th><th>${L('Не хват.', 'Gefehlt')}</th></tr>${prod}</table>
+      <div class="card" style="margin-top:10px"><div class="row"><span>${L('Материалы', 'Material')}</span><b>${Object.entries(MATS).map(([k, m]) => `${m.de} ${Math.round(S.mats[k])} ${m.unit}`).join(' · ')}</b></div>
+      <div class="row"><span>${L('Расходы: зарплата / материалы / аренда / ремонт', 'Kosten: Lohn / Material / Miete / Reparatur')}</span><b>${eur(S.stats.wages)} / ${eur(S.stats.mats)} / ${eur(S.stats.overhead)} / ${eur(S.stats.repairs)}</b></div><div class="row"><span>${L('Выручка всего', 'Umsatz gesamt')}</span><b class="good">${eur(S.stats.revenue)}</b></div></div>`;
+  } else if (tab === 'plan') {
+    const rows = PROD_KEYS.map(k => { const P = PRODUCTS[k], y = S.y; return `<tr><td><b>${pName(k)}</b><div class="muted" style="font-size:11px">${P.perTray} ${L('шт/противень', 'Stk./Blech')}, ${P.price.toFixed(2)} €</div></td><td><button data-plan="${k}:-1">−</button> <b>${S.plan[k]}</b> <button data-plan="${k}:1">+</button><div class="muted" style="font-size:11px">${S.plan[k] * P.perTray} ${L('шт', 'Stk.')}</div></td><td style="font-size:11px">${L('испечено', 'gebacken')} ${y.baked[k] || 0}<br>${L('продано', 'verkauft')} ${y.sold[k] || 0}<br>${L('не хватило', 'gefehlt')} ${y.lost[k] || 0}<br>${L('осталось', 'übrig')} ${y.waste[k] || 0}</td><td>${planHint(k)}</td></tr>`; }).join('');
+    p.innerHTML = `<h3>${L('План выпечки на день (противней)', 'Backplan pro Tag (Bleche)')}</h3><div class="muted" style="font-size:11px;margin-bottom:6px">${L('Главная задача мастера: печь столько, чтобы хватило всем, но не осталось к закрытию. Справа — как было вчера. Заказ отеля (2 противня булочек и 2 круассанов) добавляется к плану сам. То, что уже замешано, не отменить.', 'Die wichtigste Aufgabe des Meisters: so viel backen, dass es für alle reicht, aber abends nichts übrig bleibt. Rechts steht, wie es gestern lief. Der Hotelauftrag (2 Bleche Brötchen, 2 Bleche Croissants) kommt automatisch dazu. Was schon geknetet ist, lässt sich nicht zurücknehmen.')}</div><table><tr><th>${L('Продукт', 'Produkt')}</th><th>${L('План', 'Plan')}</th><th>${L('Вчера', 'Gestern')}</th><th></th></tr>${rows}</table>`;
+  } else if (tab === 'people') {
+    const head = WORKS.map(k => `<th title="${workName(k)}">${workName(k).slice(0, 6)}</th>`).join('');
+    const rows = S.workers.map(w => `<tr><td><b data-selw="${w.id}" style="cursor:pointer">${w.name.split(' ')[0]}</b> <span class="muted" style="font-size:10px">${w.role}<br>${fmt(w.from)}–${fmt(w.to)}</span><div class="muted" style="font-size:10px">${jobText(w)}</div></td>${WORKS.map(k => `<td><button class="prio p${w.prio[k]}" data-prio="${w.id}:${k}">${w.prio[k] || '–'}</button></td>`).join('')}</tr>`).join('');
+    p.innerHTML = `<h3>${L('Кто что делает', 'Wer macht was')}</h3><div class="muted" style="font-size:11px;margin-bottom:6px">${L('Нажатие: 1→2→3→выкл. 1 = в первую очередь. Например, утром поставьте ученику «Продажа» = 1, чтобы он помогал в пик.', 'Tippen: 1→2→3→aus. 1 = zuerst. Tipp: Morgens beim Azubi „Verkauf“ auf 1 stellen, dann hilft er im Ansturm.')}</div><table><tr><th></th>${head}</tr>${rows}</table>`;
+  } else if (tab === 'stock') {
+    const rows = Object.entries(MATS).map(([k, m]) => { const coming = S.supOrders.filter(o => o.k === k).reduce((a, o) => a + o.packs, 0); return `<div class="card"><div class="row"><b>${m.de}</b><span class="${S.mats[k] < m.min ? 'bad' : ''}">${Math.round(S.mats[k])} ${m.unit}${coming ? ` <span class="muted">(+${coming} ${L('в пути', 'unterwegs')})</span>` : ''}</span></div><div class="row"><span class="muted">${L(m.ru, m.deLong)}</span><button data-buy="${k}">+${m.pack} ${m.unit} · ${eur(m.price)}</button></div></div>`; }).join('');
+    p.innerHTML = `<h3>${L('Склад и поставки', 'Lager und Lieferungen')}</h3><div class="card"><label><input type="checkbox" data-autobuy ${S.autoBuy ? 'checked' : ''}> ${L('Автозаказ, когда остаток ниже минимума', 'Automatisch nachbestellen, wenn der Bestand knapp wird')}</label></div>${rows}<div class="muted" style="font-size:11px">${L('Поставщик приезжает через 2–4 часа (ночные заказы — утром в 07:00). Мешки и ящики носят со двора на склад и в холодильник.', 'Der Lieferant kommt nach 2–4 Stunden (Bestellungen in der Nacht: morgens um 07:00). Säcke und Kisten werden vom Hof ins Lager und in den Kühlraum getragen.')}</div>`;
+  } else if (tab === 'upgrades') {
+    p.innerHTML = `<h3>${L('Апгрейды — система оптимизации', 'Upgrades — die Bäckerei verbessern')}</h3>` + UPGRADES.map(u => `<div class="card"><div class="row"><b>${L(u.ru, u.de)}</b><span class="muted">${L(u.de, '')}</span></div><div class="muted" style="margin:4px 0">${L(u.desc, u.desc_de)}</div><div class="row"><b>${eur(u.price)}</b>${S.up[u.id] ? `<span class="good">✓ ${L('установлено', 'installiert')}</span>` : `<button data-upgrade="${u.id}" ${S.money < u.price ? 'disabled' : ''}>${L('Купить', 'Kaufen')}</button>`}</div></div>`).join('');
+  } else p.innerHTML = `<div class="log">${S.log.map(l => `<div><span class="muted">${l.t}</span> <span class="${l.cls}">${l.msg}</span></div>`).join('')}</div>`;
+}
+const workName = k => L(WORK_RU[k], { backen: 'Backen', transport: 'Tragen', verkauf: 'Verkauf', fahren: 'Lieferung', technik: 'Technik' }[k]);
+function renderTop() {
+  $('tDay').textContent = day(); $('tClock').textContent = fmt(clock()); const c = clock();
+  $('tPhase').textContent = c < OPEN ? L('ночь — печём', 'Nacht — Backstube') : c < CLOSE ? L('магазин открыт', 'Laden offen') : L('закрыто', 'geschlossen');
+  $('tMoney').textContent = eur(S.money); $('tMoney').className = S.money < 0 ? 'bad' : ''; $('tToday').textContent = eur(S.d.shop + S.d.hotel);
+  document.querySelectorAll('[data-speed]').forEach(b => b.classList.toggle('on', Number(b.dataset.speed) === S.speed));
+}
+// статичные надписи интерфейса на выбранном языке
+function applyLang() {
+  document.documentElement.lang = S.lang;
+  const set = (sel, ru, de) => { const e = document.querySelector(sel); if (e) e.textContent = L(ru, de); };
+  set('#lDay', 'День', 'Tag'); set('#lMoney', 'Касса:', 'Kasse:'); set('#lToday', 'Сегодня:', 'Heute:');
+  const tabs = { overview: ['Пекарня', 'Bäckerei'], plan: ['План', 'Backplan'], people: ['Люди', 'Team'], stock: ['Склад', 'Lager'], upgrades: ['Апгрейды', 'Upgrades'], log: ['Журнал', 'Logbuch'] };
+  document.querySelectorAll('#tabs button').forEach(b => { const t = tabs[b.dataset.tab]; if (t) b.textContent = L(t[0], t[1]); });
+  $('langBtn').textContent = S.lang === 'de' ? 'RU' : 'DE'; $('tutBtn').textContent = L('❓ Обучение', '❓ Anleitung');
+  renderTop(); renderSel(); renderPanel();
+}
+const UPGRADES = [
+  { id: 'stikken', de: 'Stikkenofen', ru: 'Ротационная печь', price: 9000, desc: 'Вторая печь: тележка на 8 противней. Печь перестаёт быть узким местом.', desc_de: 'Zweiter Ofen: ein Stikkenwagen mit 8 Blechen. Der Ofen ist kein Engpass mehr.', apply() { ST.stikken.locked = false; } },
+  { id: 'gva', de: 'Gärvollautomat', ru: 'Автоматический расстоечный шкаф', price: 5000, desc: 'Расстойка на 25 % быстрее, шкаф на 28 противней.', desc_de: 'Die Gare geht 25 % schneller, Platz für 28 Bleche.', apply() {} },
+  { id: 'presse2', de: 'Brötchenanlage', ru: 'Булочная линия', price: 6000, desc: 'Булочки формуются за 1,5 мин на противень вместо 4.', desc_de: 'Ein Blech Brötchen in 1,5 statt 4 Minuten.', apply() {} },
+  { id: 'kasse', de: 'Kassensystem', ru: 'Современная касса', price: 1500, desc: 'Обслуживание покупателя на 30 % быстрее — меньше очередь в утренний пик.', desc_de: 'Kundschaft wird 30 % schneller bedient — kürzere Schlange im Morgenansturm.', apply() {} },
+  { id: 'kaffee', de: 'Kaffeevollautomat', ru: 'Кофейный автомат', price: 2500, desc: 'Кофе берут почти вдвое чаще: больше выручки без новой выпечки.', desc_de: 'Fast doppelt so viel Kaffee verkauft: mehr Umsatz ohne mehr Backen.', apply() {} },
+];
+function buyUpgrade(id) { const u = UPGRADES.find(x => x.id === id); if (!u || S.up[id] || S.money < u.price) return false; S.money -= u.price; S.stats.upgrades += u.price; S.up[id] = true; u.apply(); log(L(`Апгрейд: ${u.ru} (${u.de}), −${eur(u.price)}.`, `Upgrade: ${u.de}, −${eur(u.price)}.`), 'good'); return true; }
+
+// ================= Обучение (Anleitung) =================
+const TUT = [
+  { ru: ['Добро пожаловать в пекарню!', 'Пять человек: мастер, пекарь, ученик и две продавщицы. Ночью печём (с 02:30), магазин открыт 06:00–18:30. Цель: испечь столько, чтобы хватило всем, мало выбросить и заработать.'], de: ['Willkommen in deiner Bäckerei!', 'Fünf Leute: Meister, Gesellin, Azubi und zwei Verkäuferinnen. Nachts wird gebacken (ab 02:30), der Laden ist von 06:00 bis 18:30 offen. Ziel: genug backen, wenig wegwerfen, Geld verdienen.'] },
+  { area: [5, 11, 30, 7], ru: ['Пекарня (Backstube)', 'Путь теста: весы → месилка → стол (отлёжка и формовка) → расстоечный шкаф → печь → стеллаж остывания. Люди делают всё сами — смотрите, кто что несёт.'], de: ['Die Backstube', 'Der Weg des Teigs: Waage → Kneter → Tisch (Teigruhe und Aufarbeiten) → Gärschrank → Ofen → Auskühlregal. Dein Team arbeitet selbstständig — schau zu, wer was trägt.'] },
+  { area: [10, 16, 5, 2], ru: ['Печь', 'Три яруса по два противня. Готовое нужно достать за 8 минут, иначе сгорит. Если печь не успевает — купите ротационную печь в «Апгрейдах».'], de: ['Der Etagenofen', 'Drei Etagen à zwei Bleche. Fertige Ware muss innerhalb von 8 Minuten raus, sonst verbrennt sie. Reicht der Ofen nicht, kauf unter „Upgrades“ einen Stikkenofen.'] },
+  { area: [5, 19, 30, 5], ru: ['Магазин (Laden)', 'Продавщицы выкладывают товар в витрину и обслуживают покупателей в трёх окнах. Кто ждёт дольше 15 минут — уходит. Утренний пик — 06:30–09:00.'], de: ['Der Laden', 'Die Verkäuferinnen füllen die Theke und bedienen an drei Plätzen. Wer länger als 15 Minuten wartet, geht. Der Ansturm ist morgens von 06:30 bis 09:00.'] },
+  { area: [0, 0, 40, 4], ru: ['Двор: поставки и доставка', 'Мельница привозит муку, оптовик — масло, яйца, дрожжи. Каждое утро пекарь везёт заказ в отель «Seeblick» — к 07:00.'], de: ['Der Hof: Lieferungen', 'Die Mühle bringt Mehl, der Großhändler Butter, Eier und Hefe. Jeden Morgen fährt die Gesellin den Auftrag für das Hotel „Seeblick“ aus — bis 07:00.'] },
+  { tab: 'plan', ru: ['План выпечки', 'Главное решение: сколько противней каждого вида печь. Справа видно, чего вчера не хватило и что осталось. Красное «↑» — пеките больше, оранжевое «↓» — меньше.'], de: ['Der Backplan', 'Deine wichtigste Entscheidung: wie viele Bleche von jedem Produkt. Rechts siehst du, was gestern fehlte und was übrig blieb. Rotes „↑“ — mehr backen, oranges „↓“ — weniger.'] },
+  { tab: 'people', ru: ['Люди', 'Кто чем занимается в первую очередь. Нажатие меняет приоритет: 1 → 2 → 3 → выкл.'], de: ['Das Team', 'Wer was zuerst macht. Tippen ändert die Priorität: 1 → 2 → 3 → aus.'] },
+  { tab: 'stock', ru: ['Склад', 'Мука, холодное, щёлок. Автозаказ включён — но следите за деньгами.'], de: ['Das Lager', 'Mehl, Kühlware, Lauge. Die automatische Nachbestellung ist an — behalte trotzdem das Geld im Blick.'] },
+  { tab: 'upgrades', ru: ['Апгрейды', 'Касса, кофейный автомат, булочная линия, расстоечный автомат, вторая печь. Покупайте то, что сейчас мешает больше всего.'], de: ['Upgrades', 'Kasse, Kaffeevollautomat, Brötchenanlage, Gärvollautomat, zweiter Ofen. Kauf das, was gerade am meisten bremst.'] },
+  { ru: ['Управление', 'Пробел — пауза, 1/2/3 — скорость. Карта: колесо мыши или два пальца — масштаб, перетаскивание — сдвиг. Нажмите на человечка или станок — внизу появятся подробности. Удачи!'], de: ['Steuerung', 'Leertaste — Pause, 1/2/3 — Tempo. Karte: Mausrad oder zwei Finger — Zoom, ziehen — verschieben. Tipp auf Menschen oder Geräte für Details. Viel Erfolg!'] },
+];
+let tut = null, tutArea = null;
+function showTut(i) {
+  tut = i; const box = $('tut');
+  if (i === null || i >= TUT.length) { box.style.display = 'none'; tut = null; tutArea = null; if (S.tutSpeed !== undefined) { S.speed = S.tutSpeed; delete S.tutSpeed; } try { localStorage.setItem('bw-tut', '1'); } catch (e) { /* без хранилища */ } renderTop(); return; }
+  if (S.tutSpeed === undefined) S.tutSpeed = S.speed; S.speed = 0;
+  const st = TUT[i], [h, t] = S.lang === 'de' ? st.de : st.ru;
+  tutArea = st.area || null;
+  if (st.area) { const [x, y, w, hh] = st.area; cam.z = Math.max(1, Math.min(3, Math.min(MW / (w + 6), MH / (hh + 10)))); cam.cx = (x + w / 2) * PT; cam.cy = (y + hh / 2) * PT + MH * PT / cam.z * 0.2; clampCam(); } // участок — над карточкой
+  if (st.tab) { tab = st.tab; document.querySelectorAll('#tabs button').forEach(x => x.classList.toggle('on', x.dataset.tab === tab)); renderPanel(); }
+  box.innerHTML = `<div class="muted" style="font-size:11px">${i + 1} / ${TUT.length}</div><b style="font-size:15px">${h}</b><div style="margin:6px 0 10px">${t}</div><div class="row"><button data-tut="skip">${L('Пропустить', 'Überspringen')}</button><span>${i ? `<button data-tut="back">◀</button> ` : ''}<button class="on" data-tut="next">${i === TUT.length - 1 ? L('Играть ▶', 'Los geht’s ▶') : L('Дальше ▶', 'Weiter ▶')}</button></span></div>`;
+  box.style.display = 'block'; renderTop();
+}
+document.addEventListener('click', e => {
+  const b = e.target.closest('button, [data-selw], [data-autobuy]'); if (!b) return;
+  if (b.dataset.tut) { showTut(b.dataset.tut === 'next' ? tut + 1 : b.dataset.tut === 'back' ? Math.max(0, tut - 1) : null); return; }
+  if (b.id === 'langBtn') { S.lang = S.lang === 'de' ? 'ru' : 'de'; try { localStorage.setItem('bw-lang', S.lang); } catch (er) { /* без хранилища */ } applyLang(); if (tut !== null) showTut(tut); return; }
+  if (b.id === 'tutBtn') { showTut(0); return; }
+  if (b.dataset.speed !== undefined) { if (tut !== null) return; S.speed = Number(b.dataset.speed); if (S.speed) S.lastSpeed = S.speed; }
+  if (b.dataset.tab) { tab = b.dataset.tab; document.querySelectorAll('#tabs button').forEach(x => x.classList.toggle('on', x === b)); }
+  if (b.dataset.prio) { const [id, k] = b.dataset.prio.split(':'); const w = S.workers.find(x => x.id === Number(id)); w.prio[k] = (w.prio[k] + 1) % 4; }
+  if (b.dataset.plan) { const [k, d] = b.dataset.plan.split(':'); S.plan[k] = Math.max(0, Math.min(40, S.plan[k] + Number(d))); }
+  if (b.dataset.buy) orderSupplies(b.dataset.buy, 1, false);
+  if (b.dataset.autobuy !== undefined) S.autoBuy = b.checked;
+  if (b.dataset.upgrade) buyUpgrade(b.dataset.upgrade);
+  if (b.dataset.selw) S.selected = { w: S.workers.find(x => x.id === Number(b.dataset.selw)) };
+  renderPanel(); renderSel(); renderTop();
+});
+document.addEventListener('keydown', e => {
+  if (tut !== null) { if (e.key === 'Enter' || e.key === 'ArrowRight') showTut(tut + 1); if (e.key === 'Escape') showTut(null); return; }
+  if (e.code === 'Space') { S.speed = S.speed ? 0 : (S.lastSpeed || 1); e.preventDefault(); }
+  if (e.key === '1') S.speed = 1; if (e.key === '2') S.speed = 3; if (e.key === '3') S.speed = 10;
+  const PAN = { KeyW: [0, -1], KeyS: [0, 1], KeyA: [-1, 0], KeyD: [1, 0], ArrowUp: [0, -1], ArrowDown: [0, 1], ArrowLeft: [-1, 0], ArrowRight: [1, 0] };
+  if (PAN[e.code]) { pan(PAN[e.code][0] * 0.08, PAN[e.code][1] * 0.08); e.preventDefault(); }
+  if (e.key === '+' || e.key === '=') zoomAt(1.2, 0.5, 0.5); if (e.key === '-') zoomAt(1 / 1.2, 0.5, 0.5);
+  if (S.speed) S.lastSpeed = S.speed; renderTop();
+});
+function hitTest(mx, my) {
+  const r = cv.getBoundingClientRect(); let [x, y] = toTile((mx - r.left) / r.width, (my - r.top) / r.height); x -= 0.5; y -= 0.5;
+  const near = e => Math.hypot(e.x - x, e.y - 0.55 - y) < 0.8;
+  const w = S.workers.find(w => !w.away && near(w)); if (w) return { w };
+  const cu = S.customers.find(near); if (cu) return { c: cu };
+  const tx = Math.floor(x + 0.5), ty = Math.floor(y + 0.5);
+  const s = [...STATIONS, ...DISPLAYS].find(s => tx >= s.x && tx < s.x + s.w && ty >= s.y && ty < s.y + s.h); if (s) return { st: s };
+  const d = DECOR.find(d => tx >= d.x && tx < d.x + d.w && ty >= d.y && ty < d.y + d.h); if (d) return { d };
+  return null;
+}
+// Управление картой: мышь и пальцы (pointer events). Тап — выбрать, перетаскивание — сдвиг, два пальца или колесо — масштаб
+const frac = e => { const r = cv.getBoundingClientRect(); return [(e.clientX - r.left) / r.width, (e.clientY - r.top) / r.height]; };
+const pts = new Map(); let pinch = null, moved = false, downAt = null;
+cv.style.touchAction = 'none';
+cv.addEventListener('contextmenu', e => e.preventDefault());
+cv.addEventListener('pointerdown', e => { cv.setPointerCapture(e.pointerId); pts.set(e.pointerId, frac(e)); if (pts.size === 1) { downAt = frac(e); moved = false; } if (pts.size === 2) { const [a, b] = [...pts.values()]; pinch = Math.hypot(a[0] - b[0], a[1] - b[1]); moved = true; } $('tip').style.display = 'none'; });
+cv.addEventListener('pointermove', e => {
+  const f = frac(e);
+  if (!pts.has(e.pointerId)) { // наведение мышью — подсказка
+    if (e.pointerType !== 'mouse') return; const h = hitTest(e.clientX, e.clientY), tip = $('tip');
+    if (h && h.st) { const o = h.st; tip.innerHTML = `<b>${stName(o)}</b><div class="muted">${stDesc(o)}</div>`; tip.style.display = 'block'; const wr = $('wrap').getBoundingClientRect(); tip.style.left = Math.min(e.clientX - wr.left + 14, wr.width - 330) + 'px'; tip.style.top = (e.clientY - wr.top + 14) + 'px'; } else tip.style.display = 'none';
+    return;
+  }
+  const prev = pts.get(e.pointerId); pts.set(e.pointerId, f);
+  if (pts.size === 2 && pinch) { const [a, b] = [...pts.values()], d = Math.hypot(a[0] - b[0], a[1] - b[1]); if (d > 0.005) { zoomAt(d / pinch, (a[0] + b[0]) / 2, (a[1] + b[1]) / 2); pinch = d; } }
+  else if (pts.size === 1) { if (Math.hypot(f[0] - downAt[0], f[1] - downAt[1]) > 0.012) moved = true; if (moved) pan(prev[0] - f[0], prev[1] - f[1]); }
+});
+const pUp = e => { if (!pts.has(e.pointerId)) return; pts.delete(e.pointerId); if (pts.size < 2) pinch = null; if (!pts.size && !moved && e.type === 'pointerup') { S.selected = hitTest(e.clientX, e.clientY); renderSel(); } };
+cv.addEventListener('pointerup', pUp); cv.addEventListener('pointercancel', pUp);
+cv.addEventListener('mouseleave', () => { $('tip').style.display = 'none'; });
+cv.addEventListener('wheel', e => { e.preventDefault(); const [fx, fy] = frac(e); zoomAt(e.deltaY < 0 ? 1.15 : 1 / 1.15, fx, fy); }, { passive: false });
+$('zoomIn').addEventListener('click', () => zoomAt(1.25, 0.5, 0.5)); $('zoomOut').addEventListener('click', () => zoomAt(1 / 1.25, 0.5, 0.5));
+
+// ================= Главный цикл =================
+let last = performance.now(), uiT = 0;
+function frame(now) {
+  const dt = Math.min(0.1, (now - last) / 1000); last = now;
+  if (S.speed > 0) advance(dt * MIN_PER_SEC * S.speed);
+  render();
+  uiT += dt; if (uiT > 0.3) { uiT = 0; renderTop(); renderSel(); if (!document.querySelector('#panel:hover') || tab === 'log') renderPanel(); }
+  requestAnimationFrame(frame);
+}
+resize(); renderTop(); renderSel(); renderPanel();
+log(L('Добро пожаловать в Bäckerei! 05:00: ночная смена уже печёт, в 05:30 придёт продавщица, в 06:00 откроется магазин. Заказ отеля нужно отвезти к 07:00.', 'Willkommen in der Bäckerei! 05:00: Die Nachtschicht backt schon, um 05:30 kommt die Verkäuferin, um 06:00 öffnet der Laden. Der Hotelauftrag muss bis 07:00 ausgeliefert sein.'), 'info');
+applyLang();
+try { if (!localStorage.getItem('bw-tut')) showTut(0); } catch (e) { showTut(0); }
+requestAnimationFrame(frame);
+
+window.BW = {
+  showTut, applyLang, S, ST, STATIONS, DISPLAYS, PRODUCTS, advance, buyUpgrade, orderSupplies,
+  setSpeed: v => { S.speed = v; }, setPlan: (k, n) => { S.plan[k] = n; },
+  summary: () => ({ day: day(), clock: fmt(clock()), money: Math.round(S.money), today: { ...S.d }, yesterday: { ...S.y },
+    stations: { kneter: ST.kneter.batch ? ST.kneter.batch.prod + ':' + ST.kneter.batch.stage : '-', gaer: gaer().trays.length, rack: rack().trays.length, lauge: ST.lauge.trays.length, ofen: ST.ofen.deck.map(d => d.state + (d.prod ? ':' + d.prod : '') + ':' + d.trays.length).join(' | '), tisch1: ST.tisch1.batch ? ST.tisch1.batch.prod + ':' + ST.tisch1.batch.left : '-', tisch2: ST.tisch2.batch ? ST.tisch2.batch.prod + ':' + ST.tisch2.batch.left : '-', presse: ST.presse.batch ? 'br:' + ST.presse.batch.left : '-' },
+    display: Object.fromEntries(DISPLAYS.map(d => [d.prod, d.stock])), started: { ...S.started }, mats: { ...S.mats },
+    workers: S.workers.map(w => `${w.name.split(' ')[0]}: ${jobText(w)} (${Math.round(w.energy)}%)`), customers: S.customers.length, order: S.order && S.order.state }),
+};
+})();
+</script>
+</body>
+</html>

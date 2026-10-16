@@ -6,6 +6,12 @@
       "runtimeExecutable": "py",
       "runtimeArgs": ["-3", "-m", "http.server", "8765", "--directory", "reifenwerk"],
       "port": 8765
+    },
+    {
+      "name": "baeckerei",
+      "runtimeExecutable": "py",
+      "runtimeArgs": ["-3", "-m", "http.server", "8768", "--directory", "baeckerei"],
+      "port": 8768
     }
   ]
 }
