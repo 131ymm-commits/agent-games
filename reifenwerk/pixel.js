@@ -1642,10 +1642,11 @@ function render(view) {
   const sc = REF.sc; if (sc) { if (REF.n !== S.scrap) { REF.n = S.scrap; REF.txt = 'SCHROTT ' + S.scrap; } label(objLabel(sc, REF.txt, '#ffb0a0', true), sc.x * Q + 6, sc.y * Q - 18, 0, false); }
   // ночь
   const c = V.clock(); let dark = 0;
-  if (c < V.DAY_START || c >= V.DAY_END) dark = 0.58; else if (c < V.DAY_START + 60) dark = 0.58 * (1 - (c - V.DAY_START) / 60); else if (c > V.DAY_END - 60) dark = 0.58 * ((c - (V.DAY_END - 60)) / 60);
+  const NIGHT = 0.3; // насколько темнеет ночью: цех освещён, карта не должна быть чёрной
+  if (c < V.DAY_START || c >= V.DAY_END) dark = NIGHT; else if (c < V.DAY_START + 60) dark = NIGHT * (1 - (c - V.DAY_START) / 60); else if (c > V.DAY_END - 60) dark = NIGHT * ((c - (V.DAY_END - 60)) / 60);
   if (dark > 0) {
     const lg = lightC.getContext('2d'); lg.globalCompositeOperation = 'source-over'; lg.clearRect(0, 0, lightC.width, lightC.height);
-    lg.fillStyle = `rgba(12,16,46,${dark.toFixed(3)})`; lg.fillRect(0, 0, lightC.width, lightC.height);
+    lg.fillStyle = `rgba(30,36,70,${dark.toFixed(3)})`; lg.fillRect(0, 0, lightC.width, lightC.height);
     lg.globalCompositeOperation = 'destination-out'; lg.drawImage(lampMask, 0, 0);
     const gl = glowSprite();
     for (const s of STATIONS) if (s.state === 'running' || s.cur) { const r = (s.state === 'running' ? 1.6 : 1.2) * LQ; lg.globalAlpha = 0.7; lg.drawImage(gl, (s.x + s.w / 2) * LQ - r, (s.y + s.h / 2) * LQ - r, r * 2, r * 2); }
