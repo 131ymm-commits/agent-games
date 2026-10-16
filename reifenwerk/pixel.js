@@ -1522,7 +1522,8 @@ function eventsWorld(list) { // пульсирующее кольцо на по�
     for (let q = 0; q < 2; q++) { const ph = (time * 0.8 + q * 0.5) % 1, rx = 6 + ph * 18, ry = rx * 0.45, a = Math.round((1 - ph) * 12); g.fillStyle = A[a]; for (let i = 0; i < 28; i++) { const t = i / 28 * TAU; g.fillRect(Math.round(x + Math.cos(t) * rx), Math.round(y + Math.sin(t) * ry), 2, 1); } }
   }
 }
-const banner = { e: null, t0: 0, n: 0, cw: 0, st: null, dpr: 0, txt: '' };
+const banner = { e: null, t0: 0, n: 0, cw: 0, st: null, dpr: 0, txt: '', lang: '' };
+const txtL = v => v && typeof v === 'object' ? (V.S.lang === 'de' ? v.de : v.ru) || v.de || v.ru || '' : String(v || ''); // текст события: строка или {ru, de}
 function eventsScreen(ctx, list, cw, ch, fs) {
   if (!list.length) return;
   for (const e of list) { // значки над местом события (экранный размер постоянный)
@@ -1533,14 +1534,14 @@ function eventsScreen(ctx, list, cw, ch, fs) {
   }
   let last = list[list.length - 1]; for (const e of list) if (typeof e.id === 'number' && typeof last.id === 'number' && e.id > last.id) last = e;
   const dpr = window.devicePixelRatio || 1, B = banner;
-  if (B.e !== last || B.n !== list.length || B.cw !== cw || B.st !== last.state || B.dpr !== dpr) { // разметка плашки — только когда что-то изменилось
+  if (B.e !== last || B.n !== list.length || B.cw !== cw || B.st !== last.state || B.dpr !== dpr || B.lang !== V.S.lang) { // разметка плашки — только когда что-то изменилось
     if (B.e !== last) B.t0 = time;
-    B.e = last; B.n = list.length; B.cw = cw; B.st = last.state; B.dpr = dpr; B.col = evColor(last);
+    B.e = last; B.n = list.length; B.cw = cw; B.st = last.state; B.dpr = dpr; B.lang = V.S.lang; B.col = evColor(last);
     B.font = `600 ${Math.round(13 * dpr)}px system-ui, "Segoe UI", sans-serif`; ctx.font = B.font;
-    const title = ((last.icon ? last.icon + ' ' : '') + String(last.title || last.text || '')).trim();
+    const title = ((last.icon ? last.icon + ' ' : '') + txtL(last.title || last.text)).trim();
     let txt = title; const maxW = cw * 0.62; while (txt.length > 4 && ctx.measureText(txt).width > maxW) txt = txt.slice(0, -2);
     if (txt !== title) txt += '…';
-    B.txt = txt; B.more = (last.state === 'choice' ? '  · нужно решение' : '') + (list.length > 1 ? `  +${list.length - 1}` : '');
+    B.txt = txt; B.more = (last.state === 'choice' ? (V.S.lang === 'de' ? '  · Entscheidung nötig' : '  · нужно решение') : '') + (list.length > 1 ? `  +${list.length - 1}` : '');
     B.tw = ctx.measureText(txt).width; B.mw = B.more ? ctx.measureText(B.more).width : 0;
   }
   if (!B.txt) return;
