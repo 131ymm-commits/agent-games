@@ -56,6 +56,7 @@
     <span><span id="lDay">День</span> <b id="tDay">1</b>, <b id="tClock">05:00</b> <span id="tPhase" class="muted"></span></span>
     <span><span id="lMoney">Касса:</span> <b id="tMoney">0 €</b></span>
     <span><span id="lToday">Сегодня:</span> <b id="tToday">0 €</b></span>
+    <button id="skipBtn" style="display:none;background:#3b6fb6;border-color:#3b6fb6">⏩</button>
     <span><button id="langBtn" title="Deutsch / Русский">DE</button> <button id="tutBtn">❓ Обучение</button></span>
     <span><button id="zoomOut" title="Отдалить (−, колесо мыши)">🔍−</button> <button id="zoomIn" title="Приблизить (+). Двигать: WASD или правая кнопка мыши">🔍+</button></span>
     <span class="speed"><button data-speed="0" title="Пауза (Пробел)">⏸</button> <button data-speed="1">1×</button> <button data-speed="3">3×</button> <button data-speed="10">10×</button></span>
@@ -919,7 +920,10 @@ function renderTop() {
   $('tPhase').textContent = c < OPEN ? L('ночь — печём', 'Nacht — Backstube') : c < CLOSE ? L('магазин открыт', 'Laden offen') : L('закрыто', 'geschlossen');
   $('tMoney').textContent = eur(S.money); $('tMoney').className = S.money < 0 ? 'bad' : ''; $('tToday').textContent = eur(S.d.shop + S.d.hotel);
   document.querySelectorAll('[data-speed]').forEach(b => b.classList.toggle('on', Number(b.dataset.speed) === S.speed));
+  const quiet = c >= 19 * 60 + 5 || c < 2 * 60 + 20, sb = $('skipBtn'); sb.style.display = quiet ? '' : 'none'; sb.textContent = L('⏩ Промотать до утра', '⏩ Bis zum Morgen');
 }
+// промотать тихое время: до 02:25, когда приходит мастер
+function skipNight() { const c = clock(); const to = 2 * 60 + 25, left = (to - c + 1440) % 1440; if (!left || left > 9 * 60) return; const m0 = S.money; advance(left); log(L(`⏩ Ночь промотана (${Math.round(left / 60)} ч). Аренда и прочее: ${eur(S.money - m0)}.`, `⏩ Nacht übersprungen (${Math.round(left / 60)} h). Kosten: ${eur(S.money - m0)}.`), 'info'); renderTop(); renderPanel(); }
 // статичные надписи интерфейса на выбранном языке
 function applyLang() {
   document.documentElement.lang = S.lang;
@@ -969,6 +973,7 @@ document.addEventListener('click', e => {
   if (b.dataset.tut) { showTut(b.dataset.tut === 'next' ? tut + 1 : b.dataset.tut === 'back' ? Math.max(0, tut - 1) : null); return; }
   if (b.id === 'langBtn') { S.lang = S.lang === 'de' ? 'ru' : 'de'; try { localStorage.setItem('bw-lang', S.lang); } catch (er) { /* без хранилища */ } applyLang(); if (tut !== null) showTut(tut); return; }
   if (b.id === 'tutBtn') { showTut(0); return; }
+  if (b.id === 'skipBtn') { skipNight(); return; }
   if (b.dataset.speed !== undefined) { if (tut !== null) return; S.speed = Number(b.dataset.speed); if (S.speed) S.lastSpeed = S.speed; }
   if (b.dataset.tab) { tab = b.dataset.tab; document.querySelectorAll('#tabs button').forEach(x => x.classList.toggle('on', x === b)); }
   if (b.dataset.prio) { const [id, k] = b.dataset.prio.split(':'); const w = S.workers.find(x => x.id === Number(id)); w.prio[k] = (w.prio[k] + 1) % 4; }
@@ -982,7 +987,7 @@ document.addEventListener('click', e => {
 document.addEventListener('keydown', e => {
   if (tut !== null) { if (e.key === 'Enter' || e.key === 'ArrowRight') showTut(tut + 1); if (e.key === 'Escape') showTut(null); return; }
   if (e.code === 'Space') { S.speed = S.speed ? 0 : (S.lastSpeed || 1); e.preventDefault(); }
-  if (e.key === '1') S.speed = 1; if (e.key === '2') S.speed = 3; if (e.key === '3') S.speed = 10;
+  if (e.key === '1') S.speed = 1; if (e.key === '2') S.speed = 3; if (e.key === '3') S.speed = 10; if (e.key === 'n' || e.key === 'N') skipNight();
   const PAN = { KeyW: [0, -1], KeyS: [0, 1], KeyA: [-1, 0], KeyD: [1, 0], ArrowUp: [0, -1], ArrowDown: [0, 1], ArrowLeft: [-1, 0], ArrowRight: [1, 0] };
   if (PAN[e.code]) { pan(PAN[e.code][0] * 0.08, PAN[e.code][1] * 0.08); e.preventDefault(); }
   if (e.key === '+' || e.key === '=') zoomAt(1.2, 0.5, 0.5); if (e.key === '-') zoomAt(1 / 1.2, 0.5, 0.5);
@@ -1037,7 +1042,7 @@ try { if (!localStorage.getItem('bw-tut')) showTut(0); } catch (e) { showTut(0);
 requestAnimationFrame(frame);
 
 window.BW = {
-  showTut, applyLang, S, ST, STATIONS, DISPLAYS, PRODUCTS, advance, buyUpgrade, orderSupplies,
+  skipNight, showTut, applyLang, S, ST, STATIONS, DISPLAYS, PRODUCTS, advance, buyUpgrade, orderSupplies,
   setSpeed: v => { S.speed = v; }, setPlan: (k, n) => { S.plan[k] = n; },
   summary: () => ({ day: day(), clock: fmt(clock()), money: Math.round(S.money), today: { ...S.d }, yesterday: { ...S.y },
     stations: { kneter: ST.kneter.batch ? ST.kneter.batch.prod + ':' + ST.kneter.batch.stage : '-', gaer: gaer().trays.length, rack: rack().trays.length, lauge: ST.lauge.trays.length, ofen: ST.ofen.deck.map(d => d.state + (d.prod ? ':' + d.prod : '') + ':' + d.trays.length).join(' | '), tisch1: ST.tisch1.batch ? ST.tisch1.batch.prod + ':' + ST.tisch1.batch.left : '-', tisch2: ST.tisch2.batch ? ST.tisch2.batch.prod + ':' + ST.tisch2.batch.left : '-', presse: ST.presse.batch ? 'br:' + ST.presse.batch.left : '-' },
