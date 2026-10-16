@@ -42,8 +42,11 @@ const GLYPH = {
   Y: '101101010010010', Z: '111001010100111', 0: '111101101101111', 1: '010110010010111', 2: '110001010100111', 3: '110001010001110',
   4: '101101111001001', 5: '111100110001110', 6: '011100111101111', 7: '111001010010010', 8: '111101111101111', 9: '111101111001110',
   '.': '000000000000010', ':': '000010000010000', '/': '001001010100100', '-': '000000111000000', '%': '101001010100101', '!': '010010010000010', ' ': '000000000000000',
+  'Ж': '101111010111101', 'Ф': '010111101111010',
 };
-const norm = s => String(s).normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/ß/g, 'SS').replace(/[łŁ]/g, 'L').toUpperCase();
+const CYR = { К: 'K', С: 'C', Р: 'P', М: 'M', З: '3', А: 'A', В: 'B', Е: 'E', Н: 'H', О: 'O', Т: 'T', Х: 'X' };
+const norm = s => String(s).normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/ß/g, 'SS').replace(/[łŁ]/g, 'L').toUpperCase().replace(/[КСРМЗАВЕНОТХ]/g, c => CYR[c]);
+const NEW = t => !!t && ['presse', 'entgr', 'scan', 'endk', 'fertig'].includes(t.stage); // после пресса — новый протектор
 const textW = s => norm(s).length * 4 - 1;
 function ptext(s, x, y, col = '#fff', sh = OUT) {
   const str = norm(s);
@@ -101,7 +104,7 @@ function buildBackground() {
       if (r > 0.93) { R(X + 5, Y + 5, 2, 2, r > 0.97 ? '#ff7070' : '#ffe066'); R(X + 5, Y + 7, 1, 2, '#3f8a34'); }
     } else if (t === T_ROAD) {
       R(X, Y, PT, PT, '#54575f'); if (r > 0.6) R(X + (r * 9 | 0), Y + 3, 1, 1, '#646872');
-      if (x === 1 && y % 2 === 0) R(X + 5, Y + 2, 2, 7, '#efe6c8');
+      if (y === 1 && x % 2 === 0) R(X + 2, Y + 5, 7, 2, '#efe6c8');
     } else if (t === T_YARD) {
       R(X, Y, PT, PT, '#a9adb3'); if (x % 2 === 0) R(X, Y, 1, PT, '#979ba2'); if (y % 2 === 0) R(X, Y, PT, 1, '#979ba2');
       if (r > 0.85) R(X + 3, Y + 6, 4, 1, '#8f939a');
@@ -115,19 +118,20 @@ function buildBackground() {
       R(X, Y, PT, PT, '#c58b45'); for (let k = 0; k < PT; k += 3) R(X + k, Y, 1, PT, '#a4702f'); R(X, Y, PT, 1, '#e0a862');
     }
   }
-  // Зоны: комната отдыха (дерево), офис (ковёр), парковка
+  // Зоны: комната отдыха (дерево), парковка, навес, участки (подпись на стене над участком)
   for (const z of ZONES) {
     const X = z.x * PT, Y = z.y * PT, w = z.w * PT, h = z.h * PT;
-    if (z.name === 'Pausenraum') { for (let yy = 0; yy < h; yy += 3) R(X, Y + yy, w, 3, (yy / 3) % 2 ? '#c69a63' : '#ba8c55'); for (let yy = 0; yy < h; yy += 3) R(X + ((yy * 7) % w), Y + yy, 1, 3, '#a87a46'); }
-    else if (z.name === 'Büro') { R(X, Y, w, h, '#7486c9'); for (let k = 0; k < 40; k++) R(X + hash(k, 1) * w, Y + hash(k, 2) * h, 1, 1, '#8798d6'); }
-    else { R(X, Y, w, h, '#4c4f57'); for (let k = 0; k <= z.w; k += 2) R(X + k * PT, Y + 2, 1, h - 4, '#e8e8e8'); }
-    ptext(z.name, X + 2, Y + 2, '#fff');
+    if (z.kind === 'rest') { for (let yy = 0; yy < h; yy += 3) R(X, Y + yy, w, 3, (yy / 3) % 2 ? '#c69a63' : '#ba8c55'); for (let yy = 0; yy < h; yy += 3) R(X + ((yy * 7) % w), Y + yy, 1, 3, '#a87a46'); }
+    else if (z.kind === 'parking') { R(X, Y, w, h, '#4c4f57'); for (let k = 0; k <= z.w; k += 2) R(X + k * PT, Y + 2, 1, h - 4, '#e8e8e8'); }
+    else if (z.kind === 'shed') { g.fillStyle = z.color; g.fillRect(X, Y, w, h); for (let yy = 0; yy <= z.h; yy += 6) for (let xx = 0; xx <= z.w; xx += 6) box(X + xx * PT - 2, Y + yy * PT - 2, 4, 4, '#6b6458'); }
+    else { g.fillStyle = z.color; g.fillRect(X, Y, w, h); }
+    ptext(z.name, X + 2, Y - 9, z.kind === 'parking' || z.kind === 'shed' ? '#fff' : '#ffd84a');
   }
-  // Рампы: плиты и жёлто-чёрная разметка
-  for (const d of [1, 2]) {
-    const Y = (DOCKS[d].y - 1) * PT, X = 3 * PT; R(X, Y, 7 * PT, 2 * PT, '#9aa0a8');
-    for (let k = 0; k < 2 * PT; k += 4) R(9 * PT + 8, Y + k, 4, 2, '#f2c230');
-    ptext('RAMPE ' + d, X + 2, Y - 7, '#ffd84a');
+  // Ворота: З — приёмка, Р — отгрузка. Плиты и жёлто-чёрная разметка у края
+  for (const d of Object.values(DOCKS)) {
+    const r = d.rect, X = r.x * PT, Y = r.y * PT, w = r.w * PT, h = r.h * PT;
+    R(X, Y, w, h, '#9aa0a8'); for (let k = 0; k < w; k += 4) R(X + k, Y + h - 3, 2, 3, '#f2c230');
+    ptext(d.label, X + 2, Y + 2, '#ffd84a');
   }
   // Мебель и склад материалов
   for (const d of DECOR) {
@@ -136,7 +140,12 @@ function buildBackground() {
     else if (d.id === 'kaffee') { box(X + 1, Y, 10, 12, '#3a2c2a'); R(X + 3, Y + 2, 6, 3, '#9fd3ff'); R(X + 8, Y + 8, 2, 2, '#ff4d4d'); R(X + 4, Y + 8, 3, 3, '#f5f5f5'); }
     else if (d.id === 'tisch') { box(X, Y, w, h, '#b07a45'); R(X + 4, Y + 4, 4, 3, '#f5f5f5'); R(X + w - 9, Y + 4, 4, 3, '#f5f5f5'); }
     else if (d.id === 'desk') { box(X, Y, w, h, '#5a5f7a'); box(X + 4, Y + 1, 10, 8, '#222'); R(X + 6, Y + 3, 6, 4, '#62e08a'); }
-    else if (d.id === 'schrott') { box(X, Y, w, h, '#c0392b'); for (let k = 3; k < w - 2; k += 4) R(X + k, Y + 2, 1, h - 4, '#8e2a20'); R(X + 3, Y + 3, w - 6, 5, '#2a1d1b'); ptext('SCHROTT', X - 3, Y - 7, '#ff9a8a'); }
+    else if (d.id === 'schrott') { for (let c = 0; c < d.w; c += 4) { box(X + c * PT, Y, 4 * PT - 2, h, '#c0392b'); for (let k = 3; k < 4 * PT - 4; k += 4) R(X + c * PT + k, Y + 2, 1, h - 4, '#8e2a20'); R(X + c * PT + 3, Y + 3, 4 * PT - 8, 5, '#2a1d1b'); } ptext('CONTAINER', X, Y - 7, '#ff9a8a'); }
+    else if (d.id === 'rohgummi') { box(X, Y, w, h, '#5a4a3a'); for (let k = 0; k < 4; k++) { disc(X + 6 + (k % 2) * 12, Y + 6 + (k >> 1) * 12, 5, OUT); disc(X + 6 + (k % 2) * 12, Y + 6 + (k >> 1) * 12, 4, '#26262c'); disc(X + 6 + (k % 2) * 12, Y + 6 + (k >> 1) * 12, 1, '#8a6038'); } ptext('ROH', X + 2, Y - 7, '#fff'); }
+    else if (d.id === 'm1' || d.id === 'm2') { box(X, Y, w, h, '#4a4f57'); R(X + 2, Y + 3, w / 2 - 3, h - 6, '#2a2d34'); if (d.id === 'm2') for (let k = 0; k < 3; k++) { disc(X + w / 2 + 5 + k * 7, Y + h / 2, 3, OUT); disc(X + w / 2 + 5 + k * 7, Y + h / 2, 2, '#3b7bd4'); } else for (let k = 0; k < 6; k++) R(X + w / 2 + 2 + k * 3, Y + 4 + (k % 2) * 6, 2, 4, k % 2 ? '#c9ced8' : '#f5f5f5'); ptext(d.label, X + 2, Y - 7, '#ffd84a'); }
+    else if (d.id === 'autoklav1') { box(X + 2, Y + 3, w - 4, h - 6, '#4a7db0'); disc(X + 7, Y + h / 2, 7, OUT); disc(X + 7, Y + h / 2, 6, '#6d9cc9'); ptext('AUTOKLAV', X + 14, Y + 5, '#fff'); }
+    else if (d.id === 'kpresse') { box(X + 1, Y + 1, w - 2, h - 2, '#6b5a8a'); disc(X + w / 2, Y + h / 2, 6, OUT); disc(X + w / 2, Y + h / 2, 5, '#8d96a3'); disc(X + w / 2, Y + h / 2, 2, '#2a2a30'); }
+    else if (d.id !== 'werkbank') { box(X, Y, w, h, d.color); if (d.label) ptext(d.label, X + 2, Y + 2, '#fff'); }
     else if (d.id === 'werkbank') {
       // верстак техника: тиски, ключи на щите, запчасти
       R(X, Y - 5, w, 5, '#8d8778'); for (let k = 2; k < w - 2; k += 3) R(X + k, Y - 4, 1, 3, k % 2 ? '#c9ced8' : '#e0a862');
@@ -145,6 +154,7 @@ function buildBackground() {
       for (let k = 0; k < 3; k++) disc(X + 16 + k * 4, Y + 7, 1, '#6b7280');
       ptext('WERKSTATT', X - 2, Y - 12, '#ffd84a');
     }
+    if (d.id === 'werkbank') { /* нарисован выше */ }
   }
   // стоянка погрузчиков
   for (const f of V.S.forks || []) { const X = f.home.x * PT - 6, Y = f.home.y * PT - 10; R(X, Y, 24, 1, '#f2c230'); R(X, Y + 24, 24, 1, '#f2c230'); R(X, Y, 1, 25, '#f2c230'); R(X + 23, Y, 1, 25, '#f2c230'); ptext('P' + f.id, X + 2, Y + 2, '#f2c230', null); }
@@ -153,17 +163,17 @@ function buildBackground() {
 }
 
 // ---------- станки ----------
-const COL = { pruef: '#3c7fd8', rauen: '#f2b230', ausschl: '#9a6ad6', spray: '#2bb3a3', fuellen: '#86b83a', belegen: '#e38438', huelle: '#5d66c0', auto: '#4a7db0', entgr: '#d4673a', nacharb: '#c2435a', lack: '#e14f8d', endk: '#3c7fd8' };
-const LABEL = { eingang: 'EINGANG', pruef: 'PRÜF', rauen: 'RAUEN', ausschl: 'SCHL', spray: 'LÖSUNG', fuellen: 'SPACH', belegen: 'BELEG', huelle: 'HÜLLE', auto: 'AUTOKLAV', entgr: 'FEHL', nacharb: 'NACHARB', lack: 'LACK', endk: 'KONTR', fertig: 'VERSAND' };
+const COL = { pruef: '#3c7fd8', rauen: '#f2b230', ausschl: '#9a6ad6', spray: '#2bb3a3', fuellen: '#86b83a', aufbau: '#e38438', presse: '#5d6470', entgr: '#d4673a', nacharb: '#c2435a', scan: '#3c7fd8', endk: '#3c7fd8' };
+const LABEL = { eingang: 'EINGANG', pruef: 'PRÜF', sort: 'KARKASSEN', aufh: 'AUFH', rauen: 'RAUEN', ausschl: 'SCHL', spray: 'LÖSUNG', fuellen: 'SPACH', aufbau: 'AUFBAU', puffer: 'WAGEN', presse: 'P', entgr: 'TRIM', nacharb: 'NACHARB', scan: 'SCAN', endk: 'KONTR', fertig: 'FERTIG' };
 function label(s, X, Y, Wp) {
   const multi = V.STATIONS.filter(o => o.g === s.g).length > 1;
-  let base = LABEL[s.g] || s.g; const suf = multi ? s.id.slice(-1) : '';
+  let base = LABEL[s.g] || s.g; const suf = multi ? s.id.replace(/^\D+/, '') : '';
   while (base.length > 1 && textW(base + suf) > Wp - 3) base = base.slice(0, -1);
   ptext(base + suf, X + 2, Y + 2, '#fff');
 }
 function pile(ids, X, Y, Wp, Hp) {
   const per = Math.max(1, Math.floor((Wp - 2) / 8)); let k = 0;
-  for (const id of ids) { const t = V.S.tires.get(id); if (!t) continue; const x = X + 1 + (k % per) * 8, y = Y + Hp - 8 - Math.floor(k / per) * 5; if (y < Y + 7) break; tire(x, y, t.stage === 'lack' || t.stage === 'endk'); k++; }
+  for (const id of ids) { const t = V.S.tires.get(id); if (!t) continue; const x = X + 1 + (k % per) * 8, y = Y + Hp - 8 - Math.floor(k / per) * 5; if (y < Y + 7) break; tire(x, y, NEW(t)); k++; }
 }
 // Сломанный станок: темнеет, дымит, мигает знак; у техника — оранжевая полоска ремонта
 const WARN = ['....#....', '...#y#...', '...#y#...', '..#yky#..', '..#yky#..', '.#yyyyy#.', '.#yykyy#.', '#########'];
@@ -187,6 +197,20 @@ function drawStation(s) {
     R(X, Y, Wp, Hp, '#7a5a38'); for (let k = 0; k < Hp; k += 4) R(X, Y + k, Wp, 1, '#946c42'); R(X, Y, 1, Hp, OUT); R(X + Wp - 1, Y, 1, Hp, OUT);
     label(s, X, Y, Wp); pile(s.items, X + 1, Y + 6, Wp - 2, Hp - 6); return;
   }
+  if (s.g === 'presse') { // пресс с формой: шину раздувает внутри; сверху поворотный кран
+    const lamp = s.state === 'running' ? (blink ? '#ff5a2a' : '#c03a1a') : s.state === 'done' ? '#5ad65a' : '#7a8088', mx = X + Wp / 2, my = Y + Hp / 2 + 1;
+    R(X + 1, Y + Hp - 2, Wp - 2, 2, 'rgba(0,0,0,.25)');
+    box(X, Y + 1, Wp, Hp - 2, '#5d6470'); disc(mx, my, 9, OUT); disc(mx, my, 8, s.state === 'running' ? '#b85a34' : '#8d96a3'); disc(mx, my, 4, '#2a2a30');
+    if (s.items.length && s.state !== 'running') tire(mx - 3, my - 3, s.state === 'done');
+    R(X + 1, Y + 2, 4, 4, OUT); R(X + 2, Y + 3, 2, 2, lamp);
+    if (s.state === 'running') { const m = String(Math.ceil(s.timer)); ptext(m, X + Wp - textW(m) - 1, Y + Hp - 7, '#ffb347'); for (let k = 0; k < 2; k++) { const ph = (time * 0.8 + k / 2) % 1; R(mx - 4 + k * 6, Y - ph * 9, 2, 2, `rgba(255,255,255,${(0.7 - ph * 0.7).toFixed(2)})`); } }
+    const lift = S.workers.some(w => w.act === 'crane' && w.job && (w.job.src === s.id || w.job.dst === s.id));
+    R(X + Wp - 2, Y - 8, 2, 10, '#c9a227'); R(mx - 2, Y - 8, Wp / 2 + 2, 2, '#f2c230'); // кран: стойка и стрела
+    if (lift) { const d = Math.round(4 + Math.sin(time * 3) * 3); R(mx, Y - 6, 1, d + 2, '#2a2a30'); tire(mx - 3, Y - 4 + d, true); }
+    ptext('P' + s.id.replace(/^\D+/, ''), X + 6, Y - 7, '#fff');
+    brokenFx(s, X, Y, Wp, Hp);
+    return;
+  }
   if (s.kind === 'auto') {
     R(X + 2, Y + Hp - 3, Wp - 4, 3, 'rgba(0,0,0,.25)');
     box(X + 4, Y + 3, Wp - 8, Hp - 7, c); R(X + 6, Y + 6, Wp - 12, 2, shade(c, 0.5));
@@ -209,15 +233,21 @@ function drawStation(s) {
   else if (s.g === 'pruef' || s.g === 'endk') { R(cx - 8, cy - 1, 3, 6, '#ffd24a'); R(cx + 5, cy - 1, 3, 6, '#ffd24a'); if (s.g === 'endk') { box(X + Wp - 9, Y + 3, 8, 6, '#222'); R(X + Wp - 7, Y + 5, 4, 2, '#62e08a'); } }
   else if (s.g === 'spray') { R(X + 2, Y + 2, Wp - 4, Hp - 8, 'rgba(180,240,255,.35)'); const a = time * 8; disc(X + Wp - 6, Y + 6, 3, '#d8e6f0'); R(X + Wp - 6 + Math.round(Math.cos(a) * 2), Y + 6 + Math.round(Math.sin(a) * 2), 1, 1, OUT); if (work) for (let k = 0; k < 6; k++) R(cx - 6 + hash(k, time * 10 | 0) * 12, cy - 4 + hash(time * 10 | 0, k) * 8, 1, 1, '#eaf6ff'); }
   else if (s.g === 'fuellen') { R(X + 3, cy + 3, 9, 3, '#6b7280'); R(X + 12, cy + 3, 2, 2, work && blink ? '#ff7a2a' : '#ffb347'); }
-  else if (s.g === 'belegen') { disc(X + Wp - 8, cy + 1, 5, OUT); disc(X + Wp - 8, cy + 1, 4, '#3a3a40'); R(X + 3, cy + 2, Wp - 16, 3, '#2a2a2e'); for (let k = X + 4; k < X + Wp - 14; k += 3) R(k, cy + 2, 1, 3, '#4a4a52'); }
-  else if (s.g === 'huelle') { for (let k = 0; k < 3; k++) R(X + 3, Y + Hp - 9 - k * 3, Wp - 6, 2, k % 2 ? '#2a2c34' : '#3a3d47'); }
-  else if (s.g === 'ausschl' || s.g === 'entgr') { R(X + 3, cy + 3, Wp - 6, 2, '#8a6038'); R(X + 4, cy, 5, 2, '#9aa3ad'); if (work && blink) R(X + 9, cy - 1, 1, 1, '#ffe066'); }
-  else if (s.g === 'lack') { for (let k = 0; k < 4; k++) R(X + 3 + k * 4, Y + 4, 2, Hp - 12, ['#ff6fae', '#ffffff', '#ffd24a', '#7ad0ff'][k]); }
+  else if (s.g === 'aufbau') { // намотка: барабан крутится, экструдер подаёт ленту сырой резины
+    const a = work ? time * 6 : 0; disc(X + Wp - 8, cy + 1, 6, OUT); disc(X + Wp - 8, cy + 1, 5, '#2a2a2e'); R(X + Wp - 8 + Math.round(Math.cos(a) * 3), cy + 1 + Math.round(Math.sin(a) * 3), 1, 1, '#8a8f98');
+    box(X + 3, cy - 3, 7, 6, '#e0a862'); R(X + 10, cy, Wp - 22, 2, '#1e1e22'); if (work) for (let k = 0; k < Wp - 22; k += 3) R(X + 10 + ((k + Math.floor(time * 12)) % (Wp - 22)), cy, 1, 2, '#55555e');
+  }
+  else if (s.g === 'ausschl') { R(X + 3, cy + 3, Wp - 6, 2, '#8a6038'); R(X + 4, cy, 5, 2, '#9aa3ad'); if (work && blink) R(X + 9, cy - 1, 1, 1, '#ffe066'); }
+  else if (s.g === 'entgr') { // вращающийся станок обрезки облоя
+    const a = work ? time * 5 : 0; disc(cx - 2, cy + 1, 6, OUT); disc(cx - 2, cy + 1, 5, '#5d6470'); R(cx - 2 + Math.round(Math.cos(a) * 4), cy + 1 + Math.round(Math.sin(a) * 4), 1, 1, '#ffe066'); R(X + Wp - 5, cy - 3, 2, 7, '#c9ced8');
+  }
+  else if (s.g === 'scan') { R(X + 3, Y + 3, Wp - 6, Hp - 8, '#222'); if (S.t - s.lastScan < 0.8 || blink) R(X + 2, Y + Hp - 4, Wp - 4, 1, '#ff3030'); }
   label(s, X, Y, Wp);
   if (s.cur) tire(cx - 3, cy - 2, false);
   s.input.forEach((id, k) => tire(X + 1 + k * 5, Y + Hp - 9, false));
-  s.out.forEach((id, k) => { const t = S.tires.get(id); tire(X + Wp - 8 - k * 5, Y + Hp - 9, t && (t.stage === 'lack' || t.stage === 'endk')); if (t && t.readyAt > S.t) R(X + Wp - 6 - k * 5, Y + Hp - 12, 3, 1, '#7fd6ff'); });
+  s.out.forEach((id, k) => { const t = S.tires.get(id); tire(X + Wp - 8 - k * 5, Y + Hp - 9, NEW(t)); if (t && t.readyAt > S.t) R(X + Wp - 6 - k * 5, Y + Hp - 12, 3, 1, '#7fd6ff'); });
   if (!V.matsOk(s) && s.input.length && blink) ptext('!', X + Wp - 5, Y + 1, '#ff5050');
+  if (S.t - s.lastScan < 0.6) R(X + Wp - 4, Y + Hp - 6, 3, 2, '#ff3030'); // сканер штрихкода сработал
   if (s.kind === 'proc' && s.input.length >= s.inCap && !s.cur && blink) { R(X, Y, Wp, 1, '#ff5050'); R(X, Y + Hp - 1, Wp, 1, '#ff5050'); R(X, Y, 1, Hp, '#ff5050'); R(X + Wp - 1, Y, 1, Hp, '#ff5050'); }
   brokenFx(s, X, Y, Wp, Hp);
 }
@@ -229,10 +259,9 @@ function brackets(X, Y, w, h) { const c = '#ffb020'; for (const [x, y, dx, dy] o
 
 // ---------- грузовик ----------
 function truck(tr) {
-  if (tr.y < -2.5) return;
-  const L = 56, Wd = 20, cx = Math.round(tr.x * PT + PT / 2), cy = Math.round(tr.y * PT);
-  g.save(); g.translate(cx, cy);
-  if (tr.dir !== 'h') g.rotate(tr.state === 'leave' ? -Math.PI / 2 : Math.PI / 2); else if (tr.state === 'leave') g.rotate(Math.PI);
+  if (tr.x < -3 || tr.x > V.MW + 3) return;
+  const L = 56, Wd = 20, cx = Math.round(tr.x * PT + PT / 2), cy = Math.round(tr.y * PT + PT / 2);
+  g.save(); g.translate(cx, cy); g.rotate(tr.ang || 0);
   const x0 = -L / 2, y0 = -Wd / 2;
   for (const wx of [x0 + 6, x0 + 14, x0 + 34, x0 + 48]) { R(wx, y0 - 1, 5, 2, OUT); R(wx, y0 + Wd - 1, 5, 2, OUT); }
   box(x0, y0, 42, Wd, '#e9ecef'); for (let k = x0 + 6; k < x0 + 40; k += 6) R(k, y0 + 2, 1, Wd - 4, '#cfd4da'); R(x0 + 1, y0 + Wd / 2 - 1, 40, 2, tr.color);
@@ -262,9 +291,11 @@ function forklift(px, py, face, driver, load) {
 // ---------- люди ----------
 const prevPos = new Map(), facing = new Map();
 // Инструмент в руке по участку: лампа, шлифмашинка, распылитель, пистолет-экструдер, ролик…
-const TOOL_G = { pruef: 'lamp', endk: 'tablet', rauen: 'pendant', ausschl: 'grinder', entgr: 'grinder', spray: 'spray', fuellen: 'extruder', belegen: 'roller', lack: 'paint', huelle: 'hands' };
+const TOOL_G = { pruef: 'lamp', endk: 'tablet', rauen: 'pendant', ausschl: 'grinder', entgr: 'knife', spray: 'spray', fuellen: 'extruder', aufbau: 'pendant', scan: 'scangun' };
 function toolOf(w) {
   const j = w.job; if (!j || w.state === 'break') return null;
+  if (w.act === 'crane') return 'pendant';                 // пульт крана у пресса
+  if (j.type === 'fetch') return w.tool === 'canister' ? 'canister' : null;
   if (j.type === 'repair') return w.act === 'repair' ? 'wrench' : w.tool ? 'toolbox' : null;
   if (j.type === 'idle') return j.act === 'sweep' ? 'broom' : j.act === 'inspect' ? 'clipboard' : w.state === 'act' ? (j.act === 'coffee' ? 'cup' : 'hands') : null;
   if (j.type === 'start') return w.state === 'work' ? 'hands' : null;
@@ -322,6 +353,9 @@ function drawTool(tool, on, t) {
       if (on) for (let k = 0; k < 3; k++) { const ph = (t * 1.5 + k / 3) % 1; R(15 + ph * 5 + sw, -1 - ph * 5, 2, 2, `rgba(120,110,95,${(0.7 - ph * 0.6).toFixed(2)})`); }
       break;
     }
+    case 'scangun': box(3, -11, 7, 4, '#2a2a30'); R(5, -7, 2, 4, '#2a2a30'); R(10, -10, 1, 2, '#ff3030'); if (on && f2) { g.fillStyle = 'rgba(255,40,40,.55)'; g.fillRect(11, -10, 9, 1); } break;
+    case 'knife': R(4, -9, 3, 3, '#7a5230'); R(7, -9, 6, 1, '#e0e4ea'); R(12, -10, 1, 2, '#e0e4ea'); if (on && f2) R(14, -8, 1, 1, '#ffe066'); break;
+    case 'canister': box(2, -9, 8, 9, '#3b7bd4'); R(4, -10, 4, 1, OUT); R(3, -7, 6, 1, '#7fb0f0'); break;
     case 'cup': R(4, -10, 3, 4, '#f5f5f5'); R(7, -9, 1, 2, '#f5f5f5'); if (on) for (let k = 0; k < 2; k++) { const ph = (t + k / 2) % 1; R(5, -12 - ph * 6, 1, 2, `rgba(255,255,255,${(0.7 - ph * 0.7).toFixed(2)})`); } break;
   }
 }
@@ -342,14 +376,19 @@ function drawWorker(w) {
   const tool = w.carry ? null : toolOf(w), grab = w.act === 'grab';
   const on = !grab && (w.state === 'work' || w.state === 'act');
   const pose = w.state === 'break' ? 'sit' : moving && Math.floor(time * 7) % 2 ? 'walk' : 'stand';
-  const arms = w.carry ? 'carry' : (tool === 'hands' && on && Math.floor(time * 4) % 2) || (grab && Math.floor(time * 5) % 2) ? 'up' : null;
+  const cart = !!(j && j.type === 'haul' && j.cart);
+  const arms = w.carry && !cart ? 'carry' : (tool === 'hands' && on && Math.floor(time * 4) % 2) || (grab && Math.floor(time * 5) % 2) ? 'up' : null;
   const sp = person(hair, skin, w.color, pose, arms), bob = pose === 'walk' ? -1 : 0;
   g.save(); g.translate(px, py); g.scale(face, 1);
   R(-6, 0, 12, 2, 'rgba(0,0,0,.28)');
   g.drawImage(sp, -7, -sp.height + 1 + bob);
   if (tool && tool !== 'hands') { g.save(); g.translate(0, bob + (grab ? 3 : 0)); drawTool(tool, on, time + w.id * 0.37); g.restore(); }
+  if (cart) { // тележка (Rollwagen) с шинами стопкой
+    R(6, -11, 1, 8, '#5d6270'); box(7, -5, 15, 4, '#8d96a3'); disc(9, 0, 1, OUT); disc(20, 0, 1, OUT);
+    if (w.load) flatTires(9, -8, w.load.length);
+  }
   g.restore();
-  if (w.carry) { const t = S.tires.get(w.carry); tire(px - 3, py - 11 + bob, t && (t.stage === 'lack' || t.stage === 'endk')); }
+  if (w.carry && !cart) { const t = S.tires.get(w.carry); tire(px - 3, py - 11 + bob, NEW(t)); }
   if (w.state === 'break') { const ph = (time * 0.7 + w.id * 0.13) % 1; ptext('Z', px + 4 + ph * 3, py - 22 - ph * 6, '#ffffff'); }
   if (w.energy < 28 && w.state !== 'break' && Math.floor(time * 2) % 2) ptext('!', px + 6, py - 23, '#ff5050');
   if (S.selected && S.selected.w === w) brackets(px - 9, py - 21, 18, 24);
@@ -362,19 +401,23 @@ let camInit = false;
 function render(view) {
   V = view; time = performance.now() / 1000;
   const { MW, MH, S, STATIONS, LOOP, HOOKS, loopPos, ctx, TILE } = V;
-  if (!camInit) { camInit = true; clampCam(); }
-  if (!pc) { pc = document.createElement('canvas'); pc.width = MW * PT; pc.height = MH * PT; lightCanvas = document.createElement('canvas'); lightCanvas.width = pc.width; lightCanvas.height = pc.height; for (let y = 5; y < 27; y += 6) for (let x = 14; x < 46; x += 7) LAMPS.push([x * PT, y * PT]); }
+  if (!camInit) { camInit = true; if (V.CAM) { cam.z = V.CAM.z; cam.cx = V.CAM.cx * PT; cam.cy = V.CAM.cy * PT; } clampCam(); }
+  if (!pc) { pc = document.createElement('canvas'); pc.width = MW * PT; pc.height = MH * PT; lightCanvas = document.createElement('canvas'); lightCanvas.width = pc.width; lightCanvas.height = pc.height; for (let y = 11; y < MH - 2; y += 6) for (let x = 4; x < MW - 2; x += 7) if (V.grid[V.I(x, y)] === V.T_FLOOR) LAMPS.push([x * PT, y * PT]); }
   if (!bgCanvas) buildBackground();
   g = pc.getContext('2d'); g.imageSmoothingEnabled = false;
   g.drawImage(bgCanvas, 0, 0);
   for (const s of STATIONS) drawStation(s);
   if (S.selected && S.selected.st) { const s = S.selected.st; brackets(s.x * PT - 1, s.y * PT - 1, s.w * PT + 2, s.h * PT + 2); }
+  // сканер Ж4: красный луч, когда через него прокатили шину
+  const scn = V.DECOR.find(d => d.id === 'scanner');
+  if (scn) { const X = scn.x * PT, Y = scn.y * PT; R(X + 3, Y + 2, scn.w * PT - 6, 6, '#16181d'); if (S.t - scn.lastScan < 0.8) { R(X + 1, Y + PT - 2, scn.w * PT - 2, 1, '#ff3030'); R(X + 4, Y + 4, 3, 2, '#ff3030'); } else R(X + 4, Y + 4, 2, 2, '#3fa060'); }
   // ящик с инструментами на верстаке, пока техник его не взял
   const wb = V.DECOR.find(d => d.id === 'werkbank');
-  if (wb && !S.workers.some(w => !w.away && w.tool)) { box(wb.x * PT + wb.w * PT - 13, wb.y * PT - 3, 10, 7, '#c0392b'); R(wb.x * PT + wb.w * PT - 11, wb.y * PT - 4, 6, 1, OUT); }
+  if (wb && !S.workers.some(w => !w.away && w.tool === 'kit')) { box(wb.x * PT + wb.w * PT - 13, wb.y * PT - 3, 10, 7, '#c0392b'); R(wb.x * PT + wb.w * PT - 11, wb.y * PT - 4, 6, 1, OUT); }
   // парковка: машины рабочих текущей смены
   const present = S.workers.filter(w => !w.away);
-  present.slice(0, 7).forEach((w, k) => { const X = 22 * PT + 4 + k * 2 * PT, Y = 28 * PT + 4; box(X, Y, 14, 9, w.color); R(X + 3, Y + 2, 3, 5, '#9fd3ff'); R(X + 10, Y + 2, 2, 5, shade(w.color, -0.3)); });
+  const pz = V.ZONES.find(z => z.kind === 'parking');
+  if (pz) present.slice(0, Math.floor(pz.w / 2)).forEach((w, k) => { const X = pz.x * PT + 4 + k * 2 * PT, Y = pz.y * PT + 4 + (k % 2) * PT; box(X, Y, 14, 9, w.color); R(X + 3, Y + 2, 3, 5, '#9fd3ff'); R(X + 10, Y + 2, 2, 5, shade(w.color, -0.3)); });
   // кольцо Hängebahn и его привод
   if (S.hook) {
     const P = p => [Math.round(p.x * PT + PT / 2), Math.round(p.y * PT + PT / 2)];
@@ -382,7 +425,7 @@ function render(view) {
     for (const s of STATIONS) { const [x, y] = P(loopPos(s.stopS)); R(x - 2, y - 2, 4, 4, '#ff9f1a'); }
     for (const h of HOOKS) {
       const [x, y] = P(loopPos(h.s)); R(x - 1, y - 1, 3, 3, '#e3b341');
-      if (h.tire) { const t = S.tires.get(h.tire); R(x, y + 2, 1, 2, '#6b6b72'); tire(x - 3, y + 4, t && (t.stage === 'lack' || t.stage === 'endk')); }
+      if (h.tire) { const t = S.tires.get(h.tire); R(x, y + 2, 1, 2, '#6b6b72'); tire(x - 3, y + 4, NEW(t)); }
     }
   }
   const d = V.HOOK_DRIVE;

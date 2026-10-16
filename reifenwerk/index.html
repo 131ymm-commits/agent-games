@@ -82,14 +82,16 @@
 'use strict';
 (() => {
 // ================= Константы =================
-const TILE = 24, MW = 48, MH = 30;
+const TILE = 24, MW = 76, MH = 52;
 const MIN_PER_SEC = 0.75;     // игровых минут в реальную секунду на скорости 1×
-const WALK = 12;              // клеток за игровую минуту (клетка ≈ 1,5 м, с шиной ≈ 0,3 м/с)
+const WALK = 18;              // клеток за игровую минуту (клетка ≈ 1,5 м, ≈ 0,45 м/с с учётом манёвров)
 const TRUCK_SPEED = 9;
 const DAY_START = 6 * 60, SHIFT_CHANGE = 14 * 60, DAY_END = 22 * 60;
 const WAGE_PER_HOUR = 21, OVERHEAD_PER_DAY = 2800;
 const FORK = 6;                                   // шин на вилах погрузчика за рейс
-const DUSTY = ["rauen", "ausschl", "entgr"];       // участки, где сыплется резиновая пыль
+const CART = 4;                                   // шин на тележке (Rollwagen)
+const liftTime = (j, what) => j.crane === what ? 1.5 : j.fork || j.cart ? 0.8 : 0.5;
+const DUSTY = ["rauen", "ausschl", "entgr"];       // участки, где сыплется резиновая пыль и стружка
 const BREAK_MIN = 1000;                           // средняя наработка на отказ, минут работы (пыль и износ ускоряют)
 // Типичные поломки по участкам: немецкое название — что случилось
 const FAULTS = {
@@ -98,12 +100,11 @@ const FAULTS = {
   ausschl: [['Druckluftschlauch geplatzt', 'лопнул шланг сжатого воздуха'], ['Schleifer defekt', 'сломалась пневмошлифовка']],
   spray: [['Sprühdüse verstopft', 'засорилась форсунка'], ['Absaugung ausgefallen', 'отказала вытяжка']],
   fuellen: [['Extruder-Heizung defekt', 'не греет пистолет-экструдер'], ['Schnecke blockiert', 'заклинило шнек экструдера']],
-  belegen: [['Anrollrolle verschlissen', 'износился прикаточный ролик'], ['Messer stumpf', 'затупился нож']],
-  huelle: [['Vakuumpumpe defekt', 'сломался вакуумный насос']],
-  auto: [['Türdichtung undicht', 'течёт уплотнение двери, падает давление'], ['Dampfventil klemmt', 'заело паровой клапан']],
-  entgr: [['Druckluftschlauch geplatzt', 'лопнул шланг сжатого воздуха'], ['Schleifscheibe gebrochen', 'треснул шлифкруг']],
-  lack: [['Farbpistole verstopft', 'засорился краскопульт']],
-  endk: [['Prüfkompressor ausgefallen', 'отказал компрессор проверки давлением'], ['Etikettendrucker defekt', 'сломался принтер этикеток']],
+  aufbau: [['Extruder der Wickelmaschine verstopft', 'забился экструдер намоточной машины'], ['Wickeltrommel klemmt', 'заело барабан намотки']],
+  presse: [['Heizbalg undicht', 'течёт варочная камера (Heizbalg)'], ['Dampfventil klemmt', 'заело паровой клапан'], ['Formsegment klemmt', 'заело сегмент пресс-формы']],
+  scan: [['Scanner defekt', 'сломался сканер штрихкодов']],
+  entgr: [['Entgratmesser stumpf', 'затупился нож обрезного станка'], ['Drehteller klemmt', 'заело вращение станка']],
+  endk: [['Prüfmaschine Fehler', 'ошибка машины финального контроля'], ['Etikettendrucker defekt', 'сломался принтер этикеток']],
   antrieb: [['Kette gesprungen', 'соскочила цепь конвейера'], ['Antriebsmotor überhitzt', 'перегрелся мотор привода']],
 };
 
@@ -116,94 +117,132 @@ const RI = (a, b) => Math.floor(R(a, b + 1));
 const pick = arr => arr[Math.floor(rnd() * arr.length)];
 
 // ================= Карта =================
+// Планировка по эталонному цеху (plant/README.md): 1 клетка ≈ 1,5 м.
+// Длинная ось корпуса — слева (юго-запад) направо (северо-восток); сверху улица и двор, снизу зона Ф.
 const T_GRASS = 0, T_ROAD = 1, T_YARD = 2, T_FLOOR = 3, T_WALL = 4, T_DOOR = 5;
 const grid = new Uint8Array(MW * MH), blocked = new Uint8Array(MW * MH);
 const I = (x, y) => y * MW + x;
-for (let y = 0; y < MH; y++) for (let x = 0; x < MW; x++) {
-  let t = T_GRASS;
-  if (x <= 2) t = T_ROAD; else if (x <= 9 && y >= 1 && y <= 28) t = T_YARD;
-  if (x >= 10 && x <= 46 && y >= 2 && y <= 27) t = (x === 10 || x === 46 || y === 2 || y === 27) ? T_WALL : T_FLOOR;
-  grid[I(x, y)] = t;
-}
-for (const [x, y] of [[10, 5], [10, 6], [10, 21], [10, 22], [28, 27], [29, 27]]) grid[I(x, y)] = T_DOOR;
+const area = (x0, y0, x1, y1, t) => { for (let y = y0; y <= y1; y++) for (let x = x0; x <= x1; x++) grid[I(x, y)] = t; };
+const wallH = (y, x0, x1) => area(x0, y, x1, y, T_WALL), wallV = (x, y0, y1) => area(x, y0, x, y1, T_WALL);
+area(0, 0, MW - 1, MH - 1, T_YARD);
+area(0, 0, MW - 1, 2, T_ROAD);                                   // улица
+area(0, 50, MW - 1, MH - 1, T_GRASS); area(72, 3, MW - 1, 12, T_GRASS); area(0, 43, 1, 49, T_GRASS);
+area(2, 9, 25, 26, T_FLOOR);                                     // К1 — навес без стен
+area(2, 27, 26, 42, T_FLOOR); wallH(27, 2, 26); wallV(2, 27, 42); wallH(42, 2, 26);   // К2 — склад материалов
+area(26, 9, 66, 49, T_FLOOR); wallH(9, 26, 66); wallH(49, 26, 66); wallV(26, 9, 49); wallV(66, 9, 49); // главный корпус
+area(66, 23, 71, 31, T_FLOOR); wallH(23, 66, 71); wallH(31, 66, 71); wallV(71, 23, 31);              // Р — пандус отгрузки
+wallH(16, 26, 35); wallV(35, 9, 23); wallH(23, 26, 66); wallH(40, 26, 66);           // С1|С2, С|С3, левый пролёт|Ж, Ж|Ф
+area(66, 24, 66, 30, T_FLOOR);                                   // Ж4 открыт на пандус
+for (const [x, y] of [[30, 9], [26, 19], [26, 38], [12, 27], [23, 42], [30, 16], [35, 12], [35, 19], [27, 23], [41, 23], [42, 23], [49, 23],
+  [60, 23], [61, 23], [29, 40], [53, 40], [67, 23], [68, 23], [69, 23], [70, 23]]) grid[I(x, y)] = T_DOOR;
 
 const ZONES = [
-  { name: 'Pausenraum', x: 12, y: 9, w: 6, h: 6, color: 'rgba(110,160,110,.28)' },
-  { name: 'Büro', x: 20, y: 9, w: 5, h: 4, color: 'rgba(120,130,190,.25)' },
-  { name: 'Parkplatz', x: 22, y: 28, w: 14, h: 2, color: 'rgba(80,80,80,.35)' },
+  { name: 'Pausenraum', kind: 'rest', x: 27, y: 10, w: 8, h: 6, color: 'rgba(110,160,110,.28)' },
+  { name: 'Parkplatz', kind: 'parking', x: 38, y: 4, w: 24, h: 4, color: 'rgba(80,80,80,.35)' },
+  { name: 'К1 VORDACH', kind: 'shed', x: 2, y: 9, w: 24, h: 18, color: 'rgba(150,140,120,.18)' },
+  { name: 'К2 MATERIAL', kind: 'label', x: 3, y: 28, w: 23, h: 14, color: 'rgba(120,110,90,.10)' },
+  { name: 'С2 PRÜFUNG', kind: 'label', x: 27, y: 17, w: 8, h: 6, color: 'rgba(90,130,200,.10)' },
+  { name: 'С3 KARKASSENLAGER', kind: 'label', x: 36, y: 10, w: 30, h: 13, color: 'rgba(90,130,200,.10)' },
+  { name: 'Ж1 VORBEREITUNG', kind: 'label', x: 27, y: 24, w: 10, h: 16, color: 'rgba(240,190,40,.10)' },
+  { name: 'Ж2 AUFBAU', kind: 'label', x: 37, y: 24, w: 9, h: 16, color: 'rgba(240,190,40,.14)' },
+  { name: 'Ж3 PRESSEN', kind: 'label', x: 46, y: 24, w: 8, h: 16, color: 'rgba(240,190,40,.10)' },
+  { name: 'Ж4 FINISH', kind: 'label', x: 54, y: 24, w: 12, h: 16, color: 'rgba(240,190,40,.14)' },
+  { name: 'Ф KLEINREIFEN', kind: 'label', x: 27, y: 41, w: 39, h: 8, color: 'rgba(150,110,200,.12)' },
 ];
 const DECOR = [
-  { id: 'regal', label: 'Materiallager', x: 30, y: 9, w: 5, h: 2, color: '#5b4a3a', desc: 'Стеллажи с материалами: протекторы (Laufstreifen), связующая резина (Bindegummi), клей (Gummilösung), ремонтная резина (Füllgummi). Остатки — во вкладке «Склад».' },
-  { id: 'kaffee', label: '☕', x: 17, y: 9, w: 1, h: 1, color: '#6b3f2a', desc: 'Кофемашина. Здесь рабочие восстанавливают силы.' },
-  { id: 'tisch', label: '', x: 13, y: 11, w: 3, h: 1, color: '#7a5a3a', desc: 'Стол в комнате отдыха.' },
-  { id: 'desk', label: '', x: 21, y: 10, w: 2, h: 1, color: '#5a5f7a', desc: 'Стол мастера: заказы, планирование, качество. Мастер — это вы.' },
-  { id: 'schrott', label: 'Schrott', x: 4, y: 13, w: 2, h: 2, color: '#7a3b2a', desc: 'Контейнер для лома. Сюда уходят забракованные каркасы.' },
-  { id: 'werkbank', label: 'Werkstatt', x: 26, y: 9, w: 3, h: 1, color: '#6b4a2a', desc: 'Мастерская техника: верстак, тиски, ящик с инструментами и запчасти. Когда станок ломается, техник берёт здесь инструмент и идёт чинить.' },
+  { id: 'regal', label: 'Materiallager', x: 4, y: 29, w: 8, h: 2, color: '#5b4a3a', desc: 'К2 — склад материалов: протекторы, ремонтная резина (Füllgummi), запчасти. Остатки — во вкладке «Склад».' },
+  { id: 'regal', label: '', x: 4, y: 33, w: 8, h: 2, color: '#5b4a3a', desc: 'К2 — склад материалов.' },
+  { id: 'kaffee', label: '☕', x: 34, y: 10, w: 1, h: 1, color: '#6b3f2a', desc: 'Кофемашина. Здесь рабочие восстанавливают силы.' },
+  { id: 'tisch', label: '', x: 28, y: 12, w: 2, h: 1, color: '#7a5a3a', desc: 'С1: бытовка и столовая (столовая — на втором этаже).' },
+  { id: 'tisch', label: '', x: 31, y: 12, w: 2, h: 1, color: '#7a5a3a', desc: 'С1: бытовка и столовая.' },
+  { id: 'desk', label: '', x: 33, y: 14, w: 2, h: 1, color: '#5a5f7a', desc: 'Стол мастера: заказы, планирование, качество. Мастер — это вы.' },
+  { id: 'schrott', label: 'Container', x: 5, y: 5, w: 12, h: 2, color: '#7a3b2a', desc: 'Огороженная площадка с большими контейнерами. Сюда уходит лом — забракованные каркасы.' },
+  { id: 'werkbank', label: 'Werkstatt', x: 27, y: 42, w: 3, h: 1, color: '#6b4a2a', desc: 'Мастерская техника: верстак, тиски, ящик с инструментами и запчасти. Когда станок ломается, техник берёт здесь инструмент и идёт чинить.' },
+  { id: 'rohgummi', label: 'Rohgummi', x: 44, y: 37, w: 2, h: 2, color: '#2a2a30', desc: 'Сырая (невулканизированная) резина для намотки. Лежит прямо у машин Ж2: её подвозят, ходить за ней не нужно.' },
+  { id: 'm2', label: 'М2', x: 21, y: 44, w: 4, h: 2, color: '#4a4f57', desc: 'М2: контейнеры для резиновых отходов и склад Gummilösung. Когда клей на участке кончается, рабочий идёт сюда за канистрой.' },
+  { id: 'm1', label: 'М1', x: 70, y: 44, w: 4, h: 2, color: '#4a4f57', desc: 'М1: мусор — металл (проволока, гвозди) и бумага.' },
+  { id: 'autoklav1', label: 'Autoklav', x: 55, y: 43, w: 5, h: 3, color: '#4a7db0', desc: 'Единственный автоклав (холодный метод). Работает отдельно от основной линии, на нём один человек. Пока не моделируется.' },
+  { id: 'scanner', label: 'Scan', x: 55, y: 29, w: 2, h: 1, color: '#2c6aa8', short: 'Scan', lastScan: -99, desc: 'Ж4: площадка сканера. Шину с обрезки катят через сканер — он читает штрихкод и записывает весь путь шины по цеху.' },
+  ...[32, 35, 38, 41, 44, 47].map(x => ({ id: 'kpresse', label: '', x, y: 44, w: 2, h: 2, color: '#6b5a8a', desc: 'Маленький пресс для шин небольших гоночных машин (мягкая резина). Зона Ф — к ней вернёмся позже.' })),
 ];
-const WERKBANK = { x: 27, y: 10 };
-const FORK_HOMES = [{ x: 7, y: 8 }, { x: 7, y: 17 }]; // стоянки двух погрузчиков во дворе
+const WERKBANK = { x: 28, y: 43 };
+const COFFEE = { x: 33, y: 10 };
+const M2_ACCESS = { x: 23, y: 43 };
+const SCAN_ACCESS = { x: 55, y: 30 };
+const FORK_HOMES = [{ x: 19, y: 8 }, { x: 63, y: 21 }]; // стоянки погрузчиков: у приёмки З и у склада С3
 for (const d of DECOR) for (let y = d.y; y < d.y + d.h; y++) for (let x = d.x; x < d.x + d.w; x++) blocked[I(x, y)] = 1;
-const SEATS = [[12, 10], [14, 10], [16, 10], [12, 12], [16, 12], [12, 13], [14, 13], [16, 13], [12, 14], [14, 14], [16, 14]];
-const EXIT = { x: 28, y: 29 }, ENTRY = { x: 28, y: 28 };
-const SCRAP_ACCESS = { x: 6, y: 14 };
-const DOCKS = { 1: { y: 5.5, access: { x: 9, y: 5 } }, 2: { y: 21.5, access: { x: 9, y: 21 } } };
+const SEATS = [[28, 11], [29, 11], [31, 11], [32, 11], [28, 13], [29, 13], [31, 13], [32, 13], [27, 14], [30, 14], [29, 15]];
+const EXIT = { x: 40, y: 6 }, ENTRY = { x: 40, y: 5 };
+const SCRAP_ACCESS = { x: 11, y: 7 };
+// Ворота: З — приёмка каркасов (въезд), Р — пандус отгрузки готовых шин (выезд). Грузовики едут по улице сверху.
+const DOCKS = {
+  1: { x: 23, stopY: 5.5, access: { x: 23, y: 9 }, label: 'З ANNAHME', rect: { x: 21, y: 3, w: 5, h: 6 } },
+  2: { x: 68, stopY: 18, access: { x: 68, y: 22 }, label: 'Р VERSAND', rect: { x: 66, y: 14, w: 5, h: 9 } },
+};
+const CAM = { z: 1.5, cx: 46.5, cy: 29 }; // стартовый вид пиксельной графики: линия Ж1–Ж4
 
 // ================= Станции =================
-// g = группа (тип станции). next — группа, куда шина идёт дальше. Станций одной группы может быть несколько.
-const WORKS = ['transport', 'pruefen', 'rauen', 'reparatur', 'belegen', 'vulkan', 'nacharbeit', 'lack', 'technik'];
-const WORK_RU = { transport: 'Транспорт', pruefen: 'Контроль', rauen: 'Рауен', reparatur: 'Ремонт шин', belegen: 'Обкладка', vulkan: 'Вулканизация', nacharbeit: 'Дефекты', lack: 'Покраска', technik: 'Техник (Instandhaltung)' };
+// g = группа (тип станции). next — группа, куда шина идёт дальше. loop — станция на подвесном конвейере (Ж1–Ж2).
+const WORKS = ['transport', 'pruefen', 'rauen', 'reparatur', 'belegen', 'vulkan', 'nacharbeit', 'technik'];
+const WORK_RU = { transport: 'Транспорт', pruefen: 'Контроль', rauen: 'Рауен', reparatur: 'Ремонт шин', belegen: 'Намотка резины', vulkan: 'Прессы', nacharbeit: 'Обрезка', technik: 'Техник (Instandhaltung)' };
 const INFO = {
-  eingang: ['Eingangslager', 'Склад приёмки', 'Каркасы из грузовика клиента ждут входного контроля.'],
-  pruef: ['Eingangsprüfung', 'Входной контроль', 'Осмотр каркаса снаружи и изнутри на расширителе бортов. Порезы корда, разрыв брекера, старость — в лом.'],
+  eingang: ['Eingangslager', 'К1: навес с каркасами', 'Каркасы из грузовика клиента под навесом без стен. Их предварительно смотрят и отбирают плохие.'],
+  pruef: ['Eingangsprüfung', 'С2: входной осмотр', 'Станок входного осмотра: каркас вращают и осматривают снаружи и изнутри. Шине клеят полоску со штрихкодом — дальше её сканируют на каждом участке. Порезы корда, разрыв брекера, старость — в лом.'],
+  sort: ['Karkassenlager', 'С3: склад каркасов', 'Рассортированные каркасы, готовые к работе. Отсюда их погрузчиком везут к подвесному конвейеру. Здесь же стоит WIP-лимит: сколько шин пускать в линию.'],
+  aufh: ['Aufhängen', 'Ж1: навеска на крюки', 'Каркасы вешают на крюки подвесного конвейера (Hängebahn). На крюках они копятся и едут по участкам Ж1 до намотки в Ж2.'],
   rauen: ['Rauen', 'Снятие протектора', 'Рауавтомат вращающейся фрезой снимает остатки старого протектора до нужного радиуса и шероховатости.'],
-  ausschl: ['Ausschleifen', 'Зачистка повреждений', 'Повреждения (гвозди, порезы) высверливают и зачищают до здоровой резины.'],
-  spray: ['Flüssiggummi', 'Нанесение жидкой резины', 'На зачищенную поверхность и в выемки наносят жидкую резину (Gummilösung). Шина 15 минут сохнет до липкости.'],
-  fuellen: ['Spachteln', 'Шпаклёвка дыр', 'Дыры и выемки зашпаклёвывают ремонтной резиной (Füllgummi) из экструдера и выравнивают. Большие пробои — пластырь изнутри.'],
-  belegen: ['Belegen', 'Наложение протектора', 'Слой Bindegummi + готовый протектор (Laufstreifen) по длине окружности. Роликом выдавливают воздух (Anrollen).'],
-  huelle: ['Einhüllen', 'Надевание чехла', 'Резиновый чехол (Hülle) и монтажное кольцо, вакуумная проверка герметичности.'],
-  auto: ['Autoklav', 'Автоклав', 'Партия до 10 шин, цикл около 5 ч: нагрев, вулканизация при ~110–120 °C под давлением, охлаждение. Связующий слой намертво соединяет протектор с каркасом. Вечером запускают последнюю партию — автоклав работает ночью.'],
-  entgr: ['Fehlerbeseitigung', 'Устранение дефектов', 'После автоклава: снять чехол и кольцо, обрезать облой (Entgraten), устранить мелкие дефекты (пузыри, наплывы). Серьёзный брак — на переделку или в лом.'],
-  nacharb: ['Nacharbeit', 'Стеллаж переделки', 'Шины с серьёзным дефектом ждут повторной зачистки. Отдельный буфер не даёт линии заклинить по кругу.'],
-  lack: ['Lackieren', 'Покраска', 'Покраска боковин восстановленной шины.'],
-  endk: ['Endkontrolle', 'Финальный контроль', 'Осмотр, проверка давлением, маркировка ECE R109 «Retread», штрихкод. Что пропустит контроль — уедет к клиенту.'],
-  fertig: ['Versand', 'Отправка', 'Проверенные шины ждут грузовик клиента у рампы 2.'],
+  ausschl: ['Ausschleifen', 'Зачистка повреждений', 'Пневматическими «болгарками» вычищают дефекты: дыры, порезы — до здоровой резины.'],
+  spray: ['Flüssiggummi', 'Нанесение Gummilösung', 'На зачищенную поверхность наносят жидкую резину (Gummilösung). Шина сохнет до липкости. Клей в канистрах: когда кончается, рабочий идёт за ним на М2.'],
+  fuellen: ['Spachteln', 'Шпаклёвка дыр', 'Глубокие дефекты заполняют резиной из пистолета-экструдера.'],
+  aufbau: ['Aufbau', 'Ж2: намотка сырой резины', 'Машина наматывает на каркас ленту сырой (невулканизированной) резины слой за слоем. Здесь шину снимают с крюка; дальше — тележками по 4 шины.'],
+  puffer: ['Wagenplatz', 'Ж3: тележки у прессов', 'Тележки с намотанными шинами ждут свободного пресса.'],
+  presse: ['Heizpresse', 'Ж3: пресс с формой', 'Одна шина: внутри её раздувает (Heizbalg), и она прижимается к форме — форма даёт весь рисунок протектора. Около 90 мин вулканизации. Шину заряжают и достают маленьким краном.'],
+  entgr: ['Entgraten', 'Ж4: обрезка облоя', 'Шину катят от пресса к вращающемуся станку: срезают облой и выпоры резины по краям. Серьёзный брак — на переделку или в лом.'],
+  nacharb: ['Nacharbeit', 'Стеллаж переделки', 'Шины с серьёзным дефектом ждут повторной обработки — снова на крюки, с шероховки.'],
+  endk: ['Endkontrolle', 'Ж4: финальный контроль', 'Контроль в машине: чтобы не было никаких проблем. Что пропустит контроль — уедет к клиенту.'],
+  fertig: ['Fertiglager', 'Ж4: готовые шины', 'Готовые шины ждут грузовик клиента у пандуса Р.'],
 };
+const PRESSES = Array.from({ length: 10 }, (_, k) => {
+  const colA = k < 5, y = 24 + (k % 5) * 3;
+  return { id: 'presse' + (k + 1), g: 'presse', kind: 'auto', work: 'vulkan', x: colA ? 47 : 51, y, w: 2, h: 2, ax: colA ? 49 : 50, ay: y, cap: 1, cycle: 90, startT: 3, next: 'entgr', color: '#56606e' };
+});
 const STATIONS = [
-  { id: 'eingang', g: 'eingang', kind: 'store', x: 12, y: 3, w: 4, h: 3, ax: 14, ay: 6, cap: 40, next: 'pruef', color: '#4b5361' },
-  { id: 'pruef', g: 'pruef', kind: 'proc', work: 'pruefen', time: 6, x: 17, y: 3, w: 2, h: 2, ax: 17, ay: 5, inCap: 2, next: 'rauen', color: '#2c6aa8' },
-  { id: 'rauen1', g: 'rauen', kind: 'proc', work: 'rauen', time: 7, x: 20, y: 3, w: 3, h: 2, ax: 21, ay: 5, inCap: 2, next: 'ausschl', color: '#8f5a1c' },
-  { id: 'rauen2', g: 'rauen', kind: 'proc', work: 'rauen', time: 7, x: 23, y: 3, w: 3, h: 2, ax: 24, ay: 5, inCap: 2, next: 'ausschl', color: '#8f5a1c' },
-  { id: 'ausschl1', g: 'ausschl', kind: 'proc', work: 'reparatur', time: 8, x: 27, y: 3, w: 2, h: 2, ax: 27, ay: 5, inCap: 2, next: 'spray', color: '#7a4f8a' },
-  { id: 'ausschl2', g: 'ausschl', kind: 'proc', work: 'reparatur', time: 8, x: 29, y: 3, w: 2, h: 2, ax: 30, ay: 5, inCap: 2, next: 'spray', color: '#7a4f8a' },
-  { id: 'spray', g: 'spray', kind: 'proc', work: 'reparatur', time: 2, dry: 15, mat: { loesung: 1 }, x: 32, y: 3, w: 3, h: 2, ax: 33, ay: 5, inCap: 2, outCap: 4, next: 'fuellen', color: '#3c7f7a' },
-  { id: 'fuellen', g: 'fuellen', kind: 'proc', work: 'reparatur', time: 6, mat: { fuellgummi: 1 }, x: 36, y: 3, w: 2, h: 2, ax: 36, ay: 5, inCap: 2, next: 'belegen', color: '#5d6b2f' },
-  { id: 'belegen1', g: 'belegen', kind: 'proc', work: 'belegen', time: 9, mat: { laufstreifen: 1, bindegummi: 1 }, x: 39, y: 3, w: 3, h: 2, ax: 40, ay: 5, inCap: 2, next: 'huelle', color: '#a0662a' },
-  { id: 'belegen2', g: 'belegen', kind: 'proc', work: 'belegen', time: 9, mat: { laufstreifen: 1, bindegummi: 1 }, x: 42, y: 3, w: 3, h: 2, ax: 43, ay: 5, inCap: 2, next: 'huelle', color: '#a0662a' },
-  { id: 'huelle', g: 'huelle', kind: 'proc', work: 'belegen', time: 4, x: 35, y: 7, w: 2, h: 2, ax: 35, ay: 6, inCap: 4, next: 'auto', color: '#4a4f73' },
-  { id: 'auto1', g: 'auto', kind: 'auto', work: 'vulkan', x: 40, y: 8, w: 5, h: 3, ax: 45, ay: 9, cap: 10, cycle: 300, next: 'entgr', color: '#56606e' },
-  { id: 'auto2', g: 'auto', kind: 'auto', work: 'vulkan', x: 40, y: 11, w: 5, h: 3, ax: 45, ay: 12, cap: 10, cycle: 300, next: 'entgr', color: '#56606e' },
-  { id: 'auto3', g: 'auto', kind: 'auto', work: 'vulkan', x: 40, y: 14, w: 5, h: 3, ax: 45, ay: 15, cap: 10, cycle: 300, next: 'entgr', color: '#56606e' },
-  { id: 'auto4', g: 'auto', kind: 'auto', work: 'vulkan', x: 40, y: 17, w: 5, h: 3, ax: 45, ay: 18, cap: 10, cycle: 300, next: 'entgr', color: '#56606e' },
-  { id: 'entgr1', g: 'entgr', kind: 'proc', work: 'nacharbeit', time: 6, x: 40, y: 22, w: 2, h: 2, ax: 40, ay: 21, inCap: 3, next: 'lack', color: '#8a5a2a' },
-  { id: 'entgr2', g: 'entgr', kind: 'proc', work: 'nacharbeit', time: 6, x: 37, y: 22, w: 2, h: 2, ax: 37, ay: 21, inCap: 3, next: 'lack', color: '#8a5a2a' },
-  { id: 'nacharb', g: 'nacharb', kind: 'store', x: 33, y: 22, w: 3, h: 2, ax: 34, ay: 21, cap: 16, next: 'ausschl', color: '#7a3b4a' },
-  { id: 'lack', g: 'lack', kind: 'proc', work: 'lack', time: 3, x: 29, y: 22, w: 2, h: 2, ax: 29, ay: 21, inCap: 3, next: 'endk', color: '#2f2f2f' },
-  { id: 'endk', g: 'endk', kind: 'proc', work: 'pruefen', time: 4, x: 25, y: 22, w: 2, h: 2, ax: 25, ay: 21, inCap: 4, next: 'fertig', color: '#2c6aa8' },
-  { id: 'fertig', g: 'fertig', kind: 'store', x: 12, y: 20, w: 4, h: 4, ax: 16, ay: 21, cap: 80, next: null, color: '#3d5a40' },
+  { id: 'eingang', g: 'eingang', kind: 'store', x: 15, y: 11, w: 7, h: 5, ax: 22, ay: 13, cap: 60, next: 'pruef', color: '#4b5361' },
+  { id: 'pruef1', g: 'pruef', kind: 'proc', work: 'pruefen', time: 7, x: 28, y: 18, w: 2, h: 2, ax: 28, ay: 20, inCap: 2, next: 'sort', color: '#2c6aa8' },
+  { id: 'pruef2', g: 'pruef', kind: 'proc', work: 'pruefen', time: 7, x: 31, y: 18, w: 2, h: 2, ax: 31, ay: 20, inCap: 2, next: 'sort', color: '#2c6aa8' },
+  { id: 'sort', g: 'sort', kind: 'store', x: 37, y: 11, w: 14, h: 9, ax: 44, ay: 20, cap: 120, next: 'aufh', fork: true, color: '#4b5361' },
+  { id: 'aufh', g: 'aufh', kind: 'store', x: 27, y: 30, w: 2, h: 4, ax: 29, ay: 31, cap: 24, next: 'rauen', loop: true, color: '#4b5361' },
+  { id: 'rauen1', g: 'rauen', kind: 'proc', work: 'rauen', time: 7, x: 30, y: 24, w: 3, h: 2, ax: 31, ay: 26, inCap: 2, next: 'ausschl', loop: true, color: '#8f5a1c' },
+  { id: 'rauen2', g: 'rauen', kind: 'proc', work: 'rauen', time: 7, x: 33, y: 24, w: 3, h: 2, ax: 34, ay: 26, inCap: 2, next: 'ausschl', loop: true, color: '#8f5a1c' },
+  { id: 'ausschl1', g: 'ausschl', kind: 'proc', work: 'reparatur', time: 8, x: 36, y: 24, w: 2, h: 2, ax: 36, ay: 26, inCap: 2, next: 'spray', loop: true, color: '#7a4f8a' },
+  { id: 'ausschl2', g: 'ausschl', kind: 'proc', work: 'reparatur', time: 8, x: 38, y: 24, w: 2, h: 2, ax: 39, ay: 26, inCap: 2, next: 'spray', loop: true, color: '#7a4f8a' },
+  { id: 'spray', g: 'spray', kind: 'proc', work: 'reparatur', time: 2, dry: 15, mat: { loesung: 1 }, x: 30, y: 38, w: 3, h: 2, ax: 31, ay: 37, inCap: 2, outCap: 4, next: 'fuellen', loop: true, color: '#3c7f7a' },
+  { id: 'fuellen', g: 'fuellen', kind: 'proc', work: 'reparatur', time: 6, mat: { fuellgummi: 1 }, x: 33, y: 38, w: 2, h: 2, ax: 33, ay: 37, inCap: 2, next: 'aufbau', loop: true, color: '#5d6b2f' },
+  { id: 'aufbau1', g: 'aufbau', kind: 'proc', work: 'belegen', time: 9, mat: { rohgummi: 1 }, x: 41, y: 38, w: 3, h: 2, ax: 42, ay: 37, inCap: 2, outCap: 4, next: 'puffer', loop: true, cartOut: true, color: '#a0662a' },
+  { id: 'aufbau2', g: 'aufbau', kind: 'proc', work: 'belegen', time: 9, mat: { rohgummi: 1 }, x: 37, y: 38, w: 3, h: 2, ax: 38, ay: 37, inCap: 2, outCap: 4, next: 'puffer', loop: true, cartOut: true, color: '#a0662a' },
+  { id: 'puffer', g: 'puffer', kind: 'store', x: 44, y: 29, w: 2, h: 4, ax: 46, ay: 30, cap: 16, next: 'presse', color: '#4b5361' },
+  ...PRESSES,
+  { id: 'entgr1', g: 'entgr', kind: 'proc', work: 'nacharbeit', time: 6, x: 55, y: 24, w: 2, h: 2, ax: 55, ay: 26, inCap: 3, next: 'endk', color: '#8a5a2a' },
+  { id: 'entgr2', g: 'entgr', kind: 'proc', work: 'nacharbeit', time: 6, x: 58, y: 24, w: 2, h: 2, ax: 58, ay: 26, inCap: 3, next: 'endk', color: '#8a5a2a' },
+  { id: 'nacharb', g: 'nacharb', kind: 'store', x: 62, y: 24, w: 3, h: 2, ax: 63, ay: 26, cap: 16, next: 'aufh', color: '#7a3b4a' },
+  { id: 'endk', g: 'endk', kind: 'proc', work: 'nacharbeit', time: 4, x: 58, y: 28, w: 3, h: 2, ax: 59, ay: 30, inCap: 4, next: 'fertig', color: '#2c6aa8' },
+  { id: 'fertig', g: 'fertig', kind: 'store', x: 56, y: 33, w: 8, h: 5, ax: 60, ay: 32, cap: 80, next: null, color: '#3d5a40' },
 ];
-const SHORT = { eingang: 'Eingang', pruef: 'Prüfung', rauen: 'Rauen', ausschl: 'Schleifen', spray: 'Flüssiggummi', fuellen: 'Spachteln', belegen: 'Belegen', huelle: 'Hülle', auto: 'Autoklav', entgr: 'Fehler', nacharb: 'Nacharbeit', lack: 'Lack', endk: 'Kontrolle', fertig: 'Versand' };
+const SHORT = { eingang: 'Eingang', pruef: 'Prüfung', sort: 'Lager', aufh: 'Aufhängen', rauen: 'Rauen', ausschl: 'Schleifen', spray: 'Flüssiggummi', fuellen: 'Spachteln', aufbau: 'Aufbau', puffer: 'Wagen', presse: 'Presse', entgr: 'Entgraten', nacharb: 'Nacharbeit', scan: 'Scan', endk: 'Kontrolle', fertig: 'Fertig' };
 const ST = {}, GROUP = {};
 STATIONS.forEach(s => {
-  const [de, ru, desc] = INFO[s.g]; const n = STATIONS.filter(o => o.g === s.g).length;
-  s.short = n > 1 ? `${SHORT[s.g]} ${s.id.slice(-1)}` : SHORT[s.g];
-  Object.assign(s, { dirt: 0, wear: 0, broken: null, de: n > 1 ? `${de} ${s.id.slice(-1)}` : de, ru, desc, input: [], items: [], out: [], cur: null, prog: 0, worker: null, resIn: 0, state: 'idle', timer: 0, lastLoad: 0, busy: 0 });
+  const [de, ru, desc] = INFO[s.g]; const n = STATIONS.filter(o => o.g === s.g).length, num = s.id.replace(/^\D+/, '');
+  s.short = n > 1 ? `${SHORT[s.g]} ${num}` : SHORT[s.g];
+  Object.assign(s, { dirt: 0, wear: 0, broken: null, de: n > 1 ? `${de} ${num}` : de, ru, desc, input: [], items: [], out: [], cur: null, prog: 0, worker: null, resIn: 0, state: 'idle', timer: 0, lastLoad: 0, busy: 0, lastScan: -99 });
   s.outCap = s.outCap || 2; ST[s.id] = s; (GROUP[s.g] = GROUP[s.g] || []).push(s);
   for (let y = s.y; y < s.y + s.h; y++) for (let x = s.x; x < s.x + s.w; x++) blocked[I(x, y)] = 1;
 });
+ST.spray.canister = 20; ST.spray.fetching = null; // канистра Gummilösung на участке
+const loopG = g => !!(GROUP[g] && GROUP[g][0].loop);
 
 // ================= Подвесной конвейер (Hängebahn) =================
-// Кольцо над цехом по ходу процесса: верх (запад→восток) → автоклавы (вниз) → низ (восток→запад) → обратно вверх.
-const LOOP = [{ x: 13, y: 6 }, { x: 45, y: 6 }, { x: 45, y: 20 }, { x: 13, y: 20 }];
+// Только Ж1 и начало Ж2: навеска → шероховка → зачистка → Gummilösung → шпаклёвка → намотка. Кольцо: верх (запад→восток), вниз, низ (восток→запад), вверх.
+const LOOP = [{ x: 30, y: 27 }, { x: 43, y: 27 }, { x: 43, y: 36 }, { x: 30, y: 36 }];
 const SEGS = []; let LOOP_LEN = 0;
 LOOP.forEach((a, i) => { const b = LOOP[(i + 1) % LOOP.length], len = Math.abs(b.x - a.x) + Math.abs(b.y - a.y); SEGS.push({ a, b, len, start: LOOP_LEN }); LOOP_LEN += len; });
 function loopPos(s) {
@@ -221,26 +260,24 @@ function nearestOnLoop(px, py) {
   return best;
 }
 const HOOK_SPACING = 1.5, HOOK_SPEED = 8; // клеток; клеток в минуту (≈12 м/мин)
+const HOOK_RESERVE = 10;                  // столько крюков навеска оставляет свободными для переходов между участками
 const HOOKS = Array.from({ length: Math.floor(LOOP_LEN / HOOK_SPACING) }, (_, k) => ({ s: k * HOOK_SPACING, tire: null, dest: null }));
-STATIONS.forEach(s => { s.stopS = nearestOnLoop(s.ax, s.ay).s; });
+const LOOP_ST = STATIONS.filter(s => s.loop);
+LOOP_ST.forEach(s => { s.stopS = nearestOnLoop(s.ax, s.ay).s; });
 // Привод конвейера: тоже может сломаться — тогда все крюки стоят
-const HOOK_DRIVE = { id: 'antrieb', g: 'antrieb', de: 'Hängebahn-Antrieb', ru: 'Привод подвесного конвейера', desc: 'Мотор и натяжная станция цепи подвесного конвейера. Сломается — встанут все крюки.', x: 12, y: 6, w: 1, h: 1, ax: 12, ay: 7, broken: null, wear: 0, dirt: 0 };
+const HOOK_DRIVE = { id: 'antrieb', g: 'antrieb', de: 'Hängebahn-Antrieb', ru: 'Привод подвесного конвейера', desc: 'Мотор и натяжная станция цепи подвесного конвейера. Сломается — встанут все крюки.', x: 44, y: 26, w: 1, h: 1, ax: 44, ay: 27, broken: null, wear: 0, dirt: 0 };
 const MACHINES = [...STATIONS.filter(s => s.kind !== 'store'), HOOK_DRIVE];
 
-// Что можно повесить на крюк на этом участке (или null)
+// Что можно повесить на крюк на этом участке (или null). Только станции на кольце и только если следующий участок тоже на кольце.
 function takeForHook(st) {
   if (st.kind === 'proc') {
-    const k = st.out.findIndex(id => { const t = S.tires.get(id); return !t.res && t.readyAt <= S.t && (t.dest || st.next) !== 'schrott'; });
+    const k = st.out.findIndex(id => { const t = S.tires.get(id); return !t.res && t.readyAt <= S.t && loopG(t.dest || st.next); });
     if (k < 0) return null; const tid = st.out.splice(k, 1)[0], t = S.tires.get(tid); const dest = t.dest || st.next; t.dest = null; return { tid, dest };
   }
-  if (st.kind === 'store' && st.next) {
-    if (st.g === 'eingang' && wipCount() >= S.wip) return null;
+  if (st.kind === 'store' && st.next && loopG(st.next)) {
+    if (HOOKS.filter(h => h.tire).length >= HOOKS.length - HOOK_RESERVE) return null; // держим свободные крюки, иначе кольцо встанет
     const k = st.items.findIndex(id => !S.tires.get(id).res); if (k < 0) return null;
     return { tid: st.items.splice(k, 1)[0], dest: st.next };
-  }
-  if (st.kind === 'auto' && st.state === 'done') {
-    const k = st.items.findIndex(id => !S.tires.get(id).res); if (k < 0) return null;
-    const tid = st.items.splice(k, 1)[0]; if (!st.items.length) st.state = 'idle'; return { tid, dest: st.next };
   }
   return null;
 }
@@ -250,7 +287,7 @@ function updateHooks(dt) {
   const ds = HOOK_SPEED * dt;
   for (const h of HOOKS) {
     const p0 = h.s; h.s = (h.s + ds) % LOOP_LEN;
-    for (const st of STATIONS) {
+    for (const st of LOOP_ST) {
       if (((st.stopS - p0) % LOOP_LEN + LOOP_LEN) % LOOP_LEN >= ds) continue; // крюк не проходил эту точку
       if (h.tire && h.dest === st.g && canAcceptId(st.id)) { deposit(st.id, h.tire); h.tire = null; h.dest = null; }
       if (!h.tire) { const got = takeForHook(st); if (got) { h.tire = got.tid; h.dest = got.dest; S.tires.get(got.tid).res = false; } }
@@ -266,15 +303,14 @@ const S = {
   gfx: (() => { try { return new URLSearchParams(location.search).get('gfx') || localStorage.getItem('rw-gfx') || 'pixel'; } catch (e) { return 'pixel'; } })(),
   tires: new Map(), nextTire: 1, nextId: 1,
   workers: [], trucks: [], offers: [], orders: [], matOrders: [], complaints: [],
-  mats: { laufstreifen: 60, bindegummi: 60, loesung: 80, fuellgummi: 80 },
+  mats: { rohgummi: 60, loesung: 80, fuellgummi: 80 }, scans: [],
   scrap: 0, shipped: 0, log: [], selected: null, lastOffer: DAY_START - 200,
   doneToday: 0, doneYesterday: 0, leadTimes: [],
   stats: { revenue: 0, wages: 0, materials: 0, penalties: 0, overhead: 0, walk: 0, walkToday: 0, repairs: 0, breakdowns: 0, downtime: 0 },
 };
 const MATS = {
-  laufstreifen: { de: 'Laufstreifen', ru: 'Протектор', pack: 40, price: 1800, min: 30 },
-  bindegummi: { de: 'Bindegummi', ru: 'Связующая резина', pack: 40, price: 320, min: 30 },
-  loesung: { de: 'Gummilösung', ru: 'Клей', pack: 100, price: 200, min: 30 },
+  rohgummi: { de: 'Rohgummi', ru: 'Сырая резина (лента для намотки)', pack: 40, price: 2400, min: 30 },
+  loesung: { de: 'Gummilösung', ru: 'Клей (канистры на М2)', pack: 100, price: 200, min: 30 },
   fuellgummi: { de: 'Füllgummi', ru: 'Ремонтная резина', pack: 80, price: 240, min: 30 },
 };
 
@@ -301,22 +337,22 @@ function makeWorker(name, role, shift, main) {
 [
   ['Jonas Becker', 'Lagerist', 'F', { transport: 8 }],
   ['Mehmet Yılmaz', 'Rauer', 'F', { rauen: 8, transport: 4 }],
-  ['Anna Schulz', 'Prüferin', 'F', { pruefen: 8, lack: 5 }],
+  ['Anna Schulz', 'Prüferin', 'F', { pruefen: 8, nacharbeit: 5 }],
   ['Paweł Nowak', 'Reparateur', 'F', { reparatur: 8, belegen: 4 }],
   ['Dragan Petrović', 'Schlosser', 'F', { technik: 8, nacharbeit: 7, reparatur: 6, rauen: 4 }],
-  ['Svetlana Koch', 'Belegerin', 'F', { belegen: 8, reparatur: 5 }],
-  ['Tobias Klein', 'Beleger', 'F', { belegen: 6, transport: 5 }],
-  ['Lukas Wagner', 'Vulkaniseur', 'F', { vulkan: 8, transport: 5, lack: 6, technik: 5 }],
-  ['Fatma Demir', 'Prüferin', 'S', { pruefen: 7, lack: 6 }],
+  ['Svetlana Koch', 'Wicklerin', 'F', { belegen: 8, reparatur: 5 }],
+  ['Tobias Klein', 'Heizer', 'F', { vulkan: 7, belegen: 5, transport: 5 }],
+  ['Lukas Wagner', 'Heizer', 'F', { vulkan: 8, transport: 5, nacharbeit: 6, technik: 5 }],
+  ['Fatma Demir', 'Prüferin', 'S', { pruefen: 7, nacharbeit: 6 }],
   ['Marek Lewandowski', 'Rauer', 'S', { rauen: 7, transport: 4 }],
   ['Olga Fischer', 'Reparateurin', 'S', { reparatur: 7, belegen: 4 }],
   ['Emre Şahin', 'Schlosser', 'S', { technik: 8, nacharbeit: 7, reparatur: 5, transport: 5 }],
-  ['Niklas Weber', 'Beleger', 'S', { belegen: 7, reparatur: 4 }],
-  ['Sophie Braun', 'Lageristin', 'S', { transport: 7, lack: 7 }],
-  ['Leonie Hoffmann', 'Vulkaniseurin', 'S', { vulkan: 7, transport: 5, pruefen: 4, technik: 5 }],
+  ['Niklas Weber', 'Wickler', 'S', { belegen: 7, vulkan: 5 }],
+  ['Sophie Braun', 'Lageristin', 'S', { transport: 7, pruefen: 5 }],
+  ['Leonie Hoffmann', 'Heizerin', 'S', { vulkan: 7, transport: 5, pruefen: 4, technik: 5 }],
 ].forEach(([n, r, sh, m]) => S.workers.push(makeWorker(n, r, sh, m)));
 // Ранняя смена уже в цехе к началу игры
-S.workers.filter(w => w.shift === 'F').forEach((w, i) => { w.away = false; w.state = 'idle'; w.x = 19 + (i % 4) * 2; w.y = 15 + Math.floor(i / 4) * 2; });
+S.workers.filter(w => w.shift === 'F').forEach((w, i) => { w.away = false; w.state = 'idle'; w.x = 38 + (i % 4) * 3; w.y = 21 + Math.floor(i / 4); });
 
 // ================= Поиск пути (A*) =================
 const passable = (x, y) => x >= 0 && y >= 0 && x < MW && y < MH && grid[I(x, y)] !== T_WALL && !blocked[I(x, y)];
@@ -364,7 +400,7 @@ const orderById = id => S.orders.find(o => o.id === id);
 const pendingTrucks = [];
 function spawnTruck(kind, order) {
   const dock = kind === 'deliver' ? 1 : 2;
-  const tr = { id: S.nextId++, kind, order: order.id, dock, x: 1, y: -3, state: 'wait', cargo: [], path: [], color: kind === 'deliver' ? '#c0392b' : '#2471a3', dir: 'v' };
+  const tr = { id: S.nextId++, kind, order: order.id, dock, x: -5, y: 1, ang: 0, state: 'wait', cargo: [], path: [], color: kind === 'deliver' ? '#c0392b' : '#2471a3' };
   if (kind === 'deliver') for (let k = 0; k < order.qty; k++) {
     const t = { id: S.nextTire++, order: order.id, badCasing: rnd() < 0.13, defect: false, rework: 0, stage: 'karkasse', readyAt: 0, res: false, dest: null, tIn: 0 };
     S.tires.set(t.id, t); tr.cargo.push(t.id);
@@ -376,18 +412,19 @@ function updateTrucks(dt) {
   for (const tr of S.trucks) {
     const dk = DOCKS[tr.dock];
     if (tr.state === 'wait') {
-      if (!S.trucks.some(o => o !== tr && o.dock === tr.dock && (o.state === 'arrive' || o.state === 'docked'))) { tr.state = 'arrive'; tr.path = [{ x: 1, y: dk.y }, { x: 6.5, y: dk.y }]; }
+      if (!S.trucks.some(o => o !== tr && o.dock === tr.dock && (o.state === 'arrive' || o.state === 'docked' || (o.state === 'leave' && o.path.length > 1)))) { tr.state = 'arrive'; tr.path = [{ x: dk.x, y: 1 }, { x: dk.x, y: dk.stopY }]; }
     } else if (tr.state === 'arrive' || tr.state === 'leave') {
       let move = TRUCK_SPEED * dt;
       while (move > 0 && tr.path.length) {
         const p = tr.path[0], dx = p.x - tr.x, dy = p.y - tr.y, d = Math.hypot(dx, dy);
-        if (d <= move) { tr.x = p.x; tr.y = p.y; tr.path.shift(); move -= d; } else { tr.x += dx / d * move; tr.y += dy / d * move; tr.dir = Math.abs(dx) > Math.abs(dy) ? 'h' : 'v'; move = 0; }
+        if (d > 0.01) tr.ang = Math.atan2(dy, dx);
+        if (d <= move) { tr.x = p.x; tr.y = p.y; tr.path.shift(); move -= d; } else { tr.x += dx / d * move; tr.y += dy / d * move; move = 0; }
       }
       if (!tr.path.length) {
         if (tr.state === 'arrive') {
-          tr.state = 'docked'; tr.dir = 'h'; const o = orderById(tr.order);
-          if (tr.kind === 'deliver') { o.state = 'production'; log(`${o.customer}: грузовик у рампы 1, ${tr.cargo.length} каркасов на выгрузку.`); }
-          else log(`${o.customer}: грузовик за готовыми шинами у рампы 2.`);
+          tr.state = 'docked'; const o = orderById(tr.order);
+          if (tr.kind === 'deliver') { o.state = 'production'; log(`${o.customer}: грузовик у ворот приёмки З, ${tr.cargo.length} каркасов на выгрузку.`); }
+          else log(`${o.customer}: грузовик за готовыми шинами у пандуса Р.`);
         } else tr.state = 'gone';
       }
     } else if (tr.state === 'docked') {
@@ -399,7 +436,7 @@ function updateTrucks(dt) {
   S.trucks = S.trucks.filter(t => t.state !== 'gone');
 }
 const truckBusy = tr => S.workers.some(w => w.job && w.job.type === 'haul' && (w.job.srcTruck === tr || w.job.dstTruck === tr));
-function leaveTruck(tr) { tr.state = 'leave'; tr.path = [{ x: 1, y: DOCKS[tr.dock].y }, { x: 1, y: -4 }]; }
+function leaveTruck(tr) { tr.state = 'leave'; tr.path = [{ x: DOCKS[tr.dock].x, y: 1 }, { x: MW + 6, y: 1 }]; }
 function settleOrder(o, tr) {
   const n = tr.cargo.length; let pay = n * o.price; const late = S.t > o.deadline;
   if (late) { pay *= 0.8; S.rep = Math.max(0, S.rep - 3); } else S.rep = Math.min(100, S.rep + 0.8);
@@ -444,20 +481,31 @@ function deposit(id, tid) {
   if (s.kind === 'store') {
     s.items.push(tid);
     if (s.g === 'eingang' && !t.tIn) t.tIn = S.t;
-    if (s.g === 'fertig') t.stage = 'lack';
+    if (s.g === 'fertig') t.stage = 'fertig';
     if (s.g === 'fertig') { const o = orderById(t.order); if (o) o.finished++; S.doneToday++; if (t.tIn) { S.leadTimes.push(S.t - t.tIn); if (S.leadTimes.length > 60) S.leadTimes.shift(); } }
   } else if (s.kind === 'auto') { s.items.push(tid); s.lastLoad = S.t; }
   else s.input.push(tid);
 }
+// WIP — шины в линии от навески на крюки до финального контроля. Склады приёмки, каркасов С3 и готовых шин не считаются.
+const OUT_OF_LINE = ['eingang', 'pruef', 'sort', 'fertig'];
 function wipCount() {
   let n = 0;
-  for (const s of STATIONS) if (s.g !== 'eingang' && s.g !== 'fertig') n += s.input.length + s.out.length + s.items.length + (s.cur ? 1 : 0);
-  for (const w of S.workers) if (w.carry && w.job && w.job.src !== 'eingang' && !w.job.srcTruck && !w.job.dstTruck) n++;
-  for (const s of GROUP.pruef) n += s.resIn;
+  for (const s of STATIONS) if (!OUT_OF_LINE.includes(s.g)) n += s.input.length + s.out.length + s.items.length + (s.cur ? 1 : 0);
+  for (const w of S.workers) if (w.job && w.job.type === 'haul' && w.load && !OUT_OF_LINE.includes(ST[w.job.src] ? ST[w.job.src].g : '') && !w.job.srcTruck && !w.job.dstTruck) n += w.load.length;
+  for (const s of GROUP.aufh) n += s.resIn;
   for (const h of HOOKS) if (h.tire) n++;
   return n;
 }
-function matsOk(s) { if (!s.mat) return true; for (const [k, v] of Object.entries(s.mat)) if (S.mats[k] < v) return false; return true; }
+// Каждый участок сканирует штрихкод шины: путь шины по цеху записывается
+function scanTire(s, tid, note) {
+  const t = S.tires.get(tid); if (!t) return;
+  (t.trace = t.trace || []).push([S.t, s.id]); s.lastScan = S.t;
+  if (note) { S.scans.unshift({ t: S.t, code: t.code || '#' + t.id, st: s.short, note }); if (S.scans.length > 40) S.scans.pop(); }
+}
+// Материалы: клей берётся из канистры на участке, остальное — со склада
+const matStock = (s, k) => k === 'loesung' && s.canister !== undefined ? s.canister : S.mats[k];
+function matsOk(s) { if (!s.mat) return true; for (const [k, v] of Object.entries(s.mat)) if (matStock(s, k) < v) return false; return true; }
+function matTake(s, sign) { if (s.mat) for (const [k, v] of Object.entries(s.mat)) { if (k === 'loesung' && s.canister !== undefined) s.canister -= v * sign; else S.mats[k] -= v * sign; } }
 
 // ================= Задачи =================
 function genJobs() {
@@ -475,30 +523,39 @@ function genJobs() {
       if (ids.length) jobs.push({ type: 'haul', work: 'transport', tire: ids[0], tires: ids, fork: true, src: 'fertig', from: accessOf('fertig'), dstTruck: tr, to: acc });
     }
   }
+  const viaHook = (s, g) => S.hook && s.loop && loopG(g); // этот переход едет на крюках
   for (const s of STATIONS) {
     const from = accessOf(s.id);
-    if (s.kind === 'store' && s.next && !S.hook) {
-      const tid = s.items.find(id => !S.tires.get(id).res);
-      const wipOk = s.g !== 'eingang' || wipCount() < S.wip;
-      const dst = tid && wipOk && chooseDst(s.next);
-      if (dst) jobs.push({ type: 'haul', work: 'transport', tire: tid, src: s.id, from, dst, to: accessOf(dst) });
+    if (s.kind === 'store' && s.next && !viaHook(s, s.next) && s.g !== 'puffer') { // из тележек в прессы — отдельно, краном
+      const free = s.items.filter(id => !S.tires.get(id).res);
+      if (s.fork) { // склад каркасов С3 → навеска: погрузчиком, не больше WIP-лимита
+        const d = GROUP[s.next][0], room = Math.min(d.cap - d.items.length - d.resIn, S.wip - wipCount(), FORK);
+        if (free.length && room >= Math.min(3, free.length)) jobs.push({ type: 'haul', work: 'transport', tire: free[0], tires: free.slice(0, room), fork: true, src: s.id, from, dst: d.id, to: accessOf(d.id) });
+      } else { const dst = free.length && chooseDst(s.next); if (dst) jobs.push({ type: 'haul', work: 'transport', tire: free[0], src: s.id, from, dst, to: accessOf(dst) }); }
     }
     if (s.kind === 'proc') {
-      for (const tid of s.out) {
-        const t = S.tires.get(tid); if (t.res || t.readyAt > S.t) continue;
-        if (S.hook && (t.dest || s.next) !== 'schrott') continue; // между участками шины едут на крюках; руками — только лом
-        const dst = chooseDst(t.dest || s.next); if (!dst) continue;
+      const ready = s.out.filter(tid => { const t = S.tires.get(tid); return !t.res && t.readyAt <= S.t && !viaHook(s, t.dest || s.next); });
+      if (s.cartOut && ready.length) { // намотанные шины — тележкой по 4 к прессам
+        const dst = chooseDst(s.next); if (dst) { const room = ST[dst].cap - ST[dst].items.length - ST[dst].resIn; jobs.push({ type: 'haul', work: 'transport', tire: ready[0], tires: ready.slice(0, Math.min(CART, room)), cart: true, src: s.id, from, dst, to: accessOf(dst) }); }
+      } else for (const tid of ready) {
+        const t = S.tires.get(tid), dst = chooseDst(t.dest || s.next); if (!dst) continue;
         jobs.push({ type: 'haul', work: 'transport', tire: tid, src: s.id, from, dst, to: accessOf(dst) });
       }
       if (!s.broken && !s.worker && !s.cur && s.input.length && s.out.length < s.outCap && matsOk(s)) jobs.push({ type: 'work', work: s.work, st: s, to: from });
     }
-    if (s.kind === 'auto') {
-      if (s.state === 'done' && !S.hook) { const tid = s.items.find(id => !S.tires.get(id).res), dst = tid && chooseDst(s.next); if (dst) jobs.push({ type: 'haul', work: 'transport', tire: tid, src: s.id, from, dst, to: accessOf(dst) }); }
-      const late = clock() >= 20 * 60 + 30 && s.items.length >= 4; // вечером запускаем неполную партию, чтобы автоклав работал ночью
-      if (!s.broken && s.state === 'idle' && !s.worker && s.items.length && s.resIn === 0 && (s.items.length >= s.cap || S.t - s.lastLoad >= 50 || late))
-        jobs.push({ type: 'start', work: 'vulkan', st: s, to: from });
+    if (s.kind === 'auto') { // пресс: зарядить краном, закрыть, после вулканизации достать краном и откатить на обрезку
+      if (s.state === 'done') { const tid = s.items.find(id => !S.tires.get(id).res), dst = tid && chooseDst(s.next); if (dst) jobs.push({ type: 'haul', work: 'vulkan', tire: tid, src: s.id, from, dst, to: accessOf(dst), crane: 'pick' }); }
+      if (!s.broken && s.state === 'idle' && !s.worker && s.items.length >= s.cap && s.resIn === 0) jobs.push({ type: 'start', work: 'vulkan', st: s, to: from });
     }
   }
+  // Тележки у прессов → свободный пресс (краном)
+  for (const s of GROUP.puffer) {
+    const free = s.items.filter(id => !S.tires.get(id).res);
+    for (const tid of free) { const dst = chooseDst('presse'); if (!dst) break; jobs.push({ type: 'haul', work: 'vulkan', tire: tid, src: s.id, from: accessOf(s.id), dst, to: accessOf(dst), crane: 'drop' }); break; }
+  }
+  // Клей кончается — сходить на М2 за канистрой Gummilösung
+  const sp = ST.spray;
+  if (sp.canister <= 4 && !sp.fetching && S.mats.loesung > 0) jobs.push({ type: 'fetch', work: 'transport', st: sp, from: M2_ACCESS, to: { x: sp.ax, y: sp.ay } });
   // Поломки: техник идёт в мастерскую за инструментом и чинит
   for (const m of MACHINES) if (m.broken && !m.broken.tech) jobs.push({ type: 'repair', work: 'technik', st: m, to: { x: m.ax, y: m.ay }, urgent: true });
   return jobs;
@@ -510,7 +567,7 @@ function breakDown(s) {
   s.broken = { de, ru, need: R(15, 40), done: 0, tech: null, at: S.t };
   S.stats.breakdowns++; S.breaksToday++;
   if (s.worker) { const w = S.workers.find(x => x.id === s.worker); if (w && w.job && w.job.st === s) releaseJob(w); s.worker = null; }
-  if (s.kind === 'proc' && s.cur) { s.input.unshift(s.cur); if (s.mat) for (const [k, v] of Object.entries(s.mat)) S.mats[k] += v; s.cur = null; s.prog = 0; }
+  if (s.kind === 'proc' && s.cur) { s.input.unshift(s.cur); matTake(s, -1); s.cur = null; s.prog = 0; }
   log(`⚠ Поломка: ${s.de} — ${de} (${ru}). Нужен техник.`, 'bad');
 }
 const breakRate = s => (1 + 2 * s.dirt + s.wear) / BREAK_MIN;
@@ -524,11 +581,15 @@ function reserve(j, w) {
     for (const id of ids) S.tires.get(id).res = true;
     if (j.dst && j.dst !== 'schrott') ST[j.dst].resIn += ids.length;
     j.steps = [{ go: j.from }, { pick: true }, { go: j.to }, { drop: true }];
+    if (j.src && ST[j.src] && ST[j.src].g === 'entgr') j.steps.splice(2, 0, { go: SCAN_ACCESS }, { scan: true }); // с обрезки — через сканер
     // погрузчик: дойти до него, сесть, после рейса поставить на стоянку
     if (f) { f.by = w.id; j.forkId = f.id; j.steps = [{ go: { x: Math.round(f.x), y: Math.round(f.y) } }, { mount: true }, ...j.steps, { go: f.home }, { dismount: true }]; }
   } else if (j.type === 'repair') {
     if (!j.st.broken || j.st.broken.tech) return false; j.st.broken.tech = w.id;
     j.steps = [{ go: WERKBANK }, { tool: 'kit' }, { go: j.to }, { repair: true }, { go: WERKBANK }, { tool: null }];
+  } else if (j.type === 'fetch') {
+    if (j.st.fetching) return false; j.st.fetching = w.id;
+    j.steps = [{ go: j.from }, { take: true }, { go: j.to }, { give: true }];
   } else { if (j.st.worker) return false; j.st.worker = w.id; j.steps = [{ go: j.to }, { work: true }]; }
   j.i = 0; return true;
 }
@@ -536,6 +597,7 @@ function releaseJob(w) {
   const j = w.job; if (!j) return;
   if (j.forkId) { const f = S.forks.find(o => o.id === j.forkId); if (f && f.by === w.id) { f.by = null; f.x = Math.round(w.x); f.y = Math.round(w.y); } w.mounted = false; }
   if (j.type === 'repair') { if (j.st.broken && j.st.broken.tech === w.id) j.st.broken.tech = null; w.tool = null; }
+  if (j.type === 'fetch') { if (j.st.fetching === w.id) j.st.fetching = null; if (w.can) { S.mats.loesung += w.can; w.can = 0; } w.tool = null; }
   if (j.type === 'haul') {
     const ids = j.tires || [j.tire], load = w.load || (w.carry ? [w.carry] : []);
     for (const id of load) { // вернуть шины туда, откуда взяли
@@ -544,22 +606,22 @@ function releaseJob(w) {
     w.carry = null; w.load = null;
     for (const id of ids) { const t = S.tires.get(id); if (t) t.res = false; }
     if (j.dst && j.dst !== 'schrott') ST[j.dst].resIn = Math.max(0, ST[j.dst].resIn - ids.length);
-  } else if (j.type !== 'repair' && j.st && j.st.worker === w.id) j.st.worker = null;
+  } else if (j.type !== 'repair' && j.type !== 'fetch' && j.st && j.st.worker === w.id) j.st.worker = null;
   w.job = null; w.path = null; w.act = null;
 }
 // Свободное время: убирать пыль у станков, обходить станки, наводить порядок на складе, кофе
-function randomFloor() { for (let k = 0; k < 40; k++) { const x = RI(12, 44), y = RI(4, 25); if (passable(x, y)) return { x, y }; } return { x: 28, y: 15 }; }
+function randomFloor() { for (let k = 0; k < 40; k++) { const x = RI(27, 65), y = RI(24, 39); if (passable(x, y)) return { x, y }; } return { x: 36, y: 31 }; }
 function idleJob(w) {
   const wait = (go, act, min, max) => ({ type: 'idle', act, steps: [{ go }, { wait: R(min, max), act }], i: 0 });
   const dirty = STATIONS.filter(s => s.dirt > 0.15).sort((a, b) => b.dirt - a.dirt)[0];
   if (dirty && !S.workers.some(o => o !== w && o.job && o.job.act === 'sweep' && o.job.st === dirty)) { const j = wait({ x: dirty.ax, y: dirty.ay }, 'sweep', 2, 4); j.st = dirty; return j; }
-  if (w.energy < 65 && rnd() < 0.5) return wait({ x: 16, y: 10 }, 'coffee', 1.5, 3);
+  if (w.energy < 65 && rnd() < 0.5) return wait(COFFEE, 'coffee', 1.5, 3);
   const r = rnd();
   if (r < 0.45) {
     const mine = STATIONS.filter(s => s.kind !== 'store' && w.prio[s.work] === 1), s = mine.length ? pick(mine) : pick(STATIONS.filter(s => s.kind !== 'store'));
     const j = wait({ x: s.ax, y: s.ay }, 'inspect', 1.5, 3.5); j.st = s; return j;
   }
-  if (r < 0.65) { const s = pick([ST.eingang, ST.fertig, ST.nacharb]); const j = wait({ x: s.ax, y: s.ay }, 'stack', 1.5, 3); j.st = s; return j; }
+  if (r < 0.65) { const s = pick([ST.eingang, ST.sort, ST.fertig, ST.nacharb]); const j = wait({ x: s.ax, y: s.ay }, 'stack', 1.5, 3); j.st = s; return j; }
   return wait(randomFloor(), 'sweep', 1.5, 3);
 }
 function assignJobs() {
@@ -584,6 +646,7 @@ function workDuration(w, s) { return (s.time || 10) * (1.45 - w.skills[s.work] *
 function finishProc(s, w) {
   const t = S.tires.get(s.cur), sk = w.skills[s.work];
   if (s.g === 'pruef') {
+    t.code = 'RW' + String(t.id).padStart(5, '0'); // полоска со штрихкодом — дальше шину сканируют везде
     if (t.badCasing && rnd() < 0.62 + sk * 0.035) { t.dest = 'schrott'; log(`${w.name}: каркас #${t.id} забракован на входе.`, 'warn'); }
   } else if (s.g === 'entgr') {
     // Устранение дефектов после автоклава: мелкие дефекты чинят на месте, серьёзные — на переделку
@@ -600,9 +663,10 @@ function finishProc(s, w) {
       if (t.badCasing || t.rework > 0) { t.dest = 'schrott'; log(`${w.name}: финальный контроль — шина #${t.id} в лом.`, 'bad'); }
       else { t.rework++; t.defect = false; t.dest = 'nacharb'; log(`${w.name}: финальный контроль — шина #${t.id} на переделку.`, 'warn'); }
     }
-  } else if (['rauen', 'ausschl', 'fuellen', 'belegen', 'huelle'].includes(s.g) && rnd() < 0.07 * (1 - sk / 12) + s.dirt * 0.06) t.defect = true; // пыль у станка — больше брака
+  } else if (['rauen', 'ausschl', 'fuellen', 'aufbau'].includes(s.g) && rnd() < 0.07 * (1 - sk / 12) + s.dirt * 0.06) t.defect = true; // пыль у станка — больше брака
   if (DUSTY.includes(s.g)) s.dirt = Math.min(1, s.dirt + 0.035);
   t.stage = s.g; t.readyAt = S.t + (s.dry || 0);
+  scanTire(s, s.cur, s.g === 'endk' ? (t.dest === 'schrott' ? 'лом' : t.dest === 'nacharb' ? 'переделка' : 'годна ✓') : s.g === 'pruef' ? (t.dest === 'schrott' ? 'лом' : 'штрихкод наклеен') : s.g === 'scan' ? `путь: ${t.trace ? t.trace.length + 1 : 1} участков` : null);
   s.out.push(s.cur); s.cur = null; s.prog = 0; s.worker = null;
   w.skills[s.work] = Math.min(10, w.skills[s.work] + 0.01);
 }
@@ -646,18 +710,28 @@ function updateWorker(w, dt) {
     w.energy = Math.max(0, w.energy - 0.05 * dt);
     if (!m.broken) { w.act = null; j.i++; }
   } else if (st.pick) {
-    w.state = 'lift'; st.t = (st.t || 0) + dt; if (st.t < (j.fork ? 0.8 : 0.5)) return; // погрузить шину ~30 с, стопку на вилы ~50 с
+    w.state = 'lift'; w.act = j.crane === 'pick' ? 'crane' : null; st.t = (st.t || 0) + dt; if (st.t < liftTime(j, 'pick')) return; // шину ~30 с, стопку ~50 с, краном ~1,5 мин
     const ids = j.tires || [j.tire], got = [];
     if (j.srcTruck) { for (const id of ids) { const k = j.srcTruck.cargo.indexOf(id); if (k >= 0) { j.srcTruck.cargo.splice(k, 1); got.push(id); } } }
     else { const s = ST[j.src]; const arr = s.kind === 'proc' ? s.out : s.items; for (const id of ids) { const k = arr.indexOf(id); if (k >= 0) { arr.splice(k, 1); got.push(id); } } if (s.kind === 'auto' && !s.items.length) s.state = 'idle'; }
     if (!got.length) { releaseJob(w); return; }
     for (const id of ids) if (!got.includes(id)) { const t = S.tires.get(id); if (t) t.res = false; if (j.dst && j.dst !== 'schrott') ST[j.dst].resIn = Math.max(0, ST[j.dst].resIn - 1); }
     if (j.tires) j.tires = got;
-    w.load = got; w.carry = got[0]; j.i++;
+    w.load = got; w.carry = got[0]; w.act = null; for (const id of got) { const t = S.tires.get(id); if (t && j.src && ST[j.src]) t.lastFrom = j.src; } j.i++;
   } else if (st.drop) {
-    w.state = 'lift'; st.t = (st.t || 0) + dt; if (st.t < (j.fork ? 0.8 : 0.5)) return;
+    w.state = 'lift'; w.act = j.crane === 'drop' ? 'crane' : null; st.t = (st.t || 0) + dt; if (st.t < liftTime(j, 'drop')) return;
     for (const id of w.load || [w.carry]) { if (j.dstTruck) { j.dstTruck.cargo.push(id); S.tires.get(id).res = false; } else deposit(j.dst, id); }
-    w.carry = null; w.load = null; j.i++;
+    w.carry = null; w.load = null; w.act = null; j.i++;
+  } else if (st.scan) { // сканер читает штрихкод: путь шины записан
+    w.state = 'lift'; st.t = (st.t || 0) + dt; if (st.t < 0.2) return;
+    const sc = DECOR.find(d => d.id === 'scanner');
+    for (const id of w.load || [w.carry]) { const t = S.tires.get(id); scanTire(sc, id, t && t.dest === 'schrott' ? 'в лом' : t && t.dest === 'nacharb' ? 'на переделку' : `путь: ${t && t.trace ? t.trace.length + 1 : 1} участков`); }
+    j.i++;
+  } else if (st.take || st.give) { // канистра Gummilösung: взять на М2, отдать на участок
+    w.state = 'lift'; st.t = (st.t || 0) + dt; if (st.t < 0.5) return;
+    if (st.take) { w.can = Math.min(20, S.mats.loesung); S.mats.loesung -= w.can; w.tool = 'canister'; }
+    else { j.st.canister += w.can; w.can = 0; w.tool = null; j.st.fetching = null; log(`${w.name}: принёс канистру Gummilösung с М2 (${j.st.canister} шин).`, 'muted'); }
+    j.i++;
   } else if (st.wait) {
     w.state = 'act'; w.act = st.act; st.t = (st.t || 0) + dt;
     if (st.act === 'coffee') w.energy = Math.min(100, w.energy + 4 * dt);
@@ -669,12 +743,12 @@ function updateWorker(w, dt) {
     if (st.grab < 0.25 && !s.cur && j.type !== 'start') { st.grab += dt; w.act = 'grab'; return; } // взять инструмент
     w.act = null;
     if (j.type === 'start') {
-      st.t = (st.t || 0) + dt; s.prog = st.t / 10;
-      if (st.t >= 10) { s.state = 'running'; s.timer = s.cycle; s.worker = null; s.prog = 0; log(`${w.name}: ${s.de} запущен, партия ${s.items.length} шт.`, 'info'); j.i++; }
+      const T0 = s.startT || 10; st.t = (st.t || 0) + dt; s.prog = st.t / T0;
+      if (st.t >= T0) { s.state = 'running'; s.timer = s.cycle; s.worker = null; s.prog = 0; scanTire(s, s.items[0], null); j.i++; }
     } else {
       if (!s.cur) {
         if (!s.input.length || !matsOk(s)) { releaseJob(w); return; }
-        s.cur = s.input.shift(); if (s.mat) for (const [k, v] of Object.entries(s.mat)) S.mats[k] -= v;
+        s.cur = s.input.shift(); matTake(s, 1);
         st.dur = workDuration(w, s); st.t = 0;
       }
       st.t += dt; s.prog = st.t / st.dur; s.busy += dt; s.wear = Math.min(2, s.wear + dt / 900);
@@ -707,16 +781,16 @@ function simulate(dt) {
   updateTrucks(dt);
   for (let i = S.matOrders.length - 1; i >= 0; i--) { const m = S.matOrders[i]; if (S.t >= m.at) { S.mats[m.key] += m.qty; log(`Поставка: ${m.qty} × ${MATS[m.key].de}.`, 'good'); S.matOrders.splice(i, 1); } }
   if (S.autoBuy) for (const [k, m] of Object.entries(MATS)) { const coming = S.matOrders.filter(o => o.key === k).reduce((a, o) => a + o.qty, 0); if (S.mats[k] + coming < m.min && S.money > m.price) buy(k, true); }
-  for (const a of GROUP.auto) {
-    if (a.state !== 'running' || a.broken) continue; // сломан — цикл на паузе
+  for (const a of GROUP.presse) {
+    if (a.state !== 'running' || a.broken) continue; // сломан — вулканизация на паузе
     a.timer -= dt; a.busy += dt;
-    if (isDay() && rnd() < dt / 3000) { breakDown(a); continue; }
-    if (a.timer <= 0) { a.state = 'done'; log(`${a.de}: партия готова, разгружаем.`, 'good'); }
+    if (isDay() && rnd() < dt / 8000) { breakDown(a); continue; }
+    if (a.timer <= 0) { a.state = 'done'; const t = S.tires.get(a.items[0]); if (t) t.stage = 'presse'; }
   }
   if (S.firstBreak && S.t >= S.firstBreak) { S.firstBreak = 0; breakDown(ST.rauen1); } // первая поломка — чтобы сразу увидеть ремонт
   if (S.autoAccept && S.offers.length) { // автопилот мастера: держим в цехе запас работы
     const pipe = S.tires.size + pendingTrucks.filter(p => p.kind === 'deliver').reduce((a, p) => a + p.order.qty, 0);
-    if (pipe < 90) { const o = S.offers[0]; log(`Автопринятие: ${o.customer}, ${o.qty} шин.`, 'info'); acceptOffer(o.id); }
+    if (pipe < 130) { const o = S.offers[0]; log(`Автопринятие: ${o.customer}, ${o.qty} шин.`, 'info'); acceptOffer(o.id); }
   }
   if (S.t - S.lastOffer > 90 && S.offers.length < 5 && isDay()) { S.lastOffer = S.t; makeOffer(); }
   S.offers = S.offers.filter(o => { if (S.t > o.expires) { log(`Запрос ${o.customer} истёк.`, 'muted'); return false; } return true; });
@@ -745,6 +819,7 @@ function resize() {
 }
 window.addEventListener('resize', resize);
 const TCOL = ['#3e5f2f', '#3b3d42', '#5d6066', '#8b9099', '#2a2d34', '#9a7340'];
+const looksNew = t => !!t && ['presse', 'entgr', 'scan', 'endk', 'fertig'].includes(t.stage); // после пресса шина с новым протектором
 function drawTire(px, py, r, done) {
   ctx.fillStyle = '#151515'; ctx.beginPath(); ctx.arc(px, py, r, 0, 7); ctx.fill();
   ctx.fillStyle = done ? '#cfcfcf' : '#5a5a5a'; ctx.beginPath(); ctx.arc(px, py, r * 0.45, 0, 7); ctx.fill();
@@ -752,7 +827,7 @@ function drawTire(px, py, r, done) {
 }
 function drawPile(ids, x, y, w, h, perRow) {
   const r = TILE * 0.3; let k = 0;
-  for (const id of ids) { const t = S.tires.get(id); if (!t) continue; const cx = x + (k % perRow + 0.5) * (w / perRow), cy = y + (Math.floor(k / perRow) + 0.5) * TILE * 0.62; if (cy > y + h) break; drawTire(cx, cy, r, t.stage === 'lack'); k++; }
+  for (const id of ids) { const t = S.tires.get(id); if (!t) continue; const cx = x + (k % perRow + 0.5) * (w / perRow), cy = y + (Math.floor(k / perRow) + 0.5) * TILE * 0.62; if (cy > y + h) break; drawTire(cx, cy, r, looksNew(t)); k++; }
 }
 function render() {
   ctx.clearRect(0, 0, MW * TILE, MH * TILE);
@@ -761,10 +836,10 @@ function render() {
     if (t === T_FLOOR) { ctx.strokeStyle = 'rgba(0,0,0,.07)'; ctx.strokeRect(x * TILE + .5, y * TILE + .5, TILE - 1, TILE - 1); }
     if (t === T_GRASS && (x * 7 + y * 13) % 5 === 0) { ctx.fillStyle = 'rgba(255,255,255,.05)'; ctx.fillRect(x * TILE + 6, y * TILE + 9, 3, 3); }
   }
-  ctx.strokeStyle = 'rgba(255,255,255,.35)'; ctx.setLineDash([10, 10]); ctx.beginPath(); ctx.moveTo(1.5 * TILE, 0); ctx.lineTo(1.5 * TILE, MH * TILE); ctx.stroke(); ctx.setLineDash([]);
+  ctx.strokeStyle = 'rgba(255,255,255,.35)'; ctx.setLineDash([10, 10]); ctx.beginPath(); ctx.moveTo(0, 1.5 * TILE); ctx.lineTo(MW * TILE, 1.5 * TILE); ctx.stroke(); ctx.setLineDash([]);
   ctx.font = '10px system-ui';
   for (const z of ZONES) { ctx.fillStyle = z.color; ctx.fillRect(z.x * TILE, z.y * TILE, z.w * TILE, z.h * TILE); ctx.fillStyle = 'rgba(255,255,255,.55)'; ctx.fillText(z.name, z.x * TILE + 4, z.y * TILE + 11); }
-  for (const d of [1, 2]) { ctx.fillStyle = 'rgba(240,160,48,.22)'; ctx.fillRect(3 * TILE, (DOCKS[d].y - 1) * TILE, 7 * TILE, 2 * TILE); ctx.fillStyle = 'rgba(255,255,255,.6)'; ctx.fillText('Rampe ' + d + (d === 1 ? ' · Anlieferung' : ' · Versand'), 3 * TILE + 4, (DOCKS[d].y - 1) * TILE - 3); }
+  for (const d of Object.values(DOCKS)) { const r = d.rect; ctx.fillStyle = 'rgba(240,160,48,.22)'; ctx.fillRect(r.x * TILE, r.y * TILE, r.w * TILE, r.h * TILE); ctx.fillStyle = 'rgba(255,255,255,.7)'; ctx.fillText(d.label, r.x * TILE + 4, r.y * TILE + 12); }
   for (const d of DECOR) {
     ctx.fillStyle = d.color; ctx.fillRect(d.x * TILE + 1, d.y * TILE + 1, d.w * TILE - 2, d.h * TILE - 2);
     if (d.label) { ctx.fillStyle = '#eee'; ctx.fillText(d.label, d.x * TILE + 4, d.y * TILE + 14); }
@@ -788,7 +863,7 @@ function render() {
     } else {
       const r = TILE * 0.26;
       s.input.forEach((id, k) => drawTire(px + 8 + k * 8, py + ph - 9, r * 0.8, false));
-      s.out.forEach((id, k) => { const t = S.tires.get(id); drawTire(px + pw - 8 - k * 8, py + ph - 9, r * 0.8, t && t.stage === 'lack'); if (t && t.readyAt > S.t) { ctx.fillStyle = '#7fd6ff'; ctx.fillRect(px + pw - 12 - k * 8, py + ph - 20, 8, 2); } });
+      s.out.forEach((id, k) => { const t = S.tires.get(id); drawTire(px + pw - 8 - k * 8, py + ph - 9, r * 0.8, looksNew(t)); if (t && t.readyAt > S.t) { ctx.fillStyle = '#7fd6ff'; ctx.fillRect(px + pw - 12 - k * 8, py + ph - 20, 8, 2); } });
       if (s.cur) drawTire(px + pw / 2, py + ph / 2 + 2, r, false);
       if (!matsOk(s) && s.input.length) { ctx.fillStyle = '#e35d5d'; ctx.font = 'bold 14px system-ui'; ctx.fillText('!', px + pw - 10, py + 13); }
     }
@@ -808,18 +883,17 @@ function render() {
     for (const h of HOOKS) {
       const p = loopPos(h.s), [x, y] = P(p);
       ctx.fillStyle = '#c9ced8'; ctx.beginPath(); ctx.arc(x, y, 1.8, 0, 7); ctx.fill();
-      if (h.tire) { const t = S.tires.get(h.tire); ctx.strokeStyle = '#999'; ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x, y + 4); ctx.stroke(); drawTire(x, y + 9, 6, t && (t.stage === 'lack' || t.stage === 'endk')); }
+      if (h.tire) { const t = S.tires.get(h.tire); ctx.strokeStyle = '#999'; ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x, y + 4); ctx.stroke(); drawTire(x, y + 9, 6, looksNew(t)); }
     }
   }
   for (const tr of S.trucks) {
-    if (tr.y < -2.5) continue;
-    const horiz = tr.dir === 'h', L = 4.6 * TILE, Wd = 1.7 * TILE;
-    ctx.save(); ctx.translate(tr.x * TILE + TILE / 2, tr.y * TILE);
-    if (!horiz) ctx.rotate(tr.state === 'leave' ? -Math.PI / 2 : Math.PI / 2); else if (tr.state === 'leave') ctx.rotate(Math.PI);
+    if (tr.x < -3 || tr.x > MW + 3) continue;
+    const L = 4.6 * TILE, Wd = 1.7 * TILE;
+    ctx.save(); ctx.translate(tr.x * TILE + TILE / 2, tr.y * TILE + TILE / 2); ctx.rotate(tr.ang || 0);
     ctx.fillStyle = '#d0d3d8'; ctx.fillRect(-L / 2, -Wd / 2, L * 0.75, Wd);
     ctx.fillStyle = tr.color; ctx.fillRect(-L / 2 + L * 0.77, -Wd / 2 + 2, L * 0.23, Wd - 4);
     ctx.fillStyle = '#9fd3ff'; ctx.fillRect(-L / 2 + L * 0.93, -Wd / 2 + 5, 4, Wd - 10);
-    ctx.fillStyle = '#333'; ctx.font = 'bold 11px system-ui'; ctx.fillText(`${tr.kind === 'deliver' ? '▼' : '▲'} ${tr.cargo.length}`, -L / 2 + 6, 4);
+    ctx.fillStyle = '#333'; ctx.font = 'bold 11px system-ui'; ctx.fillText(`${tr.kind === 'deliver' ? 'IN' : 'OUT'} ${tr.cargo.length}`, -L / 2 + 6, 4);
     ctx.restore();
   }
   for (const w of S.workers) {
@@ -829,7 +903,7 @@ function render() {
     if (w.mounted) { ctx.fillStyle = '#f2b230'; ctx.fillRect(px - 10, py - 6, 20, 14); ctx.fillStyle = '#555'; ctx.fillRect(px + 10, py - 4, 6, 2); ctx.fillRect(px + 10, py + 3, 6, 2); if (w.load) { ctx.fillStyle = '#fff'; ctx.font = 'bold 9px system-ui'; ctx.fillText(String(w.load.length), px + 12, py - 6); } }
     ctx.fillStyle = w.color; ctx.beginPath(); ctx.arc(px, py + 1, 7, 0, 7); ctx.fill();
     ctx.fillStyle = '#f1c8a0'; ctx.beginPath(); ctx.arc(px, py - 6, 4.5, 0, 7); ctx.fill();
-    if (w.carry) drawTire(px + 8, py + 2, 6, S.tires.get(w.carry) && S.tires.get(w.carry).stage === 'lack');
+    if (w.carry) drawTire(px + 8, py + 2, 6, looksNew(S.tires.get(w.carry)));
     if (S.selected && S.selected.w === w) { ctx.strokeStyle = '#f0a030'; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(px, py, 12, 0, 7); ctx.stroke(); ctx.lineWidth = 1; }
     if (w.state === 'break') { ctx.fillStyle = '#fff'; ctx.font = '10px system-ui'; ctx.fillText('z', px + 7, py - 9); }
     ctx.fillStyle = 'rgba(255,255,255,.85)'; ctx.font = '9px system-ui'; ctx.textAlign = 'center'; ctx.fillText(w.name.split(' ')[0], px, py + 18); ctx.textAlign = 'left';
@@ -859,8 +933,13 @@ function jobText(w) {
     if (j.i === 2) return `🔧 Несёт ящик с инструментами к ${j.st.de}`;
     return '🔧 Относит инструмент в мастерскую';
   }
+  if (j.type === 'fetch') return ['🛢 Идёт на М2 за Gummilösung', '🛢 Берёт канистру на М2', '🛢 Несёт канистру → Flüssiggummi', '🛢 Ставит канистру'][j.i] || '';
   if (j.type === 'haul') {
     const to = j.dstTruck ? 'грузовик' : j.dst === 'schrott' ? 'лом' : ST[j.dst].de;
+    if (j.steps && j.steps[j.i] && j.steps[j.i].scan) return '📟 Сканирует штрихкод шины';
+    if (j.cart) return `🛒 Тележка: ${!w.load ? 'идёт за шинами' : `везёт ${w.load.length} шин`} → ${to}`;
+    if (j.crane === 'pick') return j.i === 0 ? `Идёт к ${ST[j.src].de}` : j.i === 1 ? `🏗 Достаёт шину краном из ${ST[j.src].de}` : `Катит шину ${S.tires.get(j.tire) && S.tires.get(j.tire).code || ''} → ${to}`;
+    if (j.crane === 'drop') return j.i < 2 ? 'Берёт шину с тележки' : j.i === 2 ? `Везёт шину к ${to}` : `🏗 Заряжает краном ${to}`;
     if (j.fork) {
       if (!w.mounted && !w.load) return j.i <= 1 ? `🚜 Идёт к погрузчику ${j.forkId || ''}` : '🚜 Поставил погрузчик';
       if (j.i >= 6) return '🚜 Ставит погрузчик на стоянку';
@@ -868,7 +947,7 @@ function jobText(w) {
     }
     return (j.i < 2 ? 'Идёт за шиной' : 'Несёт шину') + ` #${j.tire} → ${to}`;
   }
-  if (j.type === 'start') return `Запускает ${j.st.de}`;
+  if (j.type === 'start') return j.st.g === 'presse' ? `Закрывает ${j.st.de}: шину раздувает в форме` : `Запускает ${j.st.de}`;
   if (j.type === 'work') return j.i === 0 ? 'Идёт к станции ' + j.st.de : w.act === 'grab' ? 'Берёт инструмент: ' + j.st.de : 'Работает: ' + j.st.de + ` (${Math.round(Math.min(1, j.st.prog) * 100)}%)`;
   return '';
 }
@@ -879,7 +958,7 @@ function equipCalc() {
   for (const [g, list] of Object.entries(GROUP)) {
     const s = list[0]; if (s.kind === 'store') continue;
     let need, formula;
-    if (s.kind === 'auto') { const tc = s.cycle + 30; need = PLAN.P * tc / (PLAN.Tauto * s.cap * PLAN.Kz); formula = `${PLAN.P}×${(tc / 60).toFixed(1)}ч / (${PLAN.Tauto / 60}ч×${s.cap}×${PLAN.Kz})`; }
+    if (s.kind === 'auto') { const tc = s.cycle + (s.startT || 10) + 6; need = PLAN.P * tc / (PLAN.T * s.cap * PLAN.Kz); formula = `${PLAN.P}×${tc}мин / (${PLAN.T / 60}ч×${s.cap}×${PLAN.Kz})`; }
     else { need = PLAN.P * s.time / (PLAN.T * PLAN.Kz); formula = `${PLAN.P}×${s.time}мин / (${PLAN.T / 60}ч×${PLAN.Kz})`; }
     rows.push({ g, name: INFO[g][0], have: list.length, need, n: Math.ceil(need - 1e-9), formula });
   }
@@ -900,11 +979,13 @@ function renderSel() {
     const s = sel.st;
     let q = s === HOOK_DRIVE ? (S.hook ? 'Конвейер работает' : 'Конвейер выключен') : s.kind === 'store' ? `На складе: ${s.items.length}/${s.cap}` : s.kind === 'auto' ? `Загружено: ${s.items.length}/${s.cap}, ${{ idle: 'идёт загрузка', running: 'вулканизация, ещё ' + Math.ceil(s.timer) + ' мин', done: 'готово к разгрузке' }[s.state]}` : `Вход: ${s.input.length}/${s.inCap} · в работе: ${s.cur ? 1 : 0} · выход: ${s.out.length}`;
     if (s.mat) q += ` · расход: ${Object.entries(s.mat).map(([k, v]) => v + '× ' + MATS[k].de).join(', ')}`;
+    if (s.canister !== undefined) q += ` · в канистре клея на ${s.canister} шин${s.fetching ? ' (несут новую)' : ''}`;
+    if (['endk', 'fertig'].includes(s.g) && S.scans.length) q += `<div class="muted" style="font-size:11px;margin-top:4px">Последние сканы:<br>${S.scans.slice(0, 6).map(e => `${fmtClock(e.t)} ${e.code} · ${e.st}: ${e.note}`).join('<br>')}</div>`;
     const b = s.broken, tech = b && b.tech && S.workers.find(w => w.id === b.tech);
     const br = b ? `<div class="bad" style="margin-top:3px">⚠ Поломка: ${b.de} — ${b.ru}. ${tech ? `Чинит ${tech.name.split(' ')[0]}: ${Math.round(Math.min(1, b.done / b.need) * 100)}%` : 'Ждёт техника.'} Простой ${Math.round(S.t - b.at)} мин.</div>`
       : s.kind !== 'store' && s.wear !== undefined ? `<div class="muted">Износ ${Math.round(s.wear * 50)}% · пыль ${Math.round(s.dirt * 100)}% (пыль и износ → чаще поломки)</div>` : '';
     el.innerHTML = `<div class="row"><b>${s.de}</b><span class="muted">${s.ru}</span></div><div class="muted" style="margin:3px 0">${s.desc}</div><div>${q}</div>${s.work ? `<div class="muted">Работа: ${WORK_RU[s.work]}${s.time ? `, ~${s.time} мин на шину` : ''} · загрузка ${util(s)}%</div>` : ''}${br}`;
-  } else if (sel.d) el.innerHTML = `<b>${sel.d.label || sel.d.id}</b><div class="muted">${sel.d.desc}</div>`;
+  } else if (sel.d) el.innerHTML = `<b>${sel.d.label || sel.d.id}</b><div class="muted">${sel.d.desc}</div>` + (sel.d.id === 'scanner' && S.scans.length ? `<div class="muted" style="font-size:11px;margin-top:4px">Последние сканы:<br>${S.scans.slice(0, 8).map(e => `${fmtClock(e.t)} ${e.code} · ${e.st}: ${e.note}`).join('<br>')}</div>` : '');
 }
 function renderPanel() {
   const p = $('panel');
@@ -924,7 +1005,7 @@ function renderPanel() {
         <div class="row"><span title="Durchlaufzeit: от выгрузки до склада готовой продукции">Среднее время прохождения</span><b>${avgLead() ? Math.floor(avgLead() / 60) + ' ч ' + (avgLead() % 60) + ' мин' : '—'}</b></div>
         <div class="row"><span title="Сколько метров прошли рабочие сегодня — главный показатель для оптимизации расстановки">Пройдено рабочими сегодня</span><b>${Math.round(S.stats.walkToday * 1.5).toLocaleString('de-DE')} м</b></div>
         <div class="row"><span title="Kanban: сколько шин одновременно пускать в линию. Мало — станки простаивают, много — заторы.">WIP-лимит: в линии <b>${wipCount()}</b> из</span><span><button data-wip="-2">−</button> <b>${S.wip}</b> <button data-wip="2">+</button></span></div>
-        <div class="row"><label title="Подвесной конвейер на крюках (Hängebahn): шины едут между участками сами, люди только снимают и вешают. Выключите — и шины будут катать вручную."><input type="checkbox" data-hookbahn ${S.hook ? 'checked' : ''}> Hängebahn — подвесной конвейер на крюках</label><span class="${HOOK_DRIVE.broken ? 'bad' : 'muted'}">${HOOK_DRIVE.broken ? '⚠ привод сломан' : `${HOOKS.filter(h => h.tire).length}/${HOOKS.length} крюков заняты`}</span></div>
+        <div class="row"><label title="Подвесной конвейер на крюках (Hängebahn): шины едут между участками сами, люди только снимают и вешают. Выключите — и шины будут катать вручную."><input type="checkbox" data-hookbahn ${S.hook ? 'checked' : ''}> Hängebahn — крюки в Ж1–Ж2</label><span class="${HOOK_DRIVE.broken ? 'bad' : 'muted'}">${HOOK_DRIVE.broken ? '⚠ привод сломан' : `${HOOKS.filter(h => h.tire).length}/${HOOKS.length} крюков заняты`}</span></div>
         <div class="row"><span title="Станки ломаются чаще, если у них пыль и износ. Свободные рабочие подметают; техник (Instandhaltung) чинит.">Поломки сегодня / всего</span><b class="${MACHINES.some(m => m.broken) ? 'bad' : ''}">${S.breaksToday} / ${S.stats.breakdowns}${MACHINES.some(m => m.broken) ? ` · сейчас ⚠ ${MACHINES.filter(m => m.broken).length}` : ''}</b></div>
         <div class="row"><span>Простой станков / запчасти</span><b>${Math.round(S.stats.downtime)} мин / ${eur(S.stats.repairs)}</b></div>
       </div>
@@ -938,7 +1019,7 @@ function renderPanel() {
       </div>
       <div class="muted" style="font-size:11px">Красная рамка на станции и оранжевая очередь — узкое место.</div>
       <h3 style="margin-top:12px">Расчёт оборудования на ${PLAN.P} шин/сутки</h3>
-      <div class="muted" style="font-size:11px;margin-bottom:4px">Методика проектирования шиноремонтных участков: N = P·t / (T·Kз), для автоклава ещё делим на вместимость. P — суточная программа, t — время на шину (цикл автоклава + 30 мин загрузки), T — рабочее время (2 смены; у автоклава + ночная партия), Kз — коэффициент загрузки.</div>
+      <div class="muted" style="font-size:11px;margin-bottom:4px">Методика проектирования шиноремонтных участков: N = P·t / (T·Kз), P — суточная программа, t — время на шину (у пресса: вулканизация + закрыть форму + зарядка и выгрузка краном), T — рабочее время (2 смены), Kз — коэффициент загрузки.</div>
       <table><tr><th>Участок</th><th>Расчёт</th><th>Нужно</th><th>Есть</th></tr>${equipCalc().map(r => `<tr><td>${r.name}</td><td class="muted" style="font-size:10px">${r.formula} = ${r.need.toFixed(2)}</td><td><b>${r.n}</b></td><td class="${r.have >= r.n ? 'good' : 'bad'}">${r.have}</td></tr>`).join('')}</table>`;
   } else if (tab === 'workers') {
     const head = WORKS.map(k => `<th title="${WORK_RU[k]}">${WORK_RU[k].slice(0, 5)}</th>`).join('');
@@ -951,10 +1032,10 @@ function renderPanel() {
     const st = { incoming: 'грузовик с каркасами в пути', production: 'в производстве', done: 'закрыт' };
     const active = S.orders.filter(o => o.state !== 'done'), done = S.orders.filter(o => o.state === 'done').slice(-6).reverse();
     const card = o => `<div class="card"><div class="row"><b>${o.customer}</b><span class="${o.state === 'done' ? 'muted' : ''}">${st[o.state]}${o.pickupPending ? ' · грузовик едет' : ''}</span></div><div class="row"><span>Готово ${o.finished}/${o.qty}, отгружено ${o.shippedN}, лом ${o.scrapped}</span><span class="${S.t > o.deadline && o.state !== 'done' ? 'bad' : 'muted'}">до ${fmtDT(o.deadline)}</span></div><div class="bar"><i style="width:${(o.finished + o.scrapped) / o.qty * 100}%"></i></div></div>`;
-    p.innerHTML = `<div class="card"><label title="Мастер-автопилот: принимает первый запрос, пока в цехе и в пути меньше 90 шин. Выключите, чтобы выбирать заказы самому."><input type="checkbox" data-autoaccept ${S.autoAccept ? 'checked' : ''}> Принимать заказы автоматически</label></div><h3>Запросы клиентов</h3>${offers}<h3>В работе (${active.length})</h3>${active.map(card).join('') || '<div class="muted">Нет.</div>'}<h3>Закрытые</h3>${done.map(card).join('') || '<div class="muted">Нет.</div>'}`;
+    p.innerHTML = `<div class="card"><label title="Мастер-автопилот: принимает первый запрос, пока в цехе и в пути меньше 130 шин. Выключите, чтобы выбирать заказы самому."><input type="checkbox" data-autoaccept ${S.autoAccept ? 'checked' : ''}> Принимать заказы автоматически</label></div><h3>Запросы клиентов</h3>${offers}<h3>В работе (${active.length})</h3>${active.map(card).join('') || '<div class="muted">Нет.</div>'}<h3>Закрытые</h3>${done.map(card).join('') || '<div class="muted">Нет.</div>'}`;
   } else if (tab === 'stock') {
     const rows = Object.entries(MATS).map(([k, m]) => { const coming = S.matOrders.filter(o => o.key === k).reduce((a, o) => a + o.qty, 0); return `<div class="card"><div class="row"><b>${m.de}</b><span class="${S.mats[k] < 10 ? 'bad' : ''}">${S.mats[k]} шт${coming ? ` <span class="muted">(+${coming} в пути)</span>` : ''}</span></div><div class="row"><span class="muted">${m.ru}</span><button data-buy="${k}">+${m.pack} за ${eur(m.price)}</button></div></div>`; }).join('');
-    p.innerHTML = `<h3>Материалы</h3><div class="card"><label><input type="checkbox" data-autobuy ${S.autoBuy ? 'checked' : ''}> Автозаказ, когда остаток меньше 30</label></div>${rows}<div class="muted" style="font-size:11px">Поставка через 2 игровых часа. На одну шину: 1 протектор, 1 связующая резина, 1 клей, 1 ремонтная резина.</div>`;
+    p.innerHTML = `<h3>Материалы</h3><div class="card"><label><input type="checkbox" data-autobuy ${S.autoBuy ? 'checked' : ''}> Автозаказ, когда остаток меньше 30</label></div>${rows}<div class="muted" style="font-size:11px">Поставка через 2 игровых часа. На одну шину: 1 сырая резина (лента), 1 клей, 1 ремонтная резина. Сырая резина лежит у машин Ж2, клей — на М2: за канистрой ходят.</div>`;
   } else if (tab === 'log') p.innerHTML = `<div class="log">${S.log.map(l => `<div><span class="muted">${l.t}</span> <span class="${l.cls}">${l.msg}</span></div>`).join('')}</div>`;
 }
 function renderTop() {
@@ -1035,7 +1116,7 @@ $('zoomIn').addEventListener('click', () => { if (!pixelOn()) setGfx('pixel'); w
 $('zoomOut').addEventListener('click', () => { if (pixelOn()) window.PixelGfx.zoomAt(1 / 1.25, 0.5, 0.5); });
 
 // ================= Пиксельная графика (pixel.js) =================
-const VIEW = { ctx, TILE, MW, MH, S, grid, I, T_GRASS, T_ROAD, T_YARD, T_FLOOR, T_WALL, T_DOOR, ZONES, DECOR, DOCKS, SEATS, STATIONS, LOOP, HOOKS, HOOK_DRIVE, loopPos, clock, DAY_START, DAY_END, matsOk };
+const VIEW = { CAM, ctx, TILE, MW, MH, S, grid, I, T_GRASS, T_ROAD, T_YARD, T_FLOOR, T_WALL, T_DOOR, ZONES, DECOR, DOCKS, SEATS, STATIONS, LOOP, HOOKS, HOOK_DRIVE, loopPos, clock, DAY_START, DAY_END, matsOk };
 function setGfx(m) {
   S.gfx = m; try { localStorage.setItem('rw-gfx', m); } catch (e) { /* без хранилища */ }
   const b = document.getElementById('gfxBtn'); if (b) b.textContent = m === 'pixel' ? '🎨 Графика: пиксели' : '🎨 Графика: схема';
@@ -1055,18 +1136,19 @@ function frame(now) {
 // Старт: цех уже работает — два заказа в производстве, шины на участках, автоклав греет, едет грузовик
 function prefill() {
   const order = (customer, qty, price, dl, state = 'production') => { const o = { id: S.nextId++, customer, qty, price, deadline: S.t + dl, expires: S.t, state, finished: 0, scrapped: 0, shippedN: 0 }; S.orders.push(o); return o; };
-  const tire = (o, stage, bad = 0.04) => { const t = { id: S.nextTire++, order: o.id, badCasing: rnd() < bad, defect: false, rework: 0, stage, readyAt: 0, res: false, dest: null, tIn: S.t - RI(120, 900) }; S.tires.set(t.id, t); return t.id; };
+  const tire = (o, stage, bad = 0.04) => { const t = { id: S.nextTire++, order: o.id, badCasing: rnd() < bad, defect: false, rework: 0, stage, readyAt: 0, res: false, dest: null, tIn: S.t - RI(120, 900), trace: [] }; if (stage !== 'karkasse') t.code = 'RW' + String(t.id).padStart(5, '0'); S.tires.set(t.id, t); return t.id; };
   const a = order('Spedition Krause', 36, 205, 1300), b = order('Busbetrieb Schäfer', 20, 215, 1900);
-  for (let k = 0; k < 12; k++) { ST.fertig.items.push(tire(a, 'lack', 0)); a.finished++; }  // готово к отгрузке → скоро приедет грузовик
-  for (let k = 0; k < 10; k++) ST.auto1.items.push(tire(a, 'huelle'));
-  Object.assign(ST.auto1, { state: 'running', timer: 140 });
-  for (let k = 0; k < 4; k++) ST.auto2.items.push(tire(a, 'huelle')); ST.auto2.lastLoad = S.t;
-  const PREV = { pruef: 'karkasse', rauen: 'pruef', ausschl: 'rauen', spray: 'ausschl', fuellen: 'spray', belegen: 'fuellen', huelle: 'belegen', entgr: 'auto', lack: 'entgr', endk: 'lack' };
-  for (const [id, o, n] of [['entgr1', a, 2], ['entgr2', a, 1], ['lack', a, 1], ['endk', a, 1], ['huelle', a, 2], ['belegen1', a, 1], ['belegen2', a, 1], ['fuellen', a, 1],
-    ['spray', b, 1], ['ausschl1', b, 1], ['ausschl2', b, 1], ['rauen1', b, 1], ['rauen2', b, 1], ['pruef', b, 1]]) {
+  for (let k = 0; k < 12; k++) { ST.fertig.items.push(tire(a, 'fertig', 0)); a.finished++; } // готово к отгрузке → скоро приедет грузовик
+  GROUP.presse.forEach((p, k) => { if (k < 8) { p.items.push(tire(a, 'aufbau')); Object.assign(p, { state: 'running', timer: 8 + k * 10 }); } }); // 8 из 10 прессов греют
+  for (let k = 0; k < 4; k++) ST.puffer.items.push(tire(a, 'aufbau'));
+  for (let k = 0; k < 4; k++) ST.sort.items.push(tire(a, 'pruef'));
+  const PREV = { pruef: 'karkasse', rauen: 'aufh', ausschl: 'rauen', spray: 'ausschl', fuellen: 'spray', aufbau: 'fuellen', entgr: 'presse', endk: 'entgr' };
+  for (const [id, o, n] of [['entgr1', a, 3], ['entgr2', a, 1], ['endk', a, 1], ['aufbau1', a, 1], ['aufbau2', a, 1], ['fuellen', a, 1],
+    ['spray', b, 1], ['ausschl1', b, 1], ['ausschl2', b, 1], ['rauen1', b, 1], ['rauen2', b, 1], ['pruef1', b, 1], ['pruef2', b, 1]]) {
     for (let k = 0; k < n; k++) ST[id].input.push(tire(o, PREV[ST[id].g], ST[id].g === 'pruef' ? 0.13 : 0.04));
   }
-  for (let k = 0; k < 14; k++) ST.eingang.items.push(tire(b, 'karkasse', 0.13));
+  for (let k = 0; k < 4; k++) ST.aufh.items.push(tire(b, 'pruef'));
+  for (let k = 0; k < 9; k++) ST.eingang.items.push(tire(b, 'karkasse', 0.13));
   const c = order('Kühltransporte Nord', 16, 210, 2400, 'incoming');
   pendingTrucks.push({ kind: 'deliver', order: c, at: S.t + 12 });
   for (const s of [ST.rauen1, ST.ausschl1, ST.entgr2]) s.dirt = 0.3; // с ночи осталась пыль — будет что подметать
@@ -1074,7 +1156,7 @@ function prefill() {
 if (params.get('empty') !== '1') prefill();
 makeOffer(); makeOffer();
 resize(); renderTop(); renderSel(); renderPanel();
-log('Добро пожаловать в Reifenwerk! Цех уже работает: 2 заказа в производстве, грузовик с каркасами подъезжает. Новые заказы принимаются автоматически (вкладка «Заказы»). Станки иногда ломаются — техник чинит.', 'info');
+log('Добро пожаловать в Reifenwerk! Цех построен по эталону: горячий метод — крюки в Ж1–Ж2, намотка сырой резины, 10 прессов с формами, обрезка, сканер, контроль, отгрузка через пандус Р. 2 заказа уже в производстве, грузовик подъезжает к воротам З. Заказы принимаются автоматически (вкладка «Заказы»).', 'info');
 requestAnimationFrame(frame);
 
 // ================= API для автоматической игры и тестов =================
