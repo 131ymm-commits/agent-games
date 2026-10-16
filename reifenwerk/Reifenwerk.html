@@ -70,6 +70,17 @@
   #tut { position: absolute; left: 50%; bottom: 14px; transform: translateX(-50%); width: min(560px, calc(100% - 24px)); max-height: calc(100% - 20px); overflow-y: auto; background: rgba(255,255,255,.98); color: var(--text); border: 2px solid var(--accent); border-radius: 10px; padding: 12px 14px; display: none; box-shadow: 0 8px 30px rgba(30,36,48,.22); font-size: 14px; line-height: 1.45; z-index: 5; }
   #tut button { min-height: 34px; padding: 4px 12px; }
   #tut .tutbar { height: 3px; background: #e3e6eb; border-radius: 2px; margin: 4px 0 6px; overflow: hidden; } #tut .tutbar i { display: block; height: 100%; background: var(--accent); }
+  /* Люди v2: черты, модификаторы настроения, характеристики, правила */
+  .chips { display: flex; flex-wrap: wrap; gap: 3px; margin: 3px 0; }
+  .chip { font-size: 11px; padding: 0 6px; border-radius: 9px; border: 1px solid var(--line); background: var(--panel); white-space: nowrap; }
+  .chip.good { border-color: #a9d8b4; background: #edf7ef; } .chip.bad { border-color: #f1c6c6; background: #fdeeee; } .chip.info { border-color: #c5daf0; background: #ebf3fb; }
+  .mods { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 0 10px; font-size: 11px; margin: 3px 0; }
+  .mods b { display: inline-block; min-width: 26px; text-align: right; margin-right: 4px; font-variant-numeric: tabular-nums; }
+  .attrs { display: grid; grid-template-columns: repeat(auto-fill, minmax(100px, 1fr)); gap: 2px 10px; font-size: 11px; margin: 4px 0; }
+  .attrs .bar { height: 4px; margin-top: 1px; }
+  .acts { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 6px; }
+  .pol .plus { color: var(--good); font-size: 12px; } .pol .minus { color: var(--bad); font-size: 12px; }
+  .big { font-size: 22px; font-weight: 700; font-variant-numeric: tabular-nums; }
   /* Смартфон и узкие окна: карта сверху, панель снизу, вкладки листаются, кнопки крупнее */
   @media (max-width: 900px) {
     body { flex-direction: column; }
@@ -103,6 +114,7 @@
   <div id="topbar">
     <span class="title">REIFENWERK</span>
     <span class="stat"><span id="lDay">День</span> <b id="tDay">1</b>, <b id="tClock">06:00</b> <span id="tShift" class="muted"></span></span>
+    <span class="stat" id="sSeason"><b id="tSeason"></b></span>
     <span class="stat"><span id="lMoney">Касса:</span> <b id="tMoney">0 €</b></span>
     <span class="stat" id="sLvl" title="Уровень компании: растёт за отгруженные шины, цели и события (очки развития) при достаточной репутации"><span id="lLvl">Уровень:</span> <b id="tLvl">1</b></span>
     <span class="stat"><span id="lRep">Репутация:</span> <b id="tRep">50</b></span>
@@ -127,6 +139,7 @@
   <div id="tabs">
     <button data-tab="overview" class="on">Цех</button>
     <button data-tab="workers">Люди</button>
+    <button data-tab="rules">Правила</button>
     <button data-tab="orders">Заказы</button>
     <button data-tab="stock">Склад</button>
     <button data-tab="upgrades">Апгрейды</button>
@@ -675,6 +688,7 @@ function toolPose(tool, on, t) { // [ближняя рука x,y, дальняя
     case 'knife': { const p = on ? (t * 1.6) % 1 : 0.3; return [7 + Math.round(p * 5), -18 + Math.round(p * 2), 4, -19]; }
     case 'canister': case 'toolbox': return [3, -14, -1, -16];
     case 'cup': return on && (t * 0.45) % 1 < 0.25 ? [5, -31, -1, -16] : [6, -21, -1, -16];
+    case 'cig': return on && (t * 0.35) % 1 < 0.3 ? [4, -31, -1, -16] : [6, -22, -1, -16]; // затяжка — рука ко рту
     case 'sign': return [6, -29 + (on ? Math.round(s(t * 4) * 2) : 0), 3, -26 + (on ? Math.round(s(t * 4) * 2) : 0)];
     case 'book': return [6, -17, 3, -17];
     default: { const a = on ? s(t * 5) : 0; return [8, -20 + Math.round(a * 3), 6, -19 - Math.round(a * 3)]; }
@@ -721,6 +735,7 @@ function drawTool(tool, on, t, hx, hy) {
       R(hx, hy - 14, 1, 16, WOOD[2]); R(hx - 8, hy - 24, 17, 11, OUT); R(hx - 7, hy - 23, 15, 9, '#f4f2ea'); R(hx - 7, hy - 23, 15, 1, '#ffffff');
       R(hx - 5, hy - 21, 11, 2, RED[3]); R(hx - 5, hy - 17, 7, 1, '#3a3a44'); R(hx + 3, hy - 17, 3, 1, '#3a3a44'); break;
     case 'book': R(hx - 6, hy - 5, 13, 7, OUT); R(hx - 5, hy - 4, 5, 5, '#f4f2ea'); R(hx + 1, hy - 4, 5, 5, '#e8e4d8'); R(hx, hy - 4, 1, 5, RED[2]); R(hx - 4, hy - 2, 3, 1, '#9a9a9a'); R(hx + 2, hy - 2, 3, 1, '#9a9a9a'); break;
+    case 'cig': R(hx, hy - 2, 5, 2, OUT); R(hx + 1, hy - 2, 3, 1, '#f4f4f0'); px(hx + 4, hy - 2, f2 ? '#ff7a2a' : '#ffb060'); break; // сигарета с тлеющим концом
     case 'cup': R(hx - 2, hy - 4, 5, 5, OUT); R(hx - 1, hy - 3, 3, 3, '#f4f4f4'); px(hx + 2, hy - 2, '#f4f4f4'); px(hx - 1, hy - 3, '#7a4a2a'); break;
   }
 }
@@ -733,6 +748,9 @@ function toolOf(w) {
   if (j.type === 'train') return w.act === 'train' ? 'book' : null;      // Schulung — учебник
   if (j.type === 'fetch') return w.tool === 'canister' ? 'canister' : null;
   if (j.type === 'repair') return w.act === 'repair' ? 'wrench' : w.tool ? 'toolbox' : null;
+  if (j.type === 'smoke') return w.state === 'act' ? 'cig' : null;          // перекур во дворе
+  if (j.type === 'fives') return w.state === 'act' ? 'broom' : null;        // уборка 5S в конце смены
+  if (j.type === 'mbreak') return w.state === 'act' && w.act === 'smoke' ? 'cig' : null;
   if (j.type === 'idle') return j.act === 'sweep' ? 'broom' : j.act === 'inspect' ? 'clipboard' : w.state === 'act' ? (j.act === 'coffee' ? 'cup' : 'hands') : null;
   if (j.type === 'start') return w.state === 'work' ? 'hands' : null;
   if (j.type === 'work') return w.state === 'work' ? TOOL_G[j.st.g] || 'hands' : null;
@@ -1641,6 +1659,7 @@ function toolFx(tool, x, y, face, w, view) {
     case 'broom': if (rate(w, 0, 7)) emit(2, x + face * 10, y + 16, face * (8 + rnd() * 14), -6 - rnd() * 8, 0.9, 0, 0.8, 0, 1, 4, '#9a8c74', 0.4); break;
     case 'wrench': if (rate(w, 0, 1.2)) sparks(x + face * 10, y - 2, face, 3); break;
     case 'cup': if (rate(w, 0, 1.5)) steam(x, y - 5, 0.4); break;
+    case 'cig': if (rate(w, 0, 1.2)) emit(2, x + face * 6, y - 4, face * 3, -10, 1.6, -2, 0.6, 0, 1, 4, '#d8d8dc', 0.35); break;
   }
 }
 
@@ -1844,7 +1863,7 @@ const DAY_START = 6 * 60, SHIFT_CHANGE = 14 * 60, DAY_END = 22 * 60;
 const WAGE_PER_HOUR = 21, OVERHEAD_PER_DAY = 2800;
 const FORK = 6;                                   // шин на вилах погрузчика за рейс
 const CART = 4;                                   // шин на тележке (Rollwagen)
-const liftTime = (j, what, w) => (j.crane === what ? 1.5 * (tier(w, 'vulkan') >= 1 ? 0.7 : 1) : j.fork || j.cart ? 0.8 : 0.5) * S.liftMul; // подъёмники (Hebehilfe), Lean, перк «Kranführer»
+const liftTime = (j, what, w) => (j.crane === what ? 1.5 * (tier(w, 'vulkan') >= 1 ? 0.7 : 1) : j.fork || j.cart ? 0.8 : 0.5) * S.liftMul * (1.15 - 0.015 * AT(w, 'kraft')); // подъёмники (Hebehilfe), Lean, перк «Kranführer», сила
 const DUSTY = ["rauen", "ausschl", "entgr"];       // участки, где сыплется резиновая пыль и стружка
 const BREAK_MIN = 5000;                           // средняя наработка на отказ, минут работы (пыль и износ ускоряют); было 1000 — поломок было слишком много (цель — 1–3 в сутки)
 // Типичные поломки по участкам: немецкое название — что случилось
@@ -1934,6 +1953,7 @@ const DECOR = [
 ];
 const WERKBANK = { x: 28, y: 43 };
 const COFFEE = { x: 33, y: 10 };
+const SMOKE = { x: 31, y: 7 };                    // курилка во дворе, у двери бытовки
 const M2_ACCESS = { x: 23, y: 43 };
 const SCAN_ACCESS = { x: 55, y: 30 };
 const FORK_HOMES = [{ x: 19, y: 8 }, { x: 63, y: 21 }]; // стоянки погрузчиков: у приёмки З и у склада С3
@@ -2152,7 +2172,7 @@ const S = {
   gfx: (() => { try { return new URLSearchParams(location.search).get('gfx') || localStorage.getItem('rw-gfx') || 'pixel'; } catch (e) { return 'pixel'; } })(),
   tires: new Map(), nextTire: 1, nextId: 1,
   workers: [], trucks: [], offers: [], orders: [], matOrders: [], complaints: [],
-  mats: { rohgummi: 60, pflaster: 40, loesung: 80, fuellgummi: 80 }, scans: [],
+  mats: { rohgummi: 60, pflaster: 40, loesung: 80, fuellgummi: 80, psa: 30 }, scans: [],
   scrap: 0, shipped: 0, log: [], selected: null, lastOffer: DAY_START - 200,
   doneToday: 0, doneYesterday: 0, leadTimes: [],
   stats: { revenue: 0, wages: 0, materials: 0, penalties: 0, overhead: 0, walk: 0, walkToday: 0, repairs: 0, breakdowns: 0, downtime: 0, upgrades: 0, events: 0, bonus: 0, training: 0, hiring: 0, research: 0, interest: 0, insurance: 0, afa: 0, tax: 0, baddebt: 0, receipts: 0, loanIn: 0, loanOut: 0 },
@@ -2169,15 +2189,19 @@ const S = {
   goals: [], goalsDone: [], goalStart: {}, cleanShifts: 0, shiftBreaks: 0, lastDay: null, cands: [],
   // События: S.events — активные и ждущие решения (контракт для отрисовки: id, kind, title, text, x?, y?, until?)
   events: [], eventLog: [], evLast: {}, nextEvent: DAY_START + 200, eventsOn: params.get('events') !== '0', pauseOnChoice: true,
+  // Люди v2: правила предприятия (S.pol — включено, S.polT — когда меняли), кадры и безопасность (S.hr), Kaizen, календарь, качество шин A/B/C
+  pol: {}, polT: {}, hr: { acc: 0, accLog: [], fines: 0, breaks: 0, majors: 0, insp: 0, fights: 0, quits: 0, flu: 0 }, lastAccident: DAY_START - 12 * 1440,
+  kaizen: [], kaizenAt: 2 * 1440 + 10 * 60, calOff: 0, grades: { A: 0, B: 0, C: 0 }, planMin: 0, moodAcc: 0, socAcc: 0, cover: {},
 };
 const MATS = {
   rohgummi: { de: 'Rohgummi', ru: 'Сырая резина (лента для намотки)', deLong: 'Unvulkanisiertes Gummi (Wickelband)', pack: 40, price: 2400, min: 30 },
   pflaster: { de: 'Reparaturpflaster', ru: 'Пластыри для проколов (с металлокордом)', deLong: 'Pflaster für Durchschläge (mit Stahlcord)', pack: 50, price: 450, min: 15 },
   loesung: { de: 'Gummilösung', ru: 'Клей (канистры на М2)', deLong: 'Flüssiggummi (Kanister an М2)', pack: 100, price: 200, min: 30 },
   fuellgummi: { de: 'Füllgummi', ru: 'Ремонтная резина', deLong: 'Reparaturgummi zum Spachteln', pack: 80, price: 240, min: 30 },
+  psa: { de: 'PSA-Sets', ru: 'Средства защиты (СИЗ): наушники, перчатки, очки — комплект на 2 смены', deLong: 'Persönliche Schutzausrüstung: Gehörschutz, Handschuhe, Schutzbrille — ein Set für 2 Schichten', pack: 20, price: 360, min: 8 },
 };
 // Цена и срок поставки с учётом событий: дефицит Rohgummi, акция поставщика
-const matPrice = k => Math.round(MATS[k].price * (k === 'rohgummi' && evOn('rohgummi') ? 1.8 : 1) * (k !== 'rohgummi' && evOn('rabatt') ? 0.7 : 1));
+const matPrice = k => Math.round(MATS[k].price * (k === 'rohgummi' && evOn('rohgummi') ? 1.8 : 1) * (['pflaster', 'loesung', 'fuellgummi'].includes(k) && evOn('rabatt') ? 0.7 : 1));
 const matDelay = k => k === 'rohgummi' && evOn('rohgummi') ? 360 : 120;
 
 const day = () => Math.floor(S.t / 1440) + 1;
@@ -2189,35 +2213,108 @@ const isDay = () => clock() >= DAY_START && clock() < DAY_END; // деловые
 // Смены: F 06–14, S 14–22, N 22–06 (ночная, +25 % к зарплате). Модель: 1, 2 или 3 смены (вкладка «Люди»).
 const SHIFTS = { F: { de: 'Frühschicht', t: '06–14', a: DAY_START, b: SHIFT_CHANGE }, S: { de: 'Spätschicht', t: '14–22', a: SHIFT_CHANGE, b: DAY_END }, N: { de: 'Nachtschicht', t: '22–06', a: DAY_END, b: DAY_START } };
 const activeShifts = () => ['F', 'S', 'N'].slice(0, S.shiftModel);
-const inShift = (k, c) => { const s = SHIFTS[k]; return s.a < s.b ? c >= s.a && c < s.b : c >= s.a || c < s.b; };
-const onShift = w => activeShifts().includes(w.shift) && inShift(w.shift, clock());
-const shiftLeft = w => (SHIFTS[w.shift].b - clock() + 1440) % 1440;     // минут до конца смены рабочего
+const pol = id => !!S.pol[id];                                           // правило предприятия включено (вкладка «Правила»)
+const lastShift = () => activeShifts()[S.shiftModel - 1];
+const otOn = () => pol('ueberstunden') && S.shiftModel < 3;              // Überstunden: последняя смена дня — на 2 ч дольше
+const shiftB = k => SHIFTS[k].b + (otOn() && k === lastShift() ? 120 : 0);
+const inWin = (c, a, b) => { a = ((a % 1440) + 1440) % 1440; b = ((b % 1440) + 1440) % 1440; return a < b ? c >= a && c < b : c >= a || c < b; };
+const inShift = (k, c) => inWin(c, SHIFTS[k].a, shiftB(k));
+// Gleitzeit: часть людей первой смены приходит позже, часть последней — уходит раньше (утро и вечер укомплектованы хуже)
+const flexOf = w => !pol('gleitzeit') || !w.flex || w.temp ? 0 : (w.flex > 0 && w.shift === activeShifts()[0]) || (w.flex < 0 && S.shiftModel > 1 && w.shift === lastShift()) ? w.flex : 0;
+const onShift = w => activeShifts().includes(w.shift) && inWin(clock(), SHIFTS[w.shift].a + flexOf(w), shiftB(w.shift) + flexOf(w));
+const shiftLeft = w => (shiftB(w.shift) + flexOf(w) - clock() + 2880) % 1440;     // минут до конца смены рабочего
+const overtimeNow = w => otOn() && w.shift === lastShift() && inWin(clock(), SHIFTS[w.shift].b, shiftB(w.shift));
 const workingAt = c => activeShifts().some(k => inShift(k, c));
 const working = () => workingAt(clock());                                // идёт ли сейчас хоть одна смена
 const eur = v => (Math.round(v)).toLocaleString('de-DE') + ' €';
 function log(msg, cls = '') { S.log.unshift({ t: stamp(), tm: S.t, msg, cls }); if (S.log.length > 150) S.log.pop(); } // msg — строка или двуязычный LL(…)
 
 // ================= Рабочие =================
-// Черты характера: у ~70 % людей одна черта (влияет на скорость, брак, усталость, обучение, настроение)
-const TRAITS = { // [название, описание по-русски, описание по-немецки]
-  sorgfaeltig: ['Sorgfältig', 'аккуратный: брака на 30 % меньше, но на 5 % медленнее', 'sorgfältig: 30 % weniger Ausschuss, aber 5 % langsamer'],
-  flink: ['Flink', 'шустрый: на 8 % быстрее, но брака на 20 % больше', 'flink: 8 % schneller, aber 20 % mehr Ausschuss'],
-  robust: ['Robust', 'выносливый: устаёт на 25 % меньше', 'robust: ermüdet 25 % weniger'],
-  lernfreudig: ['Lernfreudig', 'любознательный: учится в 1,5 раза быстрее', 'lernfreudig: lernt 1,5-mal so schnell'],
-  teamplayer: ['Teamplayer', 'душа команды: настроение +2', 'Seele des Teams: Stimmung +2'],
-  griesgram: ['Griesgram', 'ворчун: настроение −2', 'Miesepeter: Stimmung −2'],
-  kaffee: ['Kaffeejunkie', 'без кофе не может: чаще ходит к кофемашине', 'ohne Kaffee geht nichts: öfter an der Kaffeemaschine'],
+// Черты характера (перки и недостатки, как в RimWorld): у каждого 1–3 черты. g: +1 — хорошая (человек дороже на рынке найма), −1 — недостаток
+const TRAITS = { // [название, описание по-русски, описание по-немецки, g]
+  sorgfaeltig: ['Sorgfältig', 'аккуратный: брака на 30 % меньше, но на 5 % медленнее', 'sorgfältig: 30 % weniger Ausschuss, aber 5 % langsamer', 1],
+  flink: ['Flink', 'шустрый: на 8 % быстрее, но брака на 20 % больше', 'flink: 8 % schneller, aber 20 % mehr Ausschuss', 0],
+  robust: ['Robust', 'выносливый: устаёт на 25 % меньше', 'robust: ermüdet 25 % weniger', 1],
+  lernfreudig: ['Lernfreudig', 'любознательный: учится в 1,5 раза быстрее', 'lernfreudig: lernt 1,5-mal so schnell', 1],
+  teamplayer: ['Teamplayer', 'душа команды: своё настроение +4, всей смене +1', 'Seele des Teams: eigene Stimmung +4, die ganze Schicht +1', 1],
+  griesgram: ['Griesgram', 'ворчун: своё настроение −4, всей смене −1', 'Miesepeter: eigene Stimmung −4, die ganze Schicht −1', -1],
+  kaffee: ['Kaffeejunkie', 'без кофе не может: чаще ходит к кофемашине', 'ohne Kaffee geht nichts: öfter an der Kaffeemaschine', 0],
+  fleissig: ['Fleißig', 'трудяга: работает на 20 % быстрее', 'fleißig: arbeitet 20 % schneller', 1],
+  faul: ['Faul', 'ленивый: на 20 % медленнее, раньше уходит на перерыв', 'faul: 20 % langsamer, macht früher Pause', -1],
+  nachteule: ['Nachteule', 'сова: в ночную смену настроение +6, в утреннюю −4', 'Nachteule: in der Nachtschicht Stimmung +6, in der Frühschicht −4', 0],
+  fruehauf: ['Frühaufsteher', 'жаворонок: в утреннюю смену настроение +6, в ночную −6', 'Frühaufsteher: in der Frühschicht Stimmung +6, in der Nachtschicht −6', 0],
+  perfekt: ['Perfektionist', 'брака на 40 % меньше, на 10 % медленнее, расстраивается из-за брака', '40 % weniger Ausschuss, 10 % langsamer, ärgert sich über Ausschuss', 1],
+  schusselig: ['Schusselig', 'растяпа: несчастный случай вдвое вероятнее, часто забывает СИЗ', 'Schussel: doppelt so oft ein Arbeitsunfall, vergisst oft die PSA', -1],
+  zaeh: ['Zäh', 'крепкий: травмы заживают вдвое быстрее, реже болеет', 'zäh: Verletzungen heilen doppelt so schnell, seltener krank', 1],
+  optimist: ['Optimist', 'настроение +6', 'Stimmung +6', 1],
+  pessimist: ['Pessimist', 'настроение −6', 'Stimmung −6', -1],
+  eisern: ['Eisern', 'железные нервы: срывается, только когда настроение на 6 ниже обычного порога', 'eiserne Nerven: rastet erst 6 Punkte unter der üblichen Schwelle aus', 1],
+  reizbar: ['Reizbar', 'вспыльчивый: срывается уже на 6 пунктов раньше, чаще ссорится', 'reizbar: rastet schon 6 Punkte früher aus, streitet öfter', -1],
+  gesellig: ['Gesellig', 'компанейский: друзья в смене радуют вдвое сильнее, без друзей −3', 'gesellig: Freunde in der Schicht freuen doppelt, ohne Freunde −3', 0],
+  einzelg: ['Einzelgänger', 'одиночка: +4, когда рядом никого; друзей заводит редко', 'Einzelgänger: +4, wenn niemand in der Nähe ist; findet selten Freunde', 0],
+  ehrgeizig: ['Ehrgeizig', 'честолюбивый: учится в 1,3 раза быстрее, но каждые 10 дней просит прибавку', 'ehrgeizig: lernt 1,3-mal so schnell, will aber alle 10 Tage mehr Geld', 1],
+  raucher: ['Raucher', 'курильщик: перекур каждые 2 часа; при запрете курения −8', 'Raucher: alle 2 Stunden eine Zigarettenpause; bei Rauchverbot −8', -1],
+  technikfan: ['Technikfan', 'техника растёт в 1,5 раза быстрее; рад новым станкам (+6 неделю после апгрейда)', 'Technik wächst 1,5-mal so schnell; freut sich über neue Anlagen (+6 eine Woche nach einem Upgrade)', 1],
+  schnell: ['Schnellläufer', 'быстрый на ногах: ходит на 15 % быстрее', 'schnell zu Fuß: geht 15 % schneller', 1],
+  lehrmeister: ['Lehrmeister', 'наставник от бога: его ученик растёт в 1,5 раза быстрее, может вести двоих', 'geborener Ausbilder: sein Schützling lernt 1,5-mal so schnell, kann zwei betreuen', 1],
+  sparsam: ['Sparsam', 'бережливый: материала на 10 % меньше', 'sparsam: 10 % weniger Material', 1],
+  laut: ['Laut', 'шумный: одиночкам рядом −5', 'laut: Einzelgänger in der Nähe −5', -1],
+  gewissenhaft: ['Gewissenhaft', 'дотошный: пыль у его станка копится вдвое медленнее, всегда в СИЗ', 'gewissenhaft: Staub an seiner Maschine wächst halb so schnell, trägt immer PSA', 1],
 };
+const T_CONFLICT = [['fleissig', 'faul'], ['nachteule', 'fruehauf'], ['optimist', 'pessimist'], ['eisern', 'reizbar'], ['gesellig', 'einzelg'], ['teamplayer', 'griesgram'], ['sorgfaeltig', 'flink'], ['perfekt', 'flink'], ['schusselig', 'gewissenhaft'], ['laut', 'einzelg']];
 const traitDesc = tr => L(tr[1], tr[2]);
+const hasT = (w, k) => !!(w && w.traits && w.traits.includes(k));
+const goodTraits = w => (w.traits || []).reduce((a, k) => a + Math.max(0, TRAITS[k] ? TRAITS[k][3] : 0), 0);
+function rollTraits() {
+  const n = rnd() < 0.45 ? 1 : rnd() < 0.75 ? 2 : 3, ks = Object.keys(TRAITS), out = [];
+  for (let g = 0; out.length < n && g < 40; g++) { const k = pick(ks); if (!out.includes(k) && !T_CONFLICT.some(([a, b]) => (a === k && out.includes(b)) || (b === k && out.includes(a)))) out.push(k); }
+  return out;
+}
+// Характеристики 1–20 (растут медленно от работы, где они нужны, и от курсов). 10 — средний человек: эффекты считаются от 10.
+const ATTRS = ['kraft', 'geschick', 'ausdauer', 'konz', 'technik', 'komm'];
+const ATTR_RU = { kraft: 'Сила', geschick: 'Ловкость', ausdauer: 'Выносливость', konz: 'Внимательность', technik: 'Техника', komm: 'Общение' };
+const ATTR_DE = { kraft: 'Kraft', geschick: 'Geschick', ausdauer: 'Ausdauer', konz: 'Konzentration', technik: 'Technik', komm: 'Kommunikation' };
+const ATTR_FX = { // на что влияет
+  kraft: ['снять и повесить шину, кран, усталость от тяжёлой работы', 'Reifen ab- und aufsetzen, Kran, Ermüdung bei schwerer Arbeit'],
+  geschick: ['скорость работы на станках', 'Tempo an den Maschinen'],
+  ausdauer: ['как быстро тратятся силы', 'wie schnell die Kraft nachlässt'],
+  konz: ['брак, пропуск дефектов на контроле, несчастные случаи', 'Ausschuss, übersehene Fehler in der Kontrolle, Arbeitsunfälle'],
+  technik: ['скорость ремонта станков', 'Reparaturtempo an den Maschinen'],
+  komm: ['обучение учеников, дружба, атмосфера в смене, торг с клиентами', 'Ausbildung, Freundschaften, Stimmung in der Schicht, Verhandeln mit Kunden'],
+};
+const attrName = k => L(ATTR_RU[k], ATTR_DE[k]);
+// Какая работа тренирует какие характеристики
+const WORK_ATTR = { transport: ['kraft', 'ausdauer'], pruefen: ['konz'], rauen: ['geschick', 'kraft'], reparatur: ['geschick', 'konz'], belegen: ['geschick'], vulkan: ['kraft', 'konz'], nacharbeit: ['konz', 'geschick'], technik: ['technik'] };
+const HEAVY = ['transport', 'rauen', 'vulkan'];                      // тяжёлая работа (Kraft; при крупном срыве от неё отказываются)
+const AT = (w, k) => (w && w.attr && w.attr[k]) || 10;
+// Страсти (passions, как в RimWorld): 0 — нет, 1 — 🔥, 2 — 🔥🔥. Обучение ×0,35 / ×1 / ×1,5, настроение за эту работу 0 / +4 / +8
+const PASS_LEARN = [0.35, 1, 1.5], PASS_MOOD = [0, 4, 8], PASS_IC = ['', '🔥', '🔥🔥'];
 const FIRST = ['Jonas', 'Leonie', 'Tobias', 'Olga', 'Niklas', 'Ayşe', 'Marek', 'Sophie', 'Emre', 'Katarina', 'Felix', 'Irina', 'Ben', 'Lena', 'Viktor'];
 const LAST = ['Becker', 'Hoffmann', 'Klein', 'Fischer', 'Weber', 'Kaya', 'Lewandowski', 'Braun', 'Şahin', 'Horvat', 'Schmitt', 'Popov', 'Wolf', 'Neumann', 'Richter'];
 const SHIRTS = ['#d9534f', '#5bc0de', '#f0ad4e', '#9b59b6', '#5cb85c', '#e67e22', '#1abc9c', '#e84393', '#f1c40f', '#3498db', '#c0392b', '#16a085', '#8e44ad', '#d35400', '#27ae60'];
-function makeWorker(name, role, shift, main) {
+function makeWorker(name, role, shift, main, opt = {}) {
   const skills = {}; for (const w of WORKS) skills[w] = RI(1, 3);
   for (const [k, v] of Object.entries(main)) skills[k] = v;
   const prio = {}; for (const w of WORKS) prio[w] = skills[w] >= 7 ? 1 : skills[w] >= 4 ? 2 : (w === 'transport' ? 3 : 0);
-  return { id: S.nextId++, name, role, shift, skills, prio, x: ENTRY.x, y: ENTRY.y, path: null, job: null, carry: null, energy: R(85, 100), away: true, state: 'home', color: SHIRTS[S.workers.length % SHIRTS.length], seat: null,
-    wage: WAGE_PER_HOUR, learn: 1, sickUntil: 0, hiredAt: S.t, trait: rnd() < 0.7 ? pick(Object.keys(TRAITS)) : null };
+  const w = { id: S.nextId++, name, role, shift, skills, prio, x: ENTRY.x, y: ENTRY.y, path: null, job: null, carry: null, energy: R(85, 100), away: true, state: 'home', color: SHIRTS[S.workers.length % SHIRTS.length], seat: null,
+    wage: WAGE_PER_HOUR, learn: 1, sickUntil: 0, hiredAt: S.t, traits: opt.traits || rollTraits(), age: opt.age || RI(20, 60), attr: {}, pass: {},
+    mood: 64, mods: [], rel: {}, xpMin: {}, lastPr: {}, near: [], flex: RI(-40, 40), ppe: false, brk: null, insp: null, mentor: null, badge: null };
+  // характеристики: от 6 до 13 и бонус за то, чем человек занимался раньше; после 50 — меньше сил, больше опыта
+  for (const a of ATTRS) w.attr[a] = R(6, 13);
+  for (const [k, v] of Object.entries(main)) if (v >= 5) for (const a of WORK_ATTR[k]) w.attr[a] += R(1, 3.5);
+  if (w.age > 50) { w.attr.kraft -= 2; w.attr.ausdauer -= 1.5; w.attr.konz += 1; w.attr.technik += 1; }
+  for (const a of ATTRS) w.attr[a] = Math.max(1, Math.min(20, Math.round(w.attr[a] * 10) / 10));
+  // страсти: к своей профессии — обычно 🔥, к остальному — редко
+  for (const k of WORKS) { const mine = (main[k] || 0) >= 6, r = rnd(); w.pass[k] = mine ? (r < 0.22 ? 2 : r < 0.75 ? 1 : 0) : (r < 0.04 ? 2 : r < 0.16 ? 1 : 0); }
+  return w;
+}
+// Старый формат рабочего (одна черта w.trait, без характеристик) → новый: ничего не ломается, недостающее дополняется
+function migrateWorker(w) {
+  if (!w.traits) w.traits = w.trait ? [w.trait] : rollTraits(); delete w.trait;
+  if (!w.attr) { w.attr = {}; for (const a of ATTRS) w.attr[a] = 10; }
+  if (!w.pass) { w.pass = {}; for (const k of WORKS) w.pass[k] = w.skills[k] >= 6 ? 1 : 0; }
+  for (const [k, v] of Object.entries({ age: 35, mood: 64, mods: [], rel: {}, xpMin: {}, lastPr: {}, near: [], flex: 0, ppe: false, brk: null, insp: null, mentor: null, badge: null })) if (w[k] === undefined) w[k] = v;
+  return w;
 }
 [
   ['Jonas Becker', 'Lagerist', 'F', { transport: 8 }],
@@ -2284,7 +2381,7 @@ const BIG = ['Spedition Krause', 'Fernverkehr Yıldız', 'Nordfracht AG', 'Rhein
 const QTY = [[8, 24], [10, 28], [12, 34], [14, 40], [16, 48]]; // размер заказов по уровню
 function offerPrice(premium) {
   const base = R(185, 225) + (S.rep - 50) * 0.5 + (S.level - 1) * 5;
-  return Math.round(base * S.priceMul * (S.certified ? 1.05 : 1) * (evOn('winter') ? 1.1 : 1) * (evOn('messe') ? 1.05 : 1) * (premium ? 1.15 : 1));
+  return Math.round(base * S.priceMul * (S.certified ? 1.05 : 1) * (evOn('winter') ? 1.1 : 1) * (evOn('messe') ? 1.05 : 1) * (premium ? 1.15 : 1) * (1 + (seasonMul() - 1) * 0.15)); // сезон: зимой шины дороже
 }
 function newOrder(customer, qty, price, dl, extra = {}) {
   const o = { id: S.nextId++, customer, qty, price, deadline: Math.round(S.t + dl), expires: S.t, state: 'incoming', finished: 0, scrapped: 0, shippedN: 0, ...extra };
@@ -2353,7 +2450,9 @@ function updateTrucks(dt) {
 const truckBusy = tr => S.workers.some(w => w.job && w.job.type === 'haul' && (w.job.srcTruck === tr || w.job.dstTruck === tr));
 function leaveTruck(tr) { tr.state = 'leave'; tr.path = [{ x: DOCKS[tr.dock].x, y: 1 }, { x: MW + 6, y: 1 }]; }
 function settleOrder(o, tr) {
-  const n = tr.cargo.length; let pay = n * o.price; const late = !o.own && S.t > o.deadline;
+  const n = tr.cargo.length, gr = { A: 0, B: 0, C: 0 }; for (const id of tr.cargo) { const t = S.tires.get(id); gr[(t && t.grade) || 'B']++; }
+  let pay = o.price * (gr.A * GRADE.A.mul + gr.B * GRADE.B.mul + gr.C * GRADE.C.mul); const late = !o.own && S.t > o.deadline; // сорт A дороже, C — уценка
+  o.gr = o.gr || { A: 0, B: 0, C: 0 }; for (const k in gr) o.gr[k] += gr[k];
   // Просрочка: Eilauftrag −30 % и репутация −8, рамочный договор — репутация −6, обычный заказ −20 % и −3
   if (late) { pay *= o.rush ? 0.7 : 0.8; S.rep = Math.max(0, S.rep - (o.rush ? 8 : o.contract ? 6 : 3)); S.onTimeStreak = 0; }
   else { S.rep = Math.min(100, S.rep + (o.rush ? 2.5 : 0.8)); if (!o.own) S.onTimeStreak++; }
@@ -2361,8 +2460,9 @@ function settleOrder(o, tr) {
   for (const tid of tr.cargo) { const t = S.tires.get(tid); if (t.defect || t.badCasing) S.complaints.push({ at: S.t + R(600, 2400), order: o.customer, premium: o.premium, strict: PROD[o.prod || 'lkw'].strict }); S.tires.delete(tid); }
   const complete = o.finished + o.scrapped >= o.qty && o.shippedN >= o.finished;
   if (complete) { o.state = 'done'; if (!late) S.xp += o.rush || o.contract ? 15 : 5; }
-  log(LL(`${o.customer}: ${complete ? 'заказ закрыт, ' : 'частичная отгрузка, '}${n} шин, оплата ${eur(pay)}${late ? ` (просрочка −${o.rush ? 30 : 20}%)` : ''}.${complete ? ` Всего ${o.shippedN}/${o.qty}, лом ${o.scrapped}.` : ''}`,
-    `${o.customer}: ${complete ? 'Auftrag abgeschlossen, ' : 'Teillieferung, '}${n} Reifen, Zahlung ${eur(pay)}${late ? ` (verspätet −${o.rush ? 30 : 20} %)` : ''}.${complete ? ` Gesamt ${o.shippedN}/${o.qty}, Schrott ${o.scrapped}.` : ''}`), late ? 'warn' : 'good');
+  const grs = `A ${gr.A} · B ${gr.B} · C ${gr.C}`;
+  log(LL(`${o.customer}: ${complete ? 'заказ закрыт, ' : 'частичная отгрузка, '}${n} шин (сорт ${grs}), оплата ${eur(pay)}${late ? ` (просрочка −${o.rush ? 30 : 20}%)` : ''}.${complete ? ` Всего ${o.shippedN}/${o.qty}, лом ${o.scrapped}.` : ''}`,
+    `${o.customer}: ${complete ? 'Auftrag abgeschlossen, ' : 'Teillieferung, '}${n} Reifen (Klasse ${grs}), Zahlung ${eur(pay)}${late ? ` (verspätet −${o.rush ? 30 : 20} %)` : ''}.${complete ? ` Gesamt ${o.shippedN}/${o.qty}, Schrott ${o.scrapped}.` : ''}`), late ? 'warn' : 'good');
 }
 // Отгрузка: клиент забирает готовое партиями (Teillieferung) — от 12 шин или остаток, когда заказ доделан
 function checkOrders() {
@@ -2549,7 +2649,7 @@ function idleJob(w) {
   const clean = cleanupOn(); // генеральная уборка перед проверкой BG: подметают всё, даже немного пыльное
   const dirty = STATIONS.filter(s => s.dirt > (clean ? 0.02 : 0.15)).sort((a, b) => b.dirt - a.dirt)[0];
   if (dirty && (clean || !S.workers.some(o => o !== w && o.job && o.job.act === 'sweep' && o.job.st === dirty))) { const j = wait({ x: dirty.ax, y: dirty.ay }, 'sweep', 2, 4); j.st = dirty; return j; }
-  if (w.energy < (w.trait === 'kaffee' ? 80 : 65) && rnd() < 0.5) return wait(COFFEE, 'coffee', 1.5, 3);
+  if (w.energy < (hasT(w, 'kaffee') || hasT(w, 'faul') ? 80 : 65) && rnd() < 0.5) return wait(COFFEE, 'coffee', 1.5, 3);
   const r = rnd();
   if (r < 0.45) {
     const mine = STATIONS.filter(s => s.kind !== 'store' && w.prio[s.work] === 1), s = mine.length ? pick(mine) : pick(STATIONS.filter(s => s.kind !== 'store'));
@@ -2564,12 +2664,22 @@ function assignJobs() {
   let jobs = null;
   for (const w of cand) {
     if (!onShift(w)) { w.path = null; w.act = null; w.job = { type: 'home', steps: [{ go: EXIT }, { leave: true }], i: 0 }; continue; }
-    if (w.energy < 28) { const seat = SEATS.find(s => !S.workers.some(o => o.seat === s)) || SEATS[0]; w.seat = seat; w.path = null; w.act = null; w.job = { type: 'break', steps: [{ go: { x: seat[0], y: seat[1] } }, { rest: true }], i: 0 }; continue; }
+    if (w.energy < (hasT(w, 'faul') ? 40 : 28)) { const seat = SEATS.find(s => !S.workers.some(o => o.seat === s)) || SEATS[0]; w.seat = seat; w.path = null; w.act = null; w.job = { type: 'break', steps: [{ go: { x: seat[0], y: seat[1] } }, { rest: true }], i: 0 }; continue; }
+    // 5S-Pflicht: последние 20 минут смены — уборка у станков
+    if (pol('fuenfs') && !w.temp && shiftLeft(w) <= 20 && S.t - (w.fivesT || -1e9) > 120) {
+      const st = STATIONS.filter(s => s.kind !== 'store' && !S.workers.some(o => o.job && o.job.type === 'fives' && o.job.st === s)).sort((a, b) => b.dirt - a.dirt)[0];
+      if (st) { w.fivesT = S.t; w.path = null; w.act = null; w.job = { type: 'fives', st, steps: [{ go: { x: st.ax, y: st.ay } }, { wait: Math.max(4, shiftLeft(w) - 4), act: 'sweep' }], i: 0 }; continue; }
+    }
+    // курильщик: перекур раз в ~2 часа (при Rauchverbot — нет)
+    if (hasT(w, 'raucher') && !pol('rauchverbot') && S.t - (w.smokeT || w.hiredAt || 0) > 120 && shiftLeft(w) > 30) { w.smokeT = S.t + R(-15, 15); w.path = null; w.act = null; w.job = { type: 'smoke', steps: [{ go: SMOKE }, { wait: R(5, 8), act: 'smoke' }], i: 0 }; continue; }
     jobs = jobs || genJobs();
     let best = null, bs = Infinity;
+    const refuse = w.brk && w.brk.kind === 'refuse', rot = pol('rotation');
     for (const j of jobs) {
-      if (j.taken) continue; const p = w.prio[j.work]; if (!p) continue;
-      const tgt = j.from || j.to, sc = p * 1000 + Math.abs(tgt.x - w.x) + Math.abs(tgt.y - w.y) - (j.urgent ? 1500 : 0) - (j.boost || 0) - (j.queue || 0) * 150; // ремонт — срочно; участок с очередью крюков — раньше
+      if (j.taken) continue; const p = w.prio[j.work] || (S.cover[j.work] && S.cover[j.work].includes(w.id) ? 4 : 0); if (!p) continue; // подмена: если в смене никто не стоит на эту работу
+      if (refuse && HEAVY.includes(j.work)) continue; // крупный срыв: от тяжёлой работы отказывается
+      const tgt = j.from || j.to; let sc = p * 1000 + Math.abs(tgt.x - w.x) + Math.abs(tgt.y - w.y) - (j.urgent ? 1500 : 0) - (j.boost || 0) - (j.queue || 0) * 150; // ремонт — срочно; участок с очередью крюков — раньше
+      if (rot && !j.urgent && (w.xpMin[j.work] || 0) > 120) sc += 700; // Rotation: после двух часов на одной работе — к другой
       if (sc < bs) { bs = sc; best = j; }
     }
     if (best && reserve(best, w)) { best.taken = true; w.path = null; w.act = null; w.job = best; }
@@ -2579,54 +2689,72 @@ function assignJobs() {
 // Время операции: навык; настроение команды (±5 %); жара без вентиляторов (+8 %); сильная усталость (+10 %)
 const heat = () => { const e = evGet('hitze'); return e ? (e.data.fans ? 1.25 : 1.8) : 1; };
 // + исследования (S.tMul), перк мастера (−15 %), черта характера, продукт (автобусная ×1,1, OTR ×1,8)
+// + настроение человека, ловкость (Geschick), черты, правила (Akkord, PSA, Rotation), срывы, вдохновение, наставничество
 function workDuration(w, s) {
   const k = s.work, master = tier(w, k) >= 2 && ['pruefen', 'rauen', 'reparatur', 'belegen', 'nacharbeit'].includes(k);
-  return (s.time || 10) * S.tMul[s.g] * (1.45 - w.skills[k] * 0.065) * (master ? 0.85 : 1) * (w.trait === 'flink' ? 0.92 : w.trait === 'sorgfaeltig' ? 1.05 : 1) * prodOf(s.cur).time
-    * (1 + (60 - S.morale) / 600) * (heat() > 1.5 ? 1.08 : heat() > 1 ? 1.03 : 1) * (w.energy < 30 ? 1.1 : 1);
+  return (s.time || 10) * S.tMul[s.g] * (1.45 - w.skills[k] * 0.065) * (master ? 0.85 : 1) * traitSpeed(w) * prodOf(s.cur).time
+    * (1 + (60 - (w.mood ?? 60)) / 600) * (heat() > 1.5 ? 1.08 : heat() > 1 ? 1.03 : 1) * (w.energy < 30 ? 1.1 : 1) * (1.1 - 0.01 * AT(w, 'geschick')) * peopleSpeed(w);
+}
+const traitSpeed = w => (hasT(w, 'flink') ? 0.92 : 1) * (hasT(w, 'sorgfaeltig') ? 1.05 : 1) * (hasT(w, 'fleissig') ? 0.83 : 1) * (hasT(w, 'faul') ? 1.25 : 1) * (hasT(w, 'perfekt') ? 1.1 : 1);
+function peopleSpeed(w) { // множитель времени операции от правил, срывов, вдохновения и наставничества
+  let m = (pol('akkord') ? 1 / 1.15 : 1) * (pol('psa') ? 1.03 : 1) * (pol('rotation') ? 1.05 : 1);
+  if (w.brk && w.brk.kind === 'grumble') m *= 1.43;           // бурчит и работает на 30 % медленнее
+  if (w.slowUntil > S.t) m *= 1.4;                           // после ссоры
+  if (inspOn(w, 'rausch')) m *= 0.67;                         // Arbeitsrausch: +50 % скорость
+  if (mentoring(w)) m *= 1.1;                                 // наставник тратит время на ученика
+  return m;
 }
 function finishProc(s, w) {
-  const t = S.tires.get(s.cur), sk = w.skills[s.work];
+  const t = S.tires.get(s.cur), sk = w.skills[s.work], kz = (AT(w, 'konz') - 10) * 0.008; // внимательность: видит больше дефектов
   if (s.g === 'pruef') {
     t.code = 'RW' + String(t.id).padStart(5, '0'); // полоска со штрихкодом — дальше шину сканируют везде
-    if (t.badCasing && rnd() < 0.62 + sk * 0.035 + (S.upgrades.shearo ? 0.3 : 0) + (tier(w, 'pruefen') >= 1 ? 0.1 : 0)) { t.dest = 'schrott'; log(LL(`${w.name}: каркас #${t.id} забракован на входе.`, `${w.name}: Karkasse #${t.id} bei der Eingangsprüfung ausgemustert.`), 'warn'); }
+    if (t.badCasing && rnd() < 0.62 + sk * 0.035 + kz + (S.upgrades.shearo ? 0.3 : 0) + (tier(w, 'pruefen') >= 1 ? 0.1 : 0)) { t.dest = 'schrott'; log(LL(`${w.name}: каркас #${t.id} забракован на входе.`, `${w.name}: Karkasse #${t.id} bei der Eingangsprüfung ausgemustert.`), 'warn'); }
   } else if (s.g === 'entgr') {
     // Устранение дефектов после автоклава: мелкие дефекты чинят на месте, серьёзные — на переделку
-    if (t.badCasing && rnd() < 0.3 + sk * 0.03) { t.dest = 'schrott'; log(LL(`${w.name}: шина #${t.id} — скрытый дефект каркаса, в лом.`, `${w.name}: Reifen #${t.id} — versteckter Karkassenschaden, Schrott.`), 'bad'); }
+    if (t.badCasing && rnd() < 0.3 + sk * 0.03 + kz) { t.dest = 'schrott'; s.bad = (s.bad || 0) + 1; log(LL(`${w.name}: шина #${t.id} — скрытый дефект каркаса, в лом.`, `${w.name}: Reifen #${t.id} — versteckter Karkassenschaden, Schrott.`), 'bad'); }
     else if (t.defect) {
-      if (rnd() < 0.45 + sk * 0.04 + (tier(w, 'nacharbeit') >= 1 ? 0.1 : 0)) { t.defect = false; }
+      if (rnd() < 0.45 + sk * 0.04 + kz + (tier(w, 'nacharbeit') >= 1 ? 0.1 : 0)) { t.defect = false; }
       else if (rnd() < 0.5 + sk * 0.04) {
+        s.bad = (s.bad || 0) + 1;
         if (t.rework > 0) { t.dest = 'schrott'; log(LL(`${w.name}: шина #${t.id} — повторный брак, в лом.`, `${w.name}: Reifen #${t.id} — schon wieder fehlerhaft, Schrott.`), 'bad'); }
         else { t.rework++; t.defect = false; t.dest = 'nacharb'; log(LL(`${w.name}: шина #${t.id} — отслоение, на переделку.`, `${w.name}: Reifen #${t.id} — Ablösung, ab in die Nacharbeit.`), 'warn'); }
       }
     }
   } else if (s.g === 'endk') {
-    if ((t.defect || t.badCasing) && rnd() < 0.5 + sk * 0.045 + (S.upgrades.mes ? 0.25 : 0) + (tier(w, 'nacharbeit') >= 2 ? 0.1 : 0)) { // MES: история шины по штрихкоду — контроль видит, где был риск
+    if ((t.defect || t.badCasing) && rnd() < 0.5 + sk * 0.045 + kz + (S.upgrades.mes ? 0.25 : 0) + (tier(w, 'nacharbeit') >= 2 ? 0.1 : 0)) { // MES: история шины по штрихкоду — контроль видит, где был риск
+      s.bad = (s.bad || 0) + 1;
       if (t.badCasing || t.rework > 0) { t.dest = 'schrott'; log(LL(`${w.name}: финальный контроль — шина #${t.id} в лом.`, `${w.name}: Endkontrolle — Reifen #${t.id} ist Schrott.`), 'bad'); }
       else { t.rework++; t.defect = false; t.dest = 'nacharb'; log(LL(`${w.name}: финальный контроль — шина #${t.id} на переделку.`, `${w.name}: Endkontrolle — Reifen #${t.id} geht in die Nacharbeit.`), 'warn'); }
     }
-  } else if (['rauen', 'ausschl', 'pflaster', 'fuellen', 'aufbau'].includes(s.g) && rnd() < (0.07 * (1 - sk / 12) + s.dirt * 0.06) * defMul(w, s) + (s.g === 'aufbau' && evOn('fehlcharge') ? 0.15 : 0)) t.defect = true; // пыль у станка, плохая партия резины — больше брака
+    if (!t.dest) { t.grade = gradeOf(t); S.grades[t.grade]++; } // годна: сорт A/B/C
+  } else if (['rauen', 'ausschl', 'pflaster', 'fuellen', 'aufbau'].includes(s.g) && rnd() < (0.07 * (1 - sk / 12) + s.dirt * 0.06) * defMul(w, s) + (s.g === 'aufbau' && evOn('fehlcharge') ? 0.15 : 0)) { // пыль у станка, плохая партия резины — больше брака
+    t.defect = true; s.bad = (s.bad || 0) + 1;
+    if (hasT(w, 'perfekt')) moodMod(w, 'perfekt', 'Перфекционист: сам допустил брак', 'Perfektionist: eigener Ausschuss', -5, 180);
+  }
   if (s.g === 'rauen' && rnd() < 0.18 * (1 - sk / 12) * S.edgeMul * (tier(w, 'rauen') >= 1 ? 0.5 : 1)) t.edge = true; // край срезан сильно — на шпаклёвке клеят ленту
   if (s.g === 'pflaster') t.patched = true;
-  if (DUSTY.includes(s.g)) s.dirt = Math.min(1, s.dirt + 0.035 * S.dustMul);
-  t.stage = s.g; t.readyAt = S.t + (s.dry || 0) * S.dryMul;
-  scanTire(s, s.cur, s.g === 'endk' ? (t.dest === 'schrott' ? LL('лом', 'Schrott') : t.dest === 'nacharb' ? LL('переделка', 'Nacharbeit') : LL('годна ✓', 'i. O. ✓')) : s.g === 'pruef' ? (t.dest === 'schrott' ? LL('лом', 'Schrott') : LL('штрихкод наклеен', 'Barcode geklebt')) : s.g === 'scan' ? LL(`путь: ${t.trace ? t.trace.length + 1 : 1} участков`, `Weg: ${t.trace ? t.trace.length + 1 : 1} Stationen`) : null);
+  if (DUSTY.includes(s.g)) s.dirt = Math.min(1, s.dirt + 0.035 * S.dustMul * (hasT(w, 'gewissenhaft') ? 0.5 : 1));
+  if (QUAL_G.includes(s.g)) { t.qs = (t.qs || 0) + qPoint(w, sk, s); t.qn = (t.qn || 0) + 1; } // качество шины: кто и как её делал
+  t.stage = s.g; t.readyAt = S.t + (s.dry || 0) * S.dryMul; s.ops = (s.ops || 0) + 1;
+  scanTire(s, s.cur, s.g === 'endk' ? (t.dest === 'schrott' ? LL('лом', 'Schrott') : t.dest === 'nacharb' ? LL('переделка', 'Nacharbeit') : LL(`годна ✓ сорт ${t.grade}`, `i. O. ✓ Klasse ${t.grade}`)) : s.g === 'pruef' ? (t.dest === 'schrott' ? LL('лом', 'Schrott') : LL('штрихкод наклеен', 'Barcode geklebt')) : s.g === 'scan' ? LL(`путь: ${t.trace ? t.trace.length + 1 : 1} участков`, `Weg: ${t.trace ? t.trace.length + 1 : 1} Stationen`) : null);
   s.out.push(s.cur); s.cur = null; s.prog = 0; s.worker = null;
-  gainSkill(w, s.work, 0.01 * learnF(w)); // навык растёт с опытом; Azubi, учебный центр, «Lernfreudig» — быстрее
+  practice(w, s.work, 0.01 * learnF(w), s.time * S.tMul[s.g] || 8, s); // навык растёт с опытом: страсть, насыщение за день, Azubi, учебный центр, черты
+  accidentCheck(w, s);
 }
 function gainSkill(w, k, d) {
   const before = w.skills[k]; w.skills[k] = Math.min(10, before + d);
   if (w.id > 0 && Math.floor(before) < Math.floor(w.skills[k]) && w.skills[k] >= 5) log(LL(`📈 ${w.name}: навык «${WORK_RU[k]}» вырос до ${Math.floor(w.skills[k])}.`, `📈 ${w.name}: Fähigkeit „${WORK_DE[k]}“ steigt auf ${Math.floor(w.skills[k])}.`), 'good');
 }
 function updateWorker(w, dt) {
-  if (w.away) { if (w.sickUntil > S.t || (w.temp && S.t >= w.leaveAt)) return; // на больничном; Leiharbeiter отработал своё
-    if (onShift(w) && shiftLeft(w) > 30) { w.away = false; w.x = ENTRY.x; w.y = ENTRY.y; w.energy = Math.max(w.energy, 92); w.state = 'idle'; } return; }
+  if (w.away) { if (w.sickUntil > S.t || w.offUntil > S.t || (w.temp && S.t >= w.leaveAt)) return; // на больничном, ушёл домой посреди смены; Leiharbeiter отработал своё
+    if (onShift(w) && shiftLeft(w) > 30) { w.away = false; w.x = ENTRY.x; w.y = ENTRY.y; w.energy = Math.max(w.energy, 92); w.state = 'idle'; if (w.injured || w.flu) { w.injured = false; w.flu = false; } dressPPE(w); } return; }
   if (!w.job) { w.state = 'idle'; return; }
   const j = w.job, st = j.steps[j.i];
   if (!st) { w.job = null; w.state = 'idle'; return; }
   if (st.go) {
     w.state = 'walk';
     if (!w.path) { w.path = findPath(w.x, w.y, st.go.x, st.go.y); if (!w.path) { releaseJob(w); return; } }
-    let move = WALK * dt * (w.energy < 15 ? 0.7 : 1) * (w.mounted ? S.forkSpeed * (tier(w, 'transport') >= 1 ? 1.15 : 1) : tier(w, 'transport') >= 2 ? 1.1 : 1);
+    let move = WALK * dt * (w.energy < 15 ? 0.7 : 1) * (w.mounted ? S.forkSpeed * (tier(w, 'transport') >= 1 ? 1.15 : 1) : (tier(w, 'transport') >= 2 ? 1.1 : 1) * (hasT(w, 'schnell') ? 1.15 : 1));
     while (move > 0 && w.path.length) {
       const p = w.path[0], dx = p.x - w.x, dy = p.y - w.y, d = Math.hypot(dx, dy);
       const walked = Math.min(d, move);
@@ -2647,13 +2775,13 @@ function updateWorker(w, dt) {
   } else if (st.repair) {
     w.state = 'work'; w.act = 'repair'; const m = j.st, b = m.broken;
     if (b) {
-      b.done += dt * (0.5 + w.skills.technik * 0.1) * S.repairMul * (tier(w, 'technik') >= 1 ? 1.2 : 1);
+      b.done += dt * (0.5 + w.skills.technik * 0.1) * S.repairMul * (tier(w, 'technik') >= 1 ? 1.2 : 1) * (0.8 + 0.02 * AT(w, 'technik'));
       if (b.done >= b.need) {
         const im = tier(w, 'technik') >= 2, cost = Math.round(R(80, 450) * (im ? 0.7 : 1)), down = Math.round(S.t - b.at);
-        const own = S.insured ? Math.min(cost, DEDUCT) : cost; S.money -= own; S.stats.repairs += own; S.stats.downtime += down;
+        const own = S.insured ? Math.min(cost, DEDUCT) : cost; S.money -= own; S.stats.repairs += own; S.stats.downtime += down; m.down = (m.down || 0) + down;
         log(LL(`🔧 ${w.name}: ${m.de} снова работает (${b.de}). Простой ${down} мин, запчасти ${eur(cost)}${own < cost ? ` (страховка оплатила ${eur(cost - own)})` : ''}.`,
           `🔧 ${w.name}: ${m.de} läuft wieder (${b.de}). Stillstand ${down} min, Ersatzteile ${eur(cost)}${own < cost ? ` (die Versicherung zahlte ${eur(cost - own)})` : ''}.`), 'good');
-        m.broken = null; m.wear = 0; m.dirt *= im ? 0 : 0.5; gainSkill(w, 'technik', 0.05 * learnF(w));
+        m.broken = null; m.wear = 0; m.dirt *= im ? 0 : 0.5; practice(w, 'technik', 0.05 * learnF(w), b.need, m);
       }
     }
     w.energy = Math.max(0, w.energy - 0.05 * dt * fatigue(w));
@@ -2670,7 +2798,9 @@ function updateWorker(w, dt) {
   } else if (st.drop) {
     w.state = 'lift'; w.act = j.crane === 'drop' ? 'crane' : null; st.t = (st.t || 0) + dt; if (st.t < liftTime(j, 'drop', w)) return;
     for (const id of w.load || [w.carry]) { if (j.dstTruck) { j.dstTruck.cargo.push(id); S.tires.get(id).res = false; } else deposit(j.dst, id); }
-    w.carry = null; w.load = null; w.act = null; j.i++; gainSkill(w, 'transport', 0.004 * learnF(w));
+    w.carry = null; w.load = null; w.act = null; j.i++;
+    const pst = j.crane ? ST[j.crane === 'pick' ? j.src : j.dst] : null; // у прессов шину ставят и достают краном — опасный участок
+    practice(w, j.work, (j.crane ? 0.006 : 0.004) * learnF(w), j.crane ? 4 : 3, pst); accidentCheck(w, pst);
   } else if (st.scan) { // сканер читает штрихкод: путь шины записан
     w.state = 'lift'; st.t = (st.t || 0) + dt; if (st.t < 0.2) return;
     const sc = DECOR.find(d => d.id === 'scanner');
@@ -2683,12 +2813,12 @@ function updateWorker(w, dt) {
     j.i++;
   } else if (st.wait) {
     w.state = 'act'; w.act = st.act; st.t = (st.t || 0) + dt;
-    if (st.act === 'coffee') w.energy = Math.min(100, w.energy + 4 * dt);
+    if (st.act === 'coffee') { w.energy = Math.min(100, w.energy + 4 * dt); w.restT = S.t; }
     if (st.act === 'sweep' && j.st) j.st.dirt = Math.max(0, j.st.dirt - 0.25 * dt * (cleanupOn() ? 2 : 1));
     if (st.t >= st.wait || (st.until && S.t >= st.until)) { w.act = null; j.i++; } // until — до конца события (забастовка)
   } else if (st.train) { // Schulung в Pausenraum: через час навык выше
     w.state = 'act'; w.act = 'train'; st.t = (st.t || 0) + dt;
-    if (st.t >= st.train) { gainSkill(w, j.work, j.gain); w.act = null; w.seat = null; log(LL(`📚 ${w.name}: Schulung «${WORK_RU[j.work]}» пройдена, навык ${w.skills[j.work].toFixed(1)}.`, `📚 ${w.name}: Schulung „${WORK_DE[j.work]}“ abgeschlossen, Fähigkeit ${w.skills[j.work].toFixed(1).replace('.', ',')}.`), 'good'); j.i++; }
+    if (st.t >= st.train) { gainSkill(w, j.work, j.gain); growAttr(w, WORK_ATTR[j.work][0], j.work === 'technik' ? 0.8 : 0.4); w.act = null; w.seat = null; log(LL(`📚 ${w.name}: Schulung «${WORK_RU[j.work]}» пройдена, навык ${w.skills[j.work].toFixed(1)}.`, `📚 ${w.name}: Schulung „${WORK_DE[j.work]}“ abgeschlossen, Fähigkeit ${w.skills[j.work].toFixed(1).replace('.', ',')}.`), 'good'); j.i++; }
   } else if (st.work) {
     w.state = 'work'; const s = j.st;
     if (j.type === 'start' ? pressDown() : noPower()) { releaseJob(w); return; } // Stromausfall: работа встаёт
@@ -2697,21 +2827,21 @@ function updateWorker(w, dt) {
     w.act = null;
     if (j.type === 'start') {
       const T0 = (s.startT || 10) * (tier(w, 'vulkan') >= 2 ? 0.5 : 1); st.t = (st.t || 0) + dt; s.prog = st.t / T0;
-      if (st.t >= T0) { s.state = 'running'; s.timer = cureTime(s); s.worker = null; s.prog = 0; scanTire(s, s.items[0], null); j.i++; }
+      if (st.t >= T0) { s.state = 'running'; s.timer = cureTime(s); s.worker = null; s.prog = 0; s.ops = (s.ops || 0) + 1; scanTire(s, s.items[0], null); practice(w, 'vulkan', 0.006 * learnF(w), T0, s); accidentCheck(w, s); j.i++; }
     } else {
       if (!s.cur) {
         const k = firstIdx(s.input, id => S.tires.get(id).readyAt <= S.t); // шина после клея должна высохнуть; Eilauftrag — первой
         if (k < 0 || !matsOk(s)) { releaseJob(w); return; }
-        s.cur = s.input.splice(k, 1)[0]; matTake(s, 1);
+        s.cur = s.input.splice(k, 1)[0]; matTake(s, 1); if (hasT(w, 'sparsam') && s.mat && rnd() < 0.1) matTake(s, -1); // бережливый: материала на 10 % меньше
         st.dur = workDuration(w, s) + (s.g === 'fuellen' && S.tires.get(s.cur).edge ? 2 : 0); st.t = 0;
       }
       st.t += dt; s.prog = st.t / st.dur; s.busy += dt; s.wear = Math.min(2, s.wear + dt / 900 * S.wearMul);
       if (rnd() < dt * breakRate(s)) { breakDown(s); return; }
       if (st.t >= st.dur) { finishProc(s, w); j.i++; }
     }
-    w.energy = Math.max(0, w.energy - 0.06 * dt * fatigue(w) * S.workFatigue);
+    w.energy = Math.max(0, w.energy - 0.06 * dt * fatigue(w) * S.workFatigue * (HEAVY.includes(s.work) ? 1.15 - 0.015 * AT(w, 'kraft') : 1));
   } else if (st.rest) {
-    w.state = 'break'; w.energy = Math.min(100, w.energy + 1.2 * dt * S.restMul);
+    w.state = 'break'; w.energy = Math.min(100, w.energy + 1.2 * dt * S.restMul); w.restT = S.t;
     if (w.energy >= 96) { w.seat = null; j.i++; }
   } else if (st.leave) { w.away = true; w.state = 'home'; w.job = null; w.x = EXIT.x; w.y = EXIT.y; return; }
   if (j.i >= j.steps.length) { w.job = null; w.state = 'idle'; }
@@ -2723,13 +2853,15 @@ function updateWorker(w, dt) {
 const UPGRADES = [
   // Уровень 1 — Kleiner Runderneuerer
   { id: 'pausenraum', lvl: 1, de: 'Neuer Pausenraum', ru: 'Новая комната отдыха', price: 4000,
-    desc: 'Кофемашина получше, удобные стулья, кондиционер. Перерыв восстанавливает силы в 1,6 раза быстрее, настроение команды держится выше (+10).', desc_de: 'Bessere Kaffeemaschine, bequeme Stühle, Klimaanlage. In der Pause kommt die Kraft 1,6-mal so schnell zurück, die Stimmung im Team bleibt höher (+10).', apply() { S.restMul = 1.6; S.morale = Math.min(100, S.morale + 10); } },
+    desc: 'Кофемашина получше, удобные стулья, кондиционер. Перерыв восстанавливает силы в 1,6 раза быстрее, настроение каждого +6, после перерыва — +4 вместо +3.', desc_de: 'Bessere Kaffeemaschine, bequeme Stühle, Klimaanlage. In der Pause kommt die Kraft 1,6-mal so schnell zurück, die Stimmung aller +6, nach einer Pause +4 statt +3.', apply() { S.restMul = 1.6; } },
+  { id: 'fitness', lvl: 1, de: 'Fitnessraum', ru: 'Тренажёрный зал в бытовке', price: 5000,
+    desc: 'После смены можно позаниматься: выносливость каждого растёт на 0,06 в день, сила — на 0,03 (у тех, кому за 50, она падает медленнее), настроение +3.', desc_de: 'Nach der Schicht kann man trainieren: Ausdauer wächst bei allen um 0,06 pro Tag, Kraft um 0,03 (über 50 lässt sie langsamer nach), Stimmung +3.', apply() { } },
   { id: 'schleifer', lvl: 1, de: 'Druckluft-Schleifer Pro', ru: 'Новые пневмошлифовки', price: 5000,
     desc: 'Зачистка повреждений (Ausschleifen) на 25 % быстрее: 6 мин вместо 8.', desc_de: 'Ausschleifen 25 % schneller: 6 statt 8 Minuten.', apply() { for (const s of GROUP.ausschl) s.time = 6; } },
   { id: 'wartung', lvl: 1, de: 'Wartungsvertrag', ru: 'Плановое техобслуживание', price: 6000,
     desc: 'Износ станков растёт вдвое медленнее — поломок меньше.', desc_de: 'Die Maschinen verschleißen halb so schnell — weniger Ausfälle.', apply() { S.wearMul = 0.5; } },
   { id: 'hebehilfe', lvl: 1, res: 'ergonomie', de: 'Ergonomische Hebehilfen', ru: 'Вакуумные подъёмники шин', price: 7000,
-    desc: 'Подъёмники на участках: шину весом 60–80 кг больше не поднимают руками. Снять и поставить шину на 30 % быстрее, на станке устают на 30 % меньше, настроение +5.', desc_de: 'Hebehilfen an den Stationen: Niemand hebt mehr 60–80 kg schwere Reifen von Hand. Reifen ab- und aufsetzen 30 % schneller, an der Maschine 30 % weniger Ermüdung, Stimmung +5.', apply() { S.liftMul *= 0.7; S.workFatigue *= 0.7; S.morale = Math.min(100, S.morale + 5); } },
+    desc: 'Подъёмники на участках: шину весом 60–80 кг больше не поднимают руками. Снять и поставить шину на 30 % быстрее, на станке устают на 30 % меньше, настроение +4.', desc_de: 'Hebehilfen an den Stationen: Niemand hebt mehr 60–80 kg schwere Reifen von Hand. Reifen ab- und aufsetzen 30 % schneller, an der Maschine 30 % weniger Ermüdung, Stimmung +4.', apply() { S.liftMul *= 0.7; S.workFatigue *= 0.7; } },
   { id: 'absaugung', lvl: 1, de: 'Absaugung', ru: 'Вытяжка пыли на шероховке и обрезке', price: 8000,
     desc: 'Резиновая пыль копится вдвое медленнее: меньше брака, поломок и подметания. Инспектор BG будет доволен.', desc_de: 'Gummistaub sammelt sich halb so schnell: weniger Ausschuss, weniger Ausfälle, weniger Fegen. Der BG-Prüfer wird zufrieden sein.', apply() { S.dustMul *= 0.5; } },
   { id: 'rollenbahn', lvl: 1, de: 'Rollenbahn Ж2 → Ж3', ru: 'Роликовый конвейер к прессам', price: 12000,
@@ -2776,6 +2908,7 @@ function buyUpgrade(id) {
   S.money -= u.price; S.stats.upgrades += u.price; S.upgrades[id] = true; u.apply(); S.xp += Math.round(u.price / 1000); // вложения тоже развивают компанию
   S.afa.push({ per: Math.round(u.price / 30), left: 30 }); // в отчёте — амортизация 30 дней
   log(LL(`Апгрейд: ${u.ru} (${u.de}), −${eur(u.price)}.`, `Upgrade: ${u.de}, −${eur(u.price)}.`), 'good');
+  for (const w of S.workers) if (hasT(w, 'technikfan')) moodMod(w, 'tfan', `Technikfan: новое — ${u.ru}`, `Technikfan: neu — ${u.de}`, 6, 7 * 1440); // любители техники рады новым станкам
   if (evOn('foerderung') && ENERGY_UP.includes(id)) { const r = Math.round(u.price * 0.3); bonus(r); log(LL(`🏛 Förderung BAFA: возмещено 30 % — +${eur(r)}.`, `🏛 Förderung BAFA: 30 % erstattet — +${eur(r)}.`), 'good'); }
   return true;
 }
@@ -2845,7 +2978,12 @@ const at = (e, p) => { e.x = p.x; e.y = p.y; };
 const pay = (v, what = 'events') => { S.money -= v; S.stats[what] += v; };
 const bonus = v => { S.money += v; S.stats.bonus += v; };
 const addRep = v => { S.rep = Math.max(0, Math.min(100, S.rep + v)); };
-const addMorale = v => { S.morale = Math.max(0, Math.min(100, S.morale + v)); };
+// Настроение команды теперь — у каждого своё: addMorale(v) добавляет всем модификатор настроения на время (по умолчанию 2 суток).
+// Один и тот же повод (key) не складывается, а обновляется. S.morale — среднее по команде (считается каждую игровую минуту).
+function addMorale(v, ru = 'Новости в цехе', de = 'Neuigkeiten im Werk', dur = 2 * 1440, key) {
+  for (const w of S.workers) { moodMod(w, key || 'team:' + ru, ru, de, v, dur); w.mood = Math.max(0, Math.min(100, w.mood + v * 0.3)); }
+  updateMorale();
+}
 const recentComplaints = (min = 4320) => S.complaintLog.filter(c => S.t - c.t < min).length;
 function complaintMark(c) { S.lastComplaint = S.t; S.complaintLog.unshift({ t: S.t, c }); if (S.complaintLog.length > 20) S.complaintLog.pop(); }
 const auditChance = cons => Math.max(0.1, Math.min(0.95, 0.55 + (S.upgrades.mes ? 0.25 : 0) + (cons ? 0.2 : 0) - 0.1 * recentComplaints() - 0.08 * MACHINES.filter(m => m.broken).length));
@@ -2889,7 +3027,8 @@ const EVENTS = {
   krank: { icon: '🤒', title: 'Krankmeldung', lvl: 1, w: () => 1.8 * (1 + Math.max(0, 60 - S.morale) / 30) * (evOn('hitze') ? 1.5 : 1), cd: 720,
     can: () => S.workers.some(w => !w.temp && !(w.sickUntil > S.t)),
     make(e) {
-      const w = pick(S.workers.filter(w => !w.temp && !(w.sickUntil > S.t))), days = RI(1, 3);
+      const ok = S.workers.filter(w => !w.temp && !(w.sickUntil > S.t)); let w = pick(ok); if (hasT(w, 'zaeh') || w.mood > 70) w = pick(ok); // крепкие и довольные болеют реже
+      const days = RI(1, 3);
       w.sickUntil = (Math.floor(S.t / 1440) + days) * 1440 + DAY_START - 60;
       if (!w.away) { interrupt(w); w.job = { type: 'home', steps: [{ go: EXIT }, { leave: true }], i: 0 }; }
       e.data = { wid: w.id, name: w.name, until: w.sickUntil };
@@ -2922,13 +3061,13 @@ const EVENTS = {
       if (dirt < 0.6 && br <= 1) { e.cls = 'info'; return LL(`замечаний нет (${info}).`, `Keine Beanstandungen (${infoDe}).`); }
       pay(2500, 'penalties'); addRep(-4); e.cls = 'bad'; return LL(`нарушения (${info}): штраф 2 500 €, репутация −4.`, `Mängel festgestellt (${infoDe}): Bußgeld 2 500 €, Ruf −4.`);
     } },
-  hitze: { icon: '🌡', title: 'Hitzewelle', lvl: 1, w: 0.9, cd: 5760,
+  hitze: { icon: '🌡', title: 'Hitzewelle', lvl: 1, w: 0.9, cd: 5760, can: () => [4, 5, 6, 7, 8].includes(month()), // май–сентябрь
     make(e) {
       e.live = true; e.def = 1;
       e.text = LL('34 °C на улице, у прессов за 40. 2 суток рабочие устают в 1,8 раза быстрее и работают медленнее, чаще болеют.', '34 °C draußen, an den Pressen über 40. Zwei Tage lang ermüdet das Team 1,8-mal so schnell, arbeitet langsamer und wird öfter krank.');
-      e.choices = [{ t: LL(`Вентиляторы и вода: ${eur(800)}`, `Ventilatoren und Wasser: ${eur(800)}`), h: LL('усталость только ×1,25', 'Ermüdung nur ×1,25'), cost: 800 }, { t: LL('Ничего не делать', 'Nichts tun'), h: LL('настроение −10', 'Stimmung −10') }];
+      e.choices = [{ t: LL(`Вентиляторы и вода: ${eur(800)}`, `Ventilatoren und Wasser: ${eur(800)}`), h: LL('усталость только ×1,25', 'Ermüdung nur ×1,25'), cost: 800 }, { t: LL('Ничего не делать', 'Nichts tun'), h: LL('у всех настроение −6 на 2 дня', 'Stimmung bei allen −6 für 2 Tage') }];
     },
-    pick(e, k) { if (!k) { pay(800); e.data.fans = true; } else addMorale(-10); return [k ? LL('терпим жару.', 'Wir halten die Hitze aus.') : LL('поставили вентиляторы, раздают воду.', 'Ventilatoren stehen, Wasser wird verteilt.'), 2880]; },
+    pick(e, k) { if (!k) { pay(800); e.data.fans = true; } else addMorale(-6, 'Жара, а вентиляторов нет', 'Hitze und keine Ventilatoren', 2880, 'hitze'); return [k ? LL('терпим жару.', 'Wir halten die Hitze aus.') : LL('поставили вентиляторы, раздают воду.', 'Ventilatoren stehen, Wasser wird verteilt.'), 2880]; },
     end: () => LL('жара спала.', 'Die Hitze ist vorbei.') },
   reklamation: { icon: '📢', title: 'Reklamationswelle', lvl: 1, w: () => recentComplaints() >= 2 ? 4 : 0.5, cd: 2880, cls: 'bad',
     make(e) {
@@ -2973,9 +3112,9 @@ const EVENTS = {
     },
     pick(e, k) {
       if (k) return [LL('отказали.', 'Abgesagt.')];
-      const w = makeWorker(e.data.name, 'Azubi', shiftForNew(), { transport: 3 }); for (const k2 of WORKS) if (k2 !== 'transport') w.skills[k2] = R(1, 2);
+      const w = makeWorker(e.data.name, 'Azubi', shiftForNew(), { transport: 3 }, { age: RI(16, 19) }); for (const k2 of WORKS) if (k2 !== 'transport') w.skills[k2] = R(1, 2);
       Object.assign(w, { wage: 7, learn: 3, azubi: true }); Object.assign(w.prio, { transport: 2, pruefen: 3, nacharbeit: 4 });
-      S.workers.push(w); addMorale(3); return [LL(`${w.name} начинает Ausbildung (${SHIFTS[w.shift].de}).`, `${w.name} beginnt die Ausbildung (${SHIFTS[w.shift].de}).`)];
+      S.workers.push(w); addMorale(3, 'В команде новый ученик', 'Ein neuer Azubi im Team', 1440, 'azubi'); return [LL(`${w.name} начинает Ausbildung (${SHIFTS[w.shift].de}).`, `${w.name} beginnt die Ausbildung (${SHIFTS[w.shift].de}).`)];
     } },
   fachkraft: { icon: '👷', title: 'Erfahrene Fachkraft', lvl: 2, w: 0.7, cd: 4320,
     make(e) {
@@ -2986,7 +3125,7 @@ const EVENTS = {
     },
     pick(e, k) {
       if (k) return [LL('специалист ушёл к конкуренту.', 'Die Fachkraft geht zur Konkurrenz.')];
-      pay(1500, 'hiring'); const sec = pick(WORKS.filter(x => x !== e.data.k)), w = makeWorker(e.data.name, ROLE[e.data.k], shiftForNew(), { [e.data.k]: 9, [sec]: RI(5, 7) });
+      pay(1500, 'hiring'); const sec = pick(WORKS.filter(x => x !== e.data.k)), w = makeWorker(e.data.name, ROLE[e.data.k], shiftForNew(), { [e.data.k]: 9, [sec]: RI(5, 7) }, { age: RI(36, 56) });
       w.wage = e.data.wage; S.workers.push(w); return [LL(`${w.name} в команде (${SHIFTS[w.shift].de}).`, `${w.name} ist jetzt im Team (${SHIFTS[w.shift].de}).`)];
     } },
   rahmenvertrag: { icon: '📑', title: 'Rahmenvertrag', lvl: 2, w: 1, cd: 5760, can: () => S.level >= 3 || resDone('flotte'),
@@ -3013,18 +3152,19 @@ const EVENTS = {
       if (rnd() < auditChance(e.data.cons)) { S.certified = true; addRep(8); S.xp += 80; e.cls = 'good'; return LL('пройден! Сертификат ECE-R 109: заказы на 5 % дороже, репутация +8.', 'Bestanden! Zertifikat ECE-R 109: Aufträge 5 % teurer, Ruf +8.'); }
       const lost = S.certified; S.certified = false; pay(3000, 'penalties'); addRep(-6); e.cls = 'bad'; return LL(`не пройден: доработки 3 000 €, репутация −6${lost ? ', сертификат отозван' : ''}.`, `Nicht bestanden: Nachbesserung 3 000 €, Ruf −6${lost ? ', Zertifikat entzogen' : ''}.`);
     } },
-  winter: { icon: '❄', title: 'Wintereinbruch', lvl: 1, w: 0.9, cd: 5760, cls: 'good',
+  winter: { icon: '❄', title: 'Wintereinbruch', lvl: 1, w: 0.9, cd: 5760, cls: 'good', can: () => [9, 10, 11, 0, 1].includes(month()), // октябрь–февраль
+   
     make(e) { e.text = LL('Первый снег: автопарки массово меняют шины. 2 суток запросов вдвое больше, они крупнее и на 10 % дороже.', 'Der erste Schnee: Die Flotten wechseln massenhaft Reifen. Zwei Tage lang doppelt so viele Anfragen, größer und 10 % teurer.'); return 2880; },
     end: () => LL('сезонный наплыв заказов закончился.', 'Der saisonale Ansturm ist vorbei.') },
   tarif: { icon: '✊', title: 'Tarifrunde IG BCE', lvl: 2, w: 0.6, cd: 10080,
     make(e) {
       at(e, DESK); e.def = 1;
       e.text = LL('Профсоюз IG BCE на тарифных переговорах требует +1,50 €/ч для всех рабочих.', 'Die IG BCE fordert in der Tarifrunde +1,50 €/h für alle Beschäftigten.');
-      e.choices = [{ t: LL('Согласиться', 'Zustimmen'), h: LL(`+1,50 €/ч навсегда (~${eur(S.workers.length * 8 * 1.5)} в день), настроение +15`, `+1,50 €/h dauerhaft (~${eur(S.workers.length * 8 * 1.5)} pro Tag), Stimmung +15`) }, { t: LL('Отказать', 'Ablehnen'), h: LL('настроение −20, вероятна предупредительная забастовка', 'Stimmung −20, Warnstreik wahrscheinlich') }];
+      e.choices = [{ t: LL('Согласиться', 'Zustimmen'), h: LL(`+1,50 €/ч навсегда (~${eur(S.workers.length * 8 * 1.5)} в день), настроение всех +8 на 3 дня`, `+1,50 €/h dauerhaft (~${eur(S.workers.length * 8 * 1.5)} pro Tag), Stimmung aller +8 für 3 Tage`) }, { t: LL('Отказать', 'Ablehnen'), h: LL('настроение всех −10 на 2 дня, вероятна предупредительная забастовка', 'Stimmung aller −10 für 2 Tage, Warnstreik wahrscheinlich') }];
     },
     pick(e, k) {
-      if (!k) { for (const w of S.workers) if (!w.temp) w.wage += 1.5; addMorale(15); return [LL('тариф подписан: +1,50 €/ч.', 'Tarifvertrag unterschrieben: +1,50 €/h.')]; }
-      addMorale(-20); if (rnd() < 0.6) { S.strikeAt = S.t + RI(30, 120); return [LL('профсоюз объявляет Warnstreik.', 'Die Gewerkschaft ruft zum Warnstreik auf.')]; } return [LL('профсоюз недоволен, но бастовать не стал.', 'Die Gewerkschaft ist unzufrieden, streikt aber nicht.')];
+      if (!k) { for (const w of S.workers) if (!w.temp) w.wage += 1.5; addMorale(8, 'Тариф подписан: +1,50 €/ч', 'Tarifvertrag: +1,50 €/h', 3 * 1440, 'tarif'); return [LL('тариф подписан: +1,50 €/ч.', 'Tarifvertrag unterschrieben: +1,50 €/h.')]; }
+      addMorale(-10, 'Отказ профсоюзу', 'Nein zur Gewerkschaft', 2 * 1440, 'tarif'); if (rnd() < 0.6) { S.strikeAt = S.t + RI(30, 120); return [LL('профсоюз объявляет Warnstreik.', 'Die Gewerkschaft ruft zum Warnstreik auf.')]; } return [LL('профсоюз недоволен, но бастовать не стал.', 'Die Gewerkschaft ist unzufrieden, streikt aber nicht.')];
     } },
   streik: { icon: '✊', title: 'Warnstreik', lvl: 9, w: 0, cls: 'bad',
     make(e) { const d = RI(180, 300); at(e, { x: 46, y: 6 }); e.text = LL(`Предупредительная забастовка: половина смены ~${Math.round(d / 60)} ч стоит на парковке с флагами IG BCE. Зарплату за это время не платим.`, `Warnstreik: Die halbe Schicht steht ~${Math.round(d / 60)} h mit IG-BCE-Fahnen auf dem Parkplatz. Für diese Zeit wird kein Lohn gezahlt.`); return d; },
@@ -3070,6 +3210,61 @@ const EVENTS = {
     },
     pick(e, k) { if (k) return [LL('заявку не подаём.', 'Kein Antrag.')]; pay(400); return [LL('заявка одобрена — 5 суток на покупку.', 'Antrag bewilligt — 5 Tage Zeit zum Kaufen.'), 5 * 1440]; },
     end: () => LL('срок программы субсидий закончился.', 'Das Förderprogramm ist ausgelaufen.') },
+  // ---- Люди v2: события про конкретного человека (data.wid) ----
+  kaizen: { icon: '💡', title: 'Kaizen: Verbesserungsvorschlag', lvl: 1, w: 0, wait: 360,
+    make(e) {
+      const left = KAIZEN.filter(k => !S.kaizen.includes(k.id)); if (!left.length) return false;
+      const best = S.workers.filter(x => !x.temp).map(x => [x, AT(x, 'komm') + AT(x, 'technik') + rnd() * 8]).sort((a, b) => b[1] - a[1])[0]; // идеи чаще у общительных и технарей
+      const w = workerById(e.data.wid) || (best && best[0]); if (!w) return false;
+      const idea = pick(left), cost = Math.round(RI(4, 12) * 100 * (e.data.insp ? 0.5 : 1)), f = w.name.split(' ')[0]; e.data = { wid: w.id, idea: idea.id, cost, insp: e.data.insp }; at(e, DESK);
+      e.text = LL(`${w.name}${e.data.insp ? ' (вдохновение «Erfinder»)' : ''} предлагает улучшение: ${idea.ru}. Эффект навсегда: ${idea.fx[0]}. Внедрить стоит ${eur(cost)}.`,
+        `${w.name}${e.data.insp ? ' (Inspiration „Erfinder“)' : ''} schlägt eine Verbesserung vor: ${idea.de}. Dauerhafte Wirkung: ${idea.fx[1]}. Die Umsetzung kostet ${eur(cost)}.`);
+      e.choices = [{ t: LL(`Внедрить: ${eur(cost)}`, `Umsetzen: ${eur(cost)}`), h: LL(`${idea.fx[0]}; ${f}: настроение +8`, `${idea.fx[1]}; ${f}: Stimmung +8`), cost }, { t: LL('Отложить', 'Zurückstellen'), h: LL(`${f}: настроение −6`, `${f}: Stimmung −6`) }];
+    },
+    pick(e, k) {
+      const w = workerById(e.data.wid), idea = KAIZEN.find(x => x.id === e.data.idea);
+      if (!k) { pay(e.data.cost); idea.apply(); S.kaizen.push(idea.id); S.xp += 10; if (w) moodMod(w, 'kaizen', 'Мою идею внедрили', 'Meine Idee wird umgesetzt', 8, 3 * 1440); addMorale(2, 'Kaizen: идеи работают', 'Kaizen: Ideen zählen', 1440, 'kaizenTeam'); return [LL(`идея внедрена: ${idea.fx[0]}.`, `Idee umgesetzt: ${idea.fx[1]}.`)]; }
+      if (w) moodMod(w, 'kaizen', 'Мою идею отложили', 'Meine Idee wurde zurückgestellt', -6, 2 * 1440); return [LL('идею отложили.', 'Die Idee wird zurückgestellt.')];
+    } },
+  gehalt: { icon: '💬', title: 'Gehaltswunsch', lvl: 1, w: 0, wait: 240,
+    make(e) {
+      const w = workerById(e.data.wid) || S.workers.find(x => hasT(x, 'ehrgeizig') && !x.temp) || S.workers.find(x => !x.temp); if (!w) return false; e.data.wid = w.id; at(e, DESK); e.data.name = w.name; const mk = marketWage(w);
+      e.text = LL(`${w.name} (Ehrgeizig) просит прибавку +2 €/ч: «Я многому научился, а зарплата прежняя». Сейчас ${w.wage} €/ч, рынок — около ${mk} €/ч.`, `${w.name} (ehrgeizig) bittet um +2 €/h: „Ich habe viel gelernt, aber der Lohn ist gleich geblieben.“ Jetzt ${w.wage} €/h, der Markt zahlt etwa ${mk} €/h.`);
+      e.choices = [{ t: LL('Дать прибавку +2 €/ч', 'Lohnerhöhung +2 €/h'), h: LL('настроение +10 на 3 дня', 'Stimmung +10 für 3 Tage') }, { t: LL('Отказать', 'Ablehnen'), h: LL('настроение −12 на 4 дня', 'Stimmung −12 für 4 Tage') }];
+    },
+    pick(e, k) {
+      const w = workerById(e.data.wid); if (!w) return [LL('уже не работает у нас.', 'Arbeitet nicht mehr bei uns.')];
+      if (!k) { w.wage += 2; moodMod(w, 'gehalt', 'Получил прибавку', 'Lohnerhöhung bekommen', 10, 3 * 1440); return [LL(`${w.name}: ${w.wage} €/ч.`, `${w.name}: ${w.wage} €/h.`)]; }
+      moodMod(w, 'gehalt', 'Отказали в прибавке', 'Lohnerhöhung abgelehnt', -12, 4 * 1440); return [LL('отказали — человек обижен.', 'Abgelehnt — die Person ist gekränkt.')];
+    } },
+  kuendigung: { icon: '✉', title: 'Kündigung', lvl: 1, w: 0, wait: 480, cls: 'bad',
+    make(e) {
+      const w = workerById(e.data.wid) || [...S.workers].filter(x => !x.temp).sort((a, b) => a.mood - b.mood)[0]; if (!w) return false; e.data.wid = w.id; e.data.name = w.name; e.def = 2; at(e, DESK);
+      const why = moodParts(w).filter(p => p[2] < 0).sort((a, b) => a[2] - b[2]).slice(0, 3);
+      e.text = TXF(lg => lg === 'de' ? `${w.name} reicht die Kündigung ein: Die Stimmung liegt seit zwei Tagen unter 10. Gründe: ${why.map(p => `${p[1]} (${p[2]})`).join(', ') || '—'}.` : `${w.name} пишет заявление об уходе: настроение ниже 10 уже двое суток. Причины: ${why.map(p => `${p[0]} (${p[2]})`).join(', ') || '—'}.`);
+      e.choices = [{ t: LL('Прибавка +3 €/ч и разговор', '+3 €/h und ein Gespräch'), h: LL('остаётся, настроение +20 на 3 дня', 'bleibt, Stimmung +20 für 3 Tage') }, { t: LL('Mitarbeitergespräch', 'Mitarbeitergespräch'), h: LL('шанс удержать ~40 %', 'Chance etwa 40 %, dass er oder sie bleibt') }, { t: LL('Отпустить', 'Gehen lassen'), h: LL('команда −3 на сутки', 'Team −3 für einen Tag') }];
+    },
+    pick(e, k) {
+      const w = workerById(e.data.wid); if (!w) return [LL('уже ушёл.', 'Schon weg.')];
+      if (k === 0) { w.wage += 3; w.lowSince = 0; moodMod(w, 'stay', 'Прибавка и разговор с мастером', 'Mehr Lohn und ein Gespräch', 20, 3 * 1440); w.mood = Math.max(w.mood, 30); return [LL(`${w.name} остаётся: ${w.wage} €/ч.`, `${w.name} bleibt: ${w.wage} €/h.`)]; }
+      if (k === 1 && rnd() < 0.4) { w.lowSince = 0; moodMod(w, 'stay', 'Разговор с мастером', 'Gespräch mit dem Meister', 10, 2 * 1440); w.mood = Math.max(w.mood, 25); return [LL(`${w.name} передумал(а) и остаётся.`, `${w.name} hat es sich anders überlegt und bleibt.`)]; }
+      quitWorker(w, LL('ушёл(ушла) по собственному желанию', 'hat gekündigt')); return [LL(`${w.name} уходит.`, `${w.name} geht.`)];
+    } },
+  abwerbung: { icon: '🕵', title: 'Abwerbung', lvl: 2, w: 0.5, cd: 5 * 1440, can: () => S.workers.some(w => !w.temp && bestSkill(w) >= 8.5),
+    make(e) {
+      const w = S.workers.filter(x => !x.temp).sort((a, b) => bestSkill(b) - bestSkill(a))[0]; if (!w) return false;
+      const offer = w.wage + 4, stay = Math.round(stayChance(w) * 100); e.data = { wid: w.id, name: w.name }; e.def = 1; at(e, DESK);
+      e.text = LL(`Конкурент «Reifen-Service Nord» переманивает ${w.name} (${rankOf(w).name}): предлагает ${offer} €/ч вместо ${w.wage}.`, `Der Konkurrent „Reifen-Service Nord“ will ${w.name} (${rankOf(w).name}) abwerben: ${offer} €/h statt ${w.wage}.`);
+      e.choices = [{ t: LL('Встречное предложение: +2,50 €/ч', 'Gegenangebot: +2,50 €/h'), h: LL('остаётся, настроение +10', 'bleibt, Stimmung +10') }, { t: LL('Поговорить', 'Ein Gespräch führen'), h: LL(`останется с шансом ${stay} % (зависит от настроения)`, `bleibt mit ${stay} % Chance (hängt von der Stimmung ab)`) }, { t: LL('Отпустить', 'Gehen lassen'), h: LL('уходит к конкуренту', 'wechselt zur Konkurrenz') }];
+    },
+    pick(e, k) {
+      const w = workerById(e.data.wid); if (!w) return [LL('уже ушёл.', 'Schon weg.')];
+      if (k === 0) { w.wage += 2.5; moodMod(w, 'abw', 'Меня ценят: встречное предложение', 'Man schätzt mich: Gegenangebot', 10, 3 * 1440); return [LL(`${w.name} остаётся за ${w.wage} €/ч.`, `${w.name} bleibt für ${w.wage} €/h.`)]; }
+      if (k === 1 && rnd() < stayChance(w)) { moodMod(w, 'abw', 'Поговорили — остаюсь', 'Gutes Gespräch — ich bleibe', 4, 2 * 1440); return [LL(`${w.name} остаётся.`, `${w.name} bleibt.`)]; }
+      quitWorker(w, LL('ушёл(ушла) к конкуренту', 'ist zur Konkurrenz gewechselt')); return [LL(`${w.name} уходит к конкуренту.`, `${w.name} wechselt zur Konkurrenz.`)];
+    } },
+  unfall: { icon: '🚑', title: 'Arbeitsunfall', w: 0, info: true, cls: 'bad', make(e) { if (!e.data.text) return false; e.text = e.data.text; at(e, e.data); return 240; } }, // сообщения от accident() и fluCheck()
+  grippe: { icon: '🤧', title: 'Grippewelle', w: 0, info: true, cls: 'bad', make(e) { if (!e.data.text) return false; e.text = e.data.text; return 360; } },
   // Сообщения без эффекта: новый уровень, выполненная цель (для баннера)
   levelup: { icon: '⭐', title: LL('Новый уровень', 'Neue Stufe'), w: 0, info: true, cls: 'good', make: () => 360 },
   goal: { icon: '🏆', title: LL('Цель выполнена', 'Ziel erreicht'), w: 0, info: true, cls: 'good', make: () => 240 },
@@ -3077,8 +3272,9 @@ const EVENTS = {
 };
 function fireEvent(kind, opt = {}, force = false) { // force — для тестов: без проверки условий can()
   const def = EVENTS[kind]; if (!def || (def.can && !def.can() && !(force && kind !== 'krank' && kind !== 'azubi'))) return null;
-  const e = { id: S.nextId++, kind, title: def.title, text: '', icon: def.icon, cls: def.cls || 'warn', state: 'active', start: S.t, data: {} };
-  const dur = def.make(e); if (dur === false) return null; Object.assign(e, opt); // make вернул false — событию сейчас не из чего случиться
+  const { data, ...rest } = opt; // opt.data — входные данные для make (например, о ком событие)
+  const e = { id: S.nextId++, kind, title: def.title, text: '', icon: def.icon, cls: def.cls || 'warn', state: 'active', start: S.t, data: { ...(data || {}) } };
+  const dur = def.make(e); if (dur === false) return null; Object.assign(e, rest); // make вернул false — событию сейчас не из чего случиться
   if (e.choices) { e.state = 'choice'; e.until = S.t + (def.wait || 240); if (e.def === undefined) e.def = e.choices.length - 1; }
   else { e.state = def.info ? 'info' : 'active'; e.until = S.t + (dur || 120); }
   S.events.push(e); S.evLast[kind] = S.t;
@@ -3115,6 +3311,7 @@ function rollEvent() {
 function updateEvents() {
   for (const e of S.events.slice()) if (S.t >= e.until) { if (e.state === 'choice') chooseEvent(e.id, e.def, true); else endEvent(e); }
   if (S.strikeAt && S.t >= S.strikeAt) { if (isDay() && clock() < DAY_END - 120) { S.strikeAt = 0; fireEvent('streik'); } else S.strikeAt += 60; }
+  if (S.eventsOn && S.t >= S.kaizenAt) { if (isDay() && clock() < DAY_END - 120 && !S.events.some(e => e.kind === 'kaizen')) { S.kaizenAt += 7 * 1440; fireEvent('kaizen', {}, true); } else S.kaizenAt += 60; } // Kaizen: раз в неделю идея от рабочих
   if (!S.eventsOn || S.t < S.nextEvent) return;
   const c = clock(); // события — только днём; не больше двух решений и четырёх событий сразу
   if (c < DAY_START + 30 || c > DAY_END - 90 || S.events.filter(e => e.state === 'choice').length >= 2 || S.events.filter(e => e.state !== 'info').length >= 4) { S.nextEvent = S.t + R(20, 120); return; }
@@ -3135,7 +3332,7 @@ const LEVELS = [
 const lvUnlock = n => L(n.unlock, n.unlockDe);
 function checkLevel() {
   const n = LEVELS[S.level]; if (!n || S.xp < n.xp || S.rep < n.rep) return;
-  S.level++; addMorale(5);
+  S.level++; addMorale(5, 'Компания выросла', 'Die Firma ist gewachsen', 2 * 1440, 'level');
   log(LL(`⭐ Уровень ${S.level}: ${n.de} (${n.ru}). Открыто: ${n.unlock}`, `⭐ Stufe ${S.level}: ${n.de}. Freigeschaltet: ${n.unlockDe}`), 'good');
   fireEvent('levelup', { title: LL(`Уровень ${S.level}: ${n.de}`, `Stufe ${S.level}: ${n.de}`), text: LL(`${n.ru}. Открыто: ${n.unlock}`, `Freigeschaltet: ${n.unlockDe}`) });
 }
@@ -3180,7 +3377,7 @@ function updateGoals() {
 }
 function completeGoal(g, G) {
   S.goals.splice(S.goals.indexOf(g), 1); S.goalsDone.push(G.id);
-  const r = G.r; if (r.money) bonus(r.money); if (r.xp) S.xp += r.xp; if (r.rep) addRep(r.rep); if (r.morale) addMorale(r.morale);
+  const r = G.r; if (r.money) bonus(r.money); if (r.xp) S.xp += r.xp; if (r.rep) addRep(r.rep); if (r.morale) addMorale(r.morale, `Цель: ${G.t}`, `Ziel: ${G.tDe}`, 2 * 1440, 'goal:' + G.id);
   log(LL(`🏆 Цель выполнена: ${G.t}. Награда: ${rewardText(r, 'ru')}.`, `🏆 Ziel erreicht: ${G.tDe}. Belohnung: ${rewardText(r, 'de')}.`), 'good');
   fireEvent('goal', { title: LL(`Цель выполнена: ${G.t}`, `Ziel erreicht: ${G.tDe}`), text: LL(`Награда: ${rewardText(r, 'ru')}.`, `Belohnung: ${rewardText(r, 'de')}.`) });
 }
@@ -3194,7 +3391,7 @@ function setShiftModel(n) {
   const sh = activeShifts(), best = w => WORKS.reduce((a, k) => w.skills[k] > w.skills[a] ? k : a, 'transport');
   S.workers.filter(w => !w.temp).sort((a, b) => best(a).localeCompare(best(b)) || b.skills[best(b)] - a.skills[best(a)]).forEach((w, i) => { w.shift = sh[i % sh.length]; });
   for (const w of S.workers) if (w.temp && !sh.includes(w.shift)) w.shift = sh[0];
-  addMorale(-5); // Betriebsrat: перестройка графика никому не нравится
+  addMorale(-5, 'Новый график смен', 'Neuer Schichtplan', 1440, 'smodel'); // Betriebsrat: перестройка графика никому не нравится
   const dist = sh.map(k => `${k} — ${S.workers.filter(w => w.shift === k).length}`).join(', ');
   log(LL(`🕐 Модель смен: ${n} ${n === 1 ? 'смена' : 'смены'} (было ${was}). Люди распределены: ${dist}.${n === 3 ? ' Ночная смена получает +25 % (Nachtzuschlag).' : ''}`,
     `🕐 Schichtmodell: ${n} ${n === 1 ? 'Schicht' : 'Schichten'} (vorher ${was}). Neue Verteilung: ${dist}.${n === 3 ? ' Die Nachtschicht bekommt +25 % (Nachtzuschlag).' : ''}`), 'info');
@@ -3207,12 +3404,15 @@ function makeCands() {
   const top = [7, 8, 9, 9, 9][S.level - 1];
   S.cands = Array.from({ length: 3 }, () => {
     const k = pick(WORKS), k2 = pick(WORKS.filter(x => x !== k)), a = RI(top - 3, top), b = RI(3, Math.min(7, a));
-    return { id: S.nextId++, name: pick(FIRST) + ' ' + pick(LAST), k, a, k2, b, wage: Math.round((14 + a * 0.8 + b * 0.3) * 2) / 2, fee: 300 + a * 50 };
+    const w = makeWorker(pick(FIRST) + ' ' + pick(LAST), ROLE[k], 'F', { [k]: a, [k2]: b }); // человек целиком: черты, возраст, страсти, характеристики видны до найма
+    const gt = goodTraits(w), bt = w.traits.filter(t => TRAITS[t][3] < 0).length;
+    w.wage = Math.round((14 + a * 0.8 + b * 0.3 + 0.5 * gt) * 2) / 2; // хорошие черты — дороже
+    return { id: S.nextId++, name: w.name, k, a, k2, b, wage: w.wage, fee: 300 + a * 50 + 150 * gt - 50 * bt, w };
   });
 }
 function hireCand(id) {
   const c = S.cands.find(x => x.id === id); if (!c || S.money < c.fee) return false;
-  pay(c.fee, 'hiring'); const w = makeWorker(c.name, ROLE[c.k], shiftForNew(), { [c.k]: c.a, [c.k2]: c.b }); w.wage = c.wage; S.workers.push(w);
+  pay(c.fee, 'hiring'); const w = c.w; Object.assign(w, { shift: shiftForNew(), hiredAt: S.t, color: SHIRTS[S.workers.length % SHIRTS.length] }); S.workers.push(w);
   S.cands = S.cands.filter(x => x !== c);
   log(LL(`Нанят ${w.name}: ${ROLE[c.k]}, ${WORK_RU[c.k]} ${c.a}, ${w.wage} €/ч (${SHIFTS[w.shift].de}).`, `Eingestellt: ${w.name}, ${ROLE[c.k]}, ${WORK_DE[c.k]} ${c.a}, ${w.wage} €/h (${SHIFTS[w.shift].de}).`), 'good'); return w;
 }
@@ -3226,7 +3426,7 @@ function interrupt(w) { releaseJob(w); w.seat = null; }
 function removeWorker(w) { if (w.job) interrupt(w); S.workers.splice(S.workers.indexOf(w), 1); if (S.selected && S.selected.w === w) S.selected = null; }
 function fire(wid) { // увольнение: выходное пособие (Abfindung) — 5 смен
   const w = S.workers.find(x => x.id === wid); if (!w) return false;
-  const sev = w.temp ? 0 : Math.round(w.wage * 8 * 5); pay(sev, 'hiring'); removeWorker(w); if (!w.temp) addMorale(-5);
+  const sev = w.temp ? 0 : Math.round(w.wage * 8 * 5); pay(sev, 'hiring'); removeWorker(w); if (!w.temp) addMorale(-5, `Уволили ${w.name.split(' ')[0]}`, `${w.name.split(' ')[0]} wurde entlassen`, 2 * 1440, 'fire');
   log(LL(`${w.name} уволен(а)${sev ? `, Abfindung ${eur(sev)}` : ''}. Настроение команды −5.`, `${w.name} wurde entlassen${sev ? `, Abfindung ${eur(sev)}` : ''}. Stimmung im Team −5.`), 'warn'); return true;
 }
 const courseCost = () => S.upgrades.schulung ? 250 : 500;
@@ -3238,10 +3438,9 @@ function train(wid, k) { // Schulung: час в комнате отдыха с �
   w.job = { type: 'train', work: k, gain: S.upgrades.schulung ? 1.5 : 1, steps: [{ go: { x: seat[0], y: seat[1] } }, { train: 60 }], i: 0 };
   log(LL(`📚 ${w.name}: Schulung «${WORK_RU[k]}» (1 ч, ${eur(courseCost())}).`, `📚 ${w.name}: Schulung „${WORK_DE[k]}“ (1 h, ${eur(courseCost())}).`), 'info'); return true;
 }
-const moraleBase = () => 60 + (S.upgrades.pausenraum ? 10 : 0) + (S.upgrades.hebehilfe ? 5 : 0) + (S.level - 1) * 2;
 function praemie() { // премия команде: раз в сутки, 80 € на человека
   const c = S.workers.length * 80; if (S.t - S.lastPraemie < 1440 || S.money < c) return false;
-  pay(c, 'wages'); S.lastPraemie = S.t; addMorale(12); log(LL(`💶 Премия команде: ${eur(c)}, настроение +12.`, `💶 Prämie fürs Team: ${eur(c)}, Stimmung +12.`), 'good'); return true;
+  pay(c, 'wages'); S.lastPraemie = S.t; addMorale(12, 'Премия команде', 'Prämie fürs Team', 1440, 'praemie'); log(LL(`💶 Премия команде: ${eur(c)}, настроение +12.`, `💶 Prämie fürs Team: ${eur(c)}, Stimmung +12.`), 'good'); return true;
 }
 
 // ================= Исследования: дерево НИОКР =================
@@ -3266,7 +3465,7 @@ const RESEARCH = [
   { id: 'robotik', br: 'heat', de: 'Robotik-Grundlagen', ru: 'Основы роботизации', rp: 120, req: ['wickel'], up: 'abc', fx: 'Открывает роботов: ABC на намотке и загрузчик прессов.', fxDe: 'Schaltet die Roboter frei: ABC beim Wickeln und das Lade-Portal an den Pressen.', apply() { } },
   { id: 'pressenlayout', br: 'heat', de: 'Pressenlayout Ж3', ru: 'Планировка Ж3 под 12 прессов', rp: 100, req: ['heizrezept'], up: 'presse1112', fx: 'Открывает апгрейд «Прессы 11 и 12».', fxDe: 'Schaltet das Upgrade „Heizpressen 11 und 12“ frei.', apply() { } },
   { id: 'waerme', br: 'heat', de: 'Wärmerückgewinnung', ru: 'Рекуперация тепла прессов', rp: 80, req: ['heizrezept'], up: 'solar', fx: 'Тепло прессов греет цех: энергия −400 € в сутки; открывает солнечные панели.', fxDe: 'Die Abwärme der Pressen heizt die Halle: Energie −400 € pro Tag; schaltet die PV-Anlage frei.', apply() { S.overhead -= 400; } },
-  { id: 'lean', br: 'qual', de: 'Lean / 5S', ru: 'Бережливое производство, 5S', rp: 40, req: [], fx: 'Инструмент на своих местах: берут втрое быстрее, снять/поставить шину на 10 % быстрее, пыли на 15 % меньше, настроение +3.', fxDe: 'Werkzeug am festen Platz: dreimal so schnell gegriffen, Reifen 10 % schneller ab- und aufsetzen, 15 % weniger Staub, Stimmung +3.', apply() { S.grabT = 0.08; S.liftMul *= 0.9; S.dustMul *= 0.85; addMorale(3); } },
+  { id: 'lean', br: 'qual', de: 'Lean / 5S', ru: 'Бережливое производство, 5S', rp: 40, req: [], fx: 'Инструмент на своих местах: берут втрое быстрее, снять/поставить шину на 10 % быстрее, пыли на 15 % меньше, настроение +3.', fxDe: 'Werkzeug am festen Platz: dreimal so schnell gegriffen, Reifen 10 % schneller ab- und aufsetzen, 15 % weniger Staub, Stimmung +3.', apply() { S.grabT = 0.08; S.liftMul *= 0.9; S.dustMul *= 0.85; addMorale(3, 'Порядок на рабочих местах (5S)', 'Ordnung am Arbeitsplatz (5S)', 3 * 1440, 'lean'); } },
   { id: 'spc', br: 'qual', de: 'SPC', ru: 'Статистический контроль процессов', rp: 70, req: ['lean'], fx: 'Карты контроля на каждом участке: брака везде на 25 % меньше.', fxDe: 'Regelkarten an jeder Station: überall 25 % weniger Ausschuss.', apply() { S.defMul *= 0.75; } },
   { id: 'predict', br: 'qual', de: 'Zustandsüberwachung', ru: 'Мониторинг состояния станков', rp: 70, req: ['lean'], up: 'predictive', fx: 'Поломок на 10 % меньше; открывает апгрейд «Предиктивное ТО».', fxDe: '10 % weniger Ausfälle; schaltet das Upgrade „Predictive Maintenance“ frei.', apply() { S.breakMul *= 0.9; } },
   { id: 'mes', br: 'qual', de: 'Barcode-MES', ru: 'Штрихкоды и MES', rp: 80, req: ['spc'], up: 'mes', fx: 'Открывает апгрейд «MES: учёт каждой шины».', fxDe: 'Schaltet das Upgrade „MES + Barcode-Tracking“ frei.', apply() { } },
@@ -3338,14 +3537,358 @@ const PERKS = { // [название, что даёт по-русски, по-н
 const perkDesc = p => L(p[1], p[2]);
 const RANKS = [[9.5, 'Meister'], [8.5, 'Profi'], [6, 'Facharbeiter'], [3, 'Helfer'], [0, 'Azubi']];
 const rankOf = w => { const m = Math.max(...WORKS.map(k => w.skills[k] || 0)); return { lvl: Math.floor(m), name: RANKS.find(r => m >= r[0])[1] }; };
-const learnF = w => (w.learn || 1) * S.learnMul * (w.trait === 'lernfreudig' ? 1.5 : 1);
-const fatigue = w => heat() * (w.trait === 'robust' ? 0.75 : 1) * (w.shift === 'N' ? 1.15 : 1); // ночью устают быстрее
-// Брак на участке: исследования, перки, черта характера
+// Скорость обучения: Azubi, учебный центр, черты, возраст (до 25 — быстрее, после 50 — медленнее), наставник, вдохновение «Mentor» в смене
+const learnF = w => (w.learn || 1) * S.learnMul * (hasT(w, 'lernfreudig') ? 1.5 : 1) * (hasT(w, 'ehrgeizig') ? 1.3 : 1) * (w.age < 25 ? 1.2 : w.age > 50 ? 0.85 : 1) * mentorBoost(w) * (S.mentorShift && S.mentorShift[w.shift] && !inspOn(w, 'mentor') ? 2 : 1);
+const fatigue = w => heat() * (hasT(w, 'robust') ? 0.75 : 1) * (w.shift === 'N' ? 1.15 : 1) * (1.25 - 0.025 * AT(w, 'ausdauer')) * (overtimeNow(w) ? 1.3 : 1); // ночью и сверхурочно устают быстрее; выносливость
+// Брак на участке: исследования, перки, черты характера, внимательность, правила, вдохновение
 function defMul(w, s) {
   const k = s.work, p = tier(w, k);
+  if (inspOn(w, 'blick')) return 0; // Qualitätsblick: ноль брака
   return S.defMul * (S.defG[s.g] || 1) * (k === 'rauen' && p >= 2 ? 0.7 : 1) * ((k === 'reparatur' || k === 'belegen') && p >= 1 ? 0.7 : 1)
-    * (w.trait === 'sorgfaeltig' ? 0.7 : w.trait === 'flink' ? 1.2 : 1) * (w.shift === 'N' ? 1.1 : 1);
+    * (hasT(w, 'sorgfaeltig') ? 0.7 : 1) * (hasT(w, 'flink') ? 1.2 : 1) * (hasT(w, 'perfekt') ? 0.6 : 1) * (w.shift === 'N' ? 1.1 : 1)
+    * (1.3 - 0.03 * AT(w, 'konz')) * (pol('akkord') ? 1.25 : 1) * (w.brk && w.brk.kind === 'grumble' ? 1.2 : 1);
 }
+
+// ================= Люди v2: опыт, характеристики, настроение, срывы, вдохновение, отношения =================
+const workerById = id => id == null ? null : S.workers.find(w => w.id === id) || null;
+const bestSkill = w => Math.max(...WORKS.map(k => w.skills[k] || 0));
+const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+// Рыночная зарплата: по двум лучшим навыкам и хорошим чертам (как у кандидатов)
+function marketWage(w) { const v = WORKS.map(k => w.skills[k] || 0).sort((a, b) => b - a); return Math.round((14 + v[0] * 0.8 + v[1] * 0.3 + 0.5 * goodTraits(w)) * 2) / 2; }
+const ageGrow = w => w.age < 25 ? 1.6 : w.age > 50 ? 0.6 : 1;
+function growAttr(w, a, d) { if (w.attr) w.attr[a] = Math.min(20, Math.max(1, w.attr[a] + d)); }
+// Опыт от работы: страсть (×0,35/×1/×1,5), насыщение за день (после ~3 ч одной работы — вдвое медленнее), рост характеристик
+function practice(w, k, d, min, st) {
+  if (!w.attr) return; // робот не учится
+  w.lastSt = st ? st.id : null;
+  const rot = pol('rotation'), used = (w.xpMin[k] = (w.xpMin[k] || 0) + min), sat = used > (rot ? 300 : 180) ? (rot ? 0.75 : 0.5) : 1;
+  gainSkill(w, k, d * PASS_LEARN[w.pass[k] || 0] * sat * (k === 'technik' && hasT(w, 'technikfan') ? 1.5 : 1));
+  w.lastPr[k] = S.t; w.lastWork = k; w.lastWorkT = S.t;
+  const g = 0.0004 * min * ageGrow(w) * sat;
+  for (const a of WORK_ATTR[k]) growAttr(w, a, g * (a === 'technik' && hasT(w, 'technikfan') ? 1.5 : 1));
+  growAttr(w, 'ausdauer', g * 0.3);
+}
+// Наставничество: у ученика w.mentor — id наставника. Работает, когда оба в цехе и в одной смене.
+const mentorOf = w => { const m = w && w.mentor != null ? workerById(w.mentor) : null; return m && !m.away && !w.away && m.shift === w.shift ? m : null; };
+const mentorBoost = w => { const m = mentorOf(w); return m ? 1.5 * (0.6 + 0.04 * AT(m, 'komm')) * (hasT(m, 'lehrmeister') ? 1.5 : 1) : 1; };
+const pupilsOf = m => S.workers.filter(w => w.mentor === m.id);
+const mentoring = m => pupilsOf(m).some(p => mentorOf(p) === m);
+const maxPupils = m => hasT(m, 'lehrmeister') ? 2 : 1;
+function setMentor(wid, mid) {
+  const w = workerById(wid); if (!w) return false;
+  if (mid == null) { if (w.mentor != null) log(LL(`👨‍🏫 ${w.name}: наставничество закончено.`, `👨‍🏫 ${w.name}: Die Patenschaft ist beendet.`), 'info'); w.mentor = null; return true; }
+  const m = workerById(mid); if (!m || m === w || m.temp || m.mentor === w.id || bestSkill(m) < 6 || pupilsOf(m).length >= maxPupils(m)) return false;
+  w.mentor = m.id; log(LL(`👨‍🏫 ${m.name} — наставник для ${w.name}: ученик растёт быстрее, наставник работает на 10 % медленнее.`, `👨‍🏫 ${m.name} betreut jetzt ${w.name}: Der Schützling lernt schneller, der Pate arbeitet 10 % langsamer.`), 'info'); return true;
+}
+// Модификатор настроения на время: { key, ru, de, v, until }. Тот же key — обновляется, а не складывается.
+function moodMod(w, key, ru, de, v, dur) {
+  if (!w || !w.mods) return; const m = w.mods.find(x => x.key === key), until = S.t + dur;
+  if (m) Object.assign(m, { ru, de, v, until }); else w.mods.push({ key, ru, de, v, until });
+}
+const MOOD_BASE = 54;
+const NOISY = ['rauen', 'ausschl', 'presse'];                     // шумно: без наушников — минус настроение
+const DANGER = ['rauen', 'ausschl', 'presse', 'entgr'];           // опасно: без СИЗ — несчастные случаи чаще
+// Все слагаемые настроения: [по-русски, по-немецки, значение, до какого времени (для временных)]
+function moodParts(w) {
+  const P = [], add = (ru, de, v, until) => { v = Math.round(v); if (v) P.push([ru, de, v, until]); };
+  add('Основа: надёжная работа', 'Basis: sicherer Job', MOOD_BASE);
+  if (S.upgrades.pausenraum) add('Хорошая комната отдыха', 'Guter Pausenraum', 6);
+  if (S.upgrades.hebehilfe) add('Подъёмники: спине легче', 'Hebehilfen schonen den Rücken', 4);
+  if (S.upgrades.fitness) add('Тренажёрный зал', 'Fitnessraum', 3);
+  if (S.level > 1) add('Компания растёт', 'Die Firma wächst', (S.level - 1) * 2);
+  if (hasT(w, 'optimist')) add('Optimist', 'Optimist', 6); if (hasT(w, 'pessimist')) add('Pessimist', 'Pessimist', -6);
+  if (hasT(w, 'teamplayer')) add('Teamplayer', 'Teamplayer', 4); if (hasT(w, 'griesgram')) add('Griesgram', 'Griesgram', -4);
+  if (!w.temp) { const dw = w.wage - marketWage(w); add(dw >= 0 ? 'Зарплата не ниже рынка' : `Зарплата ниже рынка (${marketWage(w)} €/ч)`, dw >= 0 ? 'Lohn mindestens marktüblich' : `Lohn unter Markt (${String(marketWage(w)).replace(".", ",")} €/h)`, clamp(dw * 1.5, -8, 5)); }
+  if (pol('gleitzeit')) add('Гибкий график', 'Gleitzeit', 5);
+  if (pol('praemie')) add('Недельная премия', 'Wochenprämie', 6);
+  if (pol('akkord')) add(hasT(w, 'sorgfaeltig') || hasT(w, 'perfekt') ? 'Сдельщина: гонят качество' : 'Сдельщина: можно заработать', hasT(w, 'sorgfaeltig') || hasT(w, 'perfekt') ? 'Akkord: Qualität leidet' : 'Akkord: mehr Verdienst', hasT(w, 'sorgfaeltig') || hasT(w, 'perfekt') ? -6 : 2);
+  if (pol('rauchverbot') && hasT(w, 'raucher')) add('Запрет курения', 'Rauchverbot', -8);
+  if (S.t - S.lastComplaint > 7 * 1440) add('Неделя без рекламаций', 'Eine Woche ohne Reklamation', 3);
+  if (w.shift === 'N') add(hasT(w, 'nachteule') ? 'Сова в ночной смене' : 'Ночная смена', hasT(w, 'nachteule') ? 'Nachteule in der Nachtschicht' : 'Nachtschicht', hasT(w, 'nachteule') ? 6 : hasT(w, 'fruehauf') ? -6 : -3);
+  if (w.shift === 'F') add(hasT(w, 'fruehauf') ? 'Жаворонок в утренней смене' : 'Сова в утренней смене', hasT(w, 'fruehauf') ? 'Frühaufsteher in der Frühschicht' : 'Nachteule in der Frühschicht', hasT(w, 'fruehauf') ? 6 : hasT(w, 'nachteule') ? -4 : 0);
+  const m = mentorOf(w); if (m) add(`Наставник: ${m.name.split(' ')[0]}`, `Pate: ${m.name.split(' ')[0]}`, 2);
+  if (!w.away) {
+    add(w.energy < 15 ? 'Без сил' : w.energy < 30 ? 'Устал' : 'Бодр', w.energy < 15 ? 'Erschöpft' : w.energy < 30 ? 'Müde' : 'Ausgeruht', w.energy < 15 ? -14 : w.energy < 30 ? -7 : w.energy > 85 ? 2 : 0);
+    if (S.t - (w.restT || -1e9) < 120) add('Перерыв, кофе', 'Pause, Kaffee', S.upgrades.pausenraum ? 4 : 3);
+    if (w.lastWork && S.t - w.lastWorkT < 60) {
+      const ps = w.pass[w.lastWork] || 0; if (ps) add(`Любимое дело: ${workName(w.lastWork, 'ru')}`, `Lieblingsarbeit: ${workName(w.lastWork, 'de')}`, PASS_MOOD[ps]);
+      if ((w.xpMin[w.lastWork] || 0) > 300 && ps < 2) add('Весь день одно и то же', 'Den ganzen Tag dasselbe', -3); // монотонность: помогает ротация
+      const st = w.lastSt && ST[w.lastSt];
+      if (st && NOISY.includes(st.g) && !w.ppe && !pol('psa')) add('Шум без наушников', 'Lärm ohne Gehörschutz', -4);
+      if (st && st.dirt > 0.5) add('Пыль у станка', 'Staub an der Maschine', -3);
+      if (st && st.g === 'presse') add('Жара у прессов', 'Hitze an den Pressen', -2);
+    }
+    const hz = evGet('hitze'); if (hz) add('Жара в цехе', 'Hitze in der Halle', hz.data.fans ? -1 : -4);
+    if (overtimeNow(w)) add('Сверхурочные', 'Überstunden', -5);
+    // люди рядом и в смене
+    let fr = 0, rv = 0, tp = 0, gg = 0, kom = 0;
+    for (const o of S.workers) { if (o === w || o.away || o.shift !== w.shift) continue; const r = w.rel[o.id] || 0; if (r >= REL_FRIEND) fr++; else if (r <= REL_RIVAL) rv++; if (hasT(o, 'teamplayer')) tp++; if (hasT(o, 'griesgram')) gg++; if (AT(o, 'komm') >= 15) kom++; }
+    const gs = hasT(w, 'gesellig');
+    if (fr) add(`Друзья в смене: ${fr}`, `Freunde in der Schicht: ${fr}`, Math.min(9, fr * 3) * (gs ? 2 : 1)); else if (gs) add('Нет друзей в смене', 'Keine Freunde in der Schicht', -3);
+    if (rv) add(`Не ладит с кем-то в смене: ${rv}`, `Ärger mit Leuten in der Schicht: ${rv}`, -Math.min(6, rv * 3));
+    if (tp) add('Teamplayer в смене', 'Teamplayer in der Schicht', Math.min(3, tp)); if (gg) add('Griesgram в смене', 'Griesgram in der Schicht', -Math.min(3, gg));
+    if (kom) add('Хорошая атмосфера (общительные)', 'Gute Stimmung (Kommunikative)', Math.min(2, kom));
+    if (hasT(w, 'einzelg') && !w.near.length) add('Одиночка: никто не мешает', 'Einzelgänger: endlich Ruhe', 4);
+    if (hasT(w, 'einzelg') && w.near.some(id => hasT(workerById(id), 'laut'))) add('Рядом шумный коллега', 'Ein lauter Kollege nebenan', -5);
+  }
+  for (const md of w.mods) if (md.until > S.t) P.push([md.ru, md.de, md.v, md.until]);
+  return P;
+}
+const moodTarget = w => clamp(moodParts(w).reduce((a, p) => a + p[2], 0), 0, 100);
+const brkThr = w => 35 + (hasT(w, 'reizbar') ? 6 : 0) - (hasT(w, 'eisern') ? 6 : 0); // ниже — мелкий срыв; на 15 ниже — крупный
+const inspOn = (w, k) => !!(w && w.insp && w.insp.kind === k && w.insp.until > S.t);
+const INSP = { // вдохновения выше 85: [название, иконка, что даёт по-русски, по-немецки]
+  rausch: ['Arbeitsrausch', '⚡', 'до конца смены работает на 50 % быстрее', 'arbeitet bis Schichtende 50 % schneller'],
+  blick: ['Qualitätsblick', '🔍', 'до конца смены — ни одного брака, шины лучшего сорта', 'bis Schichtende kein Ausschuss, Reifen bester Klasse'],
+  erfinder: ['Erfinder', '💡', 'предлагает улучшение (Verbesserungsvorschlag) за полцены', 'macht einen Verbesserungsvorschlag zum halben Preis'],
+  mentor: ['Mentor', '🎓', 'до конца смены вся смена учится вдвое быстрее', 'bis Schichtende lernt die ganze Schicht doppelt so schnell'],
+};
+const BRK = { // срывы: [название по-русски, по-немецки, крупный?]
+  sulk: ['Долгий перекур: обиделся', 'Lange Raucherpause: eingeschnappt', false], grumble: ['Бурчит и работает на 30 % медленнее', 'Grummelt und arbeitet 30 % langsamer', false], fight: ['Поругался с коллегой', 'Streit mit einem Kollegen', false],
+  home: ['Ушёл домой посреди смены', 'Mitten in der Schicht nach Hause gegangen', true], refuse: ['Отказывается от тяжёлой работы', 'Verweigert schwere Arbeit', true], nerves: ['Больничный «на нервах»', 'Krankgeschrieben — mit den Nerven am Ende', true],
+};
+function badgeOf(w) { // значок над человеком (pixel.js может читать w.badge)
+  if (w.brk) return w.brk.kind === 'fight' ? '💢' : BRK[w.brk.kind][2] ? '😡' : '😤';
+  if (w.insp && w.insp.until > S.t) return INSP[w.insp.kind][1];
+  if (w.slowUntil > S.t) return '💢';
+  if (w.mood < brkThr(w)) return '☹';
+  return null;
+}
+function updateMorale() { const ws = S.workers.filter(w => !w.temp); if (ws.length) S.morale = ws.reduce((a, w) => a + w.mood, 0) / ws.length; }
+// Срыв: мелкий (ниже 35) или крупный (ниже 20)
+function mentalBreak(w, major, kind) {
+  if (w.brk || w.away || w.sickUntil > S.t || (w.job && w.job.type === 'home')) return false;
+  kind = kind || pick(major ? ['home', 'refuse', 'nerves'] : ['sulk', 'grumble', 'fight']);
+  let o = null;
+  if (kind === 'fight') { o = S.workers.filter(x => x !== w && !x.away && x.shift === w.shift && Math.hypot(x.x - w.x, x.y - w.y) < 8).sort((a, b) => (w.rel[a.id] || 0) - (w.rel[b.id] || 0))[0]; if (!o) kind = 'grumble'; }
+  const B = BRK[kind], f = w.name.split(' ')[0]; w.brk = { kind, major: B[2], until: S.t + 120 };
+  if (major) S.hr.majors++; else S.hr.breaks++;
+  if (kind === 'sulk') { interrupt(w); w.job = { type: 'mbreak', steps: [{ go: hasT(w, 'raucher') ? SMOKE : COFFEE }, { wait: R(25, 40), act: hasT(w, 'raucher') ? 'smoke' : 'coffee' }], i: 0 }; w.brk.until = S.t + 45; }
+  if (kind === 'fight') { quarrel(w, o); w.brk.until = S.t + 30; }
+  if (kind === 'refuse') w.brk.until = S.t + 240;
+  if (kind === 'home' || kind === 'nerves') {
+    interrupt(w); w.job = { type: 'home', steps: [{ go: EXIT }, { leave: true }], i: 0 };
+    if (kind === 'home') w.offUntil = S.t + shiftLeft(w) + 30; else w.sickUntil = (Math.floor(S.t / 1440) + RI(1, 2)) * 1440 + DAY_START - 60;
+    w.brk.until = kind === 'home' ? w.offUntil : w.sickUntil;
+  }
+  log(LL(`${major ? '😡 Крупный срыв' : '😤 Срыв'}: ${w.name} — ${B[0].toLowerCase()}${o ? ` (${o.name})` : ''}. Настроение ${Math.round(w.mood)}.`, `${major ? '😡 Schwerer Ausraster' : '😤 Ausraster'}: ${w.name} — ${B[1]}${o ? ` (${o.name})` : ''}. Stimmung ${Math.round(w.mood)}.`), major ? 'bad' : 'warn'); w.badge = badgeOf(w); if (o) o.badge = badgeOf(o);
+  return true;
+}
+function quarrel(a, b) { // ссора: оба полчаса работают медленнее, настроение −6 на сутки, отношения хуже
+  for (const [x, y] of [[a, b], [b, a]]) { x.slowUntil = S.t + 30; moodMod(x, 'fight:' + y.id, `Ссора с ${y.name.split(' ')[0]}`, `Streit mit ${y.name.split(' ')[0]}`, -6, 1440); x.rel[y.id] = clamp((x.rel[y.id] || 0) - 12, -100, 100); }
+  S.hr.fights++;
+}
+function inspire(w, kind) {
+  if (!w || w.away || w.sickUntil > S.t || (w.job && w.job.type === 'home')) return false;
+  kind = kind || pick(Object.keys(INSP)); const I = INSP[kind];
+  w.insp = { kind, until: onShift(w) ? S.t + shiftLeft(w) : S.t + 480 }; S.hr.insp++;
+  log(LL(`✨ Вдохновение у ${w.name}: ${I[0]} — ${I[2]}.`, `✨ Inspiration bei ${w.name}: ${I[0]} — ${I[3]}.`), 'good');
+  if (kind === 'erfinder') { w.insp.until = S.t + 120; if (!S.events.some(e => e.kind === 'kaizen')) fireEvent('kaizen', { data: { wid: w.id, insp: true } }, true); } w.badge = badgeOf(w);
+  return true;
+}
+// Каждую игровую минуту: настроение тянется к сумме модификаторов; срывы, вдохновение, заявление об уходе
+function moodTick() {
+  const ms = {};
+  for (const w of S.workers) {
+    if (w.mods.length && w.mods.some(m => m.until <= S.t)) w.mods = w.mods.filter(m => m.until > S.t);
+    const tg = moodTarget(w); w.mood += (tg - w.mood) * 0.012;
+    if (w.brk && S.t >= w.brk.until) { w.brk = null; moodMod(w, 'cath', 'Выпустил пар', 'Dampf abgelassen', 8, 1440); }
+    if (w.insp && S.t >= w.insp.until) w.insp = null;
+    if (inspOn(w, 'mentor') && !w.away) ms[w.shift] = true;
+    const busy = w.job && ['home', 'strike', 'train', 'mbreak'].includes(w.job.type);
+    if (!w.away && onShift(w) && !w.brk && !w.insp && !busy && !w.temp) {
+      const t1 = brkThr(w), t2 = t1 - 15;
+      if (w.mood < t2 && rnd() < (t2 - w.mood) / t2 / 200) mentalBreak(w, true);
+      else if (w.mood < t1 && rnd() < (t1 - w.mood) / t1 / 300) mentalBreak(w, false);
+      else if (w.mood > 85 && rnd() < (w.mood - 85) / 15 / 3500) inspire(w); // редко: примерно раз в несколько дней на человека
+    }
+    if (!w.temp) { // ниже 10 двое суток — заявление об уходе
+      if (w.mood < 10) { w.lowSince = w.lowSince || S.t; if (S.t - w.lowSince >= 2880 && !S.events.some(e => e.kind === 'kuendigung' && e.data.wid === w.id)) { w.lowSince = S.t; fireEvent('kuendigung', { data: { wid: w.id } }, true); } }
+      else w.lowSince = 0;
+    }
+    if (mentoring(w)) growAttr(w, 'komm', 0.0004);
+    w.badge = badgeOf(w);
+  }
+  S.mentorShift = ms; updateMorale();
+}
+// Отношения: раз в 10 минут люди одной смены, работающие рядом (до 5 клеток), сближаются или ссорятся — по совместимости
+const REL_FRIEND = 40, REL_RIVAL = -40;
+function compat(a, b) {
+  const lo = Math.min(a.id, b.id), hi = Math.max(a.id, b.id), h = Math.sin(lo * 12.9898 + hi * 78.233) * 43758.5453;
+  let c = (h - Math.floor(h)) * 1.6 - 0.65; // от −0,65 до +0,95: друзей больше, чем врагов
+  for (const w of [a, b]) { if (hasT(w, 'gesellig')) c += 0.35; if (hasT(w, 'teamplayer')) c += 0.25; if (hasT(w, 'griesgram')) c -= 0.3; if (hasT(w, 'reizbar')) c -= 0.35; if (hasT(w, 'einzelg')) c -= 0.3; }
+  if ((hasT(a, 'laut') && hasT(b, 'einzelg')) || (hasT(b, 'laut') && hasT(a, 'einzelg'))) c -= 0.6;
+  c += (AT(a, 'komm') + AT(b, 'komm') - 20) * 0.02;
+  return clamp(c, -1, 1);
+}
+function socialTick() {
+  const here = S.workers.filter(w => !w.away);
+  for (const w of here) w.near = [];
+  for (let i = 0; i < here.length; i++) for (let j = i + 1; j < here.length; j++) {
+    const a = here[i], b = here[j]; if (a.shift !== b.shift || Math.hypot(a.x - b.x, a.y - b.y) > 5) continue;
+    a.near.push(b.id); b.near.push(a.id);
+    const r0 = a.rel[b.id] || 0, r = clamp(r0 + 2 * compat(a, b) + (a.mentor === b.id || b.mentor === a.id ? 1 : 0), -100, 100); a.rel[b.id] = b.rel[a.id] = r;
+    if (r0 < REL_FRIEND && r >= REL_FRIEND) log(LL(`🤝 ${a.name} и ${b.name} подружились.`, `🤝 ${a.name} und ${b.name} sind jetzt befreundet.`), 'good');
+    if (r0 > REL_RIVAL && r <= REL_RIVAL) log(LL(`😒 ${a.name} и ${b.name} не ладят.`, `😒 ${a.name} und ${b.name} können sich nicht leiden.`), 'warn');
+    if (r <= REL_RIVAL && !a.temp && !b.temp && rnd() < 0.006 * (hasT(a, 'reizbar') || hasT(b, 'reizbar') ? 2 : 1)) {
+      quarrel(a, b); log(LL(`💢 ${a.name} и ${b.name} поругались — оба полчаса работают медленнее.`, `💢 ${a.name} und ${b.name} haben sich gestritten — beide arbeiten eine halbe Stunde langsamer.`), 'warn');
+    }
+  }
+}
+function initRelations() { // старая команда уже знакома друг с другом
+  for (let i = 0; i < S.workers.length; i++) for (let j = i + 1; j < S.workers.length; j++) { const a = S.workers[i], b = S.workers[j], r = Math.round(compat(a, b) * (a.shift === b.shift ? 50 : 30)); a.rel[b.id] = b.rel[a.id] = r; }
+}
+const friendsOf = w => S.workers.filter(o => o !== w && (w.rel[o.id] || 0) >= REL_FRIEND), rivalsOf = w => S.workers.filter(o => o !== w && (w.rel[o.id] || 0) <= REL_RIVAL);
+// Похвала, личная премия, прибавка — из карточки человека
+function praise(wid) { const w = workerById(wid); if (!w || S.t - (w.praiseT ?? -1e9) < 3 * 1440) return false; w.praiseT = S.t; moodMod(w, 'lob', 'Похвала мастера', 'Lob vom Meister', 6, 1440); log(LL(`👏 Мастер похвалил ${w.name}.`, `👏 Der Meister lobt ${w.name}.`), 'good'); return true; }
+const BONUS_W = 200;
+function bonusW(wid) { const w = workerById(wid); if (!w || S.money < BONUS_W || S.t - (w.bonusT ?? -1e9) < 3 * 1440) return false; pay(BONUS_W, 'wages'); w.bonusT = S.t; moodMod(w, 'bonusW', 'Личная премия', 'Persönliche Prämie', 10, 2 * 1440); log(LL(`💶 Личная премия ${w.name}: ${eur(BONUS_W)}.`, `💶 Persönliche Prämie für ${w.name}: ${eur(BONUS_W)}.`), 'good'); return true; }
+function raiseWage(wid) { const w = workerById(wid); if (!w || w.temp) return false; w.wage += 1; moodMod(w, 'raise', 'Прибавка к зарплате', 'Lohnerhöhung', 5, 2 * 1440); log(LL(`⬆ ${w.name}: зарплата ${w.wage} €/ч.`, `⬆ ${w.name}: Lohn jetzt ${w.wage} €/h.`), 'info'); return true; }
+const stayChance = w => clamp((w.mood - 20) / 50, 0.25, 0.95);
+function quitWorker(w, why) {
+  S.hr.quits++; for (const p of pupilsOf(w)) p.mentor = null;
+  log(TXF(lg => `✉ ${w.name} ${inLang(why, lg)}.`), 'bad'); removeWorker(w);
+  addMorale(-3, `Ушёл ${w.name.split(' ')[0]}`, `${w.name.split(' ')[0]} ist weg`, 1440, 'quit');
+}
+
+// Подмена (как бригадир): если в смене нет никого с приоритетом на работу (болезнь, травма, уход), её берут двое лучших по навыку — как приоритет 4
+function coverTick() {
+  const c0 = clock(), here = S.workers.filter(w => !w.away && onShift(w) && !w.temp), cov = {};
+  const due = w => activeShifts().includes(w.shift) && inShift(w.shift, c0) && !(w.sickUntil > S.t) && !(w.offUntil > S.t); // по графику в смене (опоздание по Gleitzeit — не повод)
+  if (here.length) for (const k of WORKS) {
+    if (S.workers.some(w => due(w) && w.prio[k] > 0)) continue;
+    const c = here.filter(w => (w.skills[k] || 0) >= 2).sort((a, b) => b.skills[k] - a.skills[k]).slice(0, 2);
+    if (c.length) cov[k] = c.map(w => w.id);
+  }
+  const prev = S.cover || {};
+  for (const [k, ids] of Object.entries(cov)) if (!prev[k]) { const ns = ids.map(id => workerById(id).name.split(' ')[0]).join(', '); log(LL(`🔁 В смене никто не стоит на работу «${WORK_RU[k]}» — подменяют ${ns} (как приоритет 4). Лучше назначить своего во вкладке «Люди».`, `🔁 In der Schicht steht niemand auf „${WORK_DE[k]}“ — es springen ein: ${ns} (wie Priorität 4). Besser jemanden im Reiter „Team“ einteilen.`), 'warn'); }
+  S.cover = cov;
+}
+// Полночь: навыки выше 9 без практики забываются, возраст, тренажёрный зал; насыщение опыта за день сбрасывается
+function peopleNight() {
+  for (const w of S.workers) {
+    if (!w.attr) continue;
+    w.xpMin = {};
+    for (const k of WORKS) if (w.skills[k] > 9 && S.t - (w.lastPr[k] ?? w.hiredAt) > 1440) w.skills[k] = Math.max(9, w.skills[k] - 0.03);
+    w.age += 1 / (12 * MONTH_DAYS); // игровой год — 60 дней
+    if (w.age > 50) { const d = (w.age > 55 ? 0.03 : 0.02) * (S.upgrades.fitness ? 0.5 : 1); growAttr(w, 'kraft', -d); growAttr(w, 'ausdauer', -d); }
+    if (S.upgrades.fitness) { growAttr(w, 'ausdauer', 0.06); growAttr(w, 'kraft', 0.03); }
+  }
+}
+// 06:00: сезонный грипп, честолюбивые просят прибавку
+function peopleMorning() {
+  fluCheck();
+  if (S.eventsOn) for (const w of S.workers) if (hasT(w, 'ehrgeizig') && !w.temp && S.t - (w.raiseT ?? w.hiredAt) > 10 * 1440 && !S.events.some(e => e.kind === 'gehalt')) { w.raiseT = S.t; fireEvent('gehalt', { data: { wid: w.id } }, true); break; }
+}
+
+// ================= Безопасность: несчастные случаи, СИЗ, грипп =================
+// СИЗ (PSA) надевают в начале смены: с правилом PSA-Pflicht — все, без него — примерно половина. Комплект — на 2 смены.
+function dressPPE(w) {
+  const p = pol('psa') || hasT(w, 'gewissenhaft') ? 1 : hasT(w, 'schusselig') ? 0.25 : hasT(w, 'faul') ? 0.35 : 0.55;
+  w.ppe = S.mats.psa >= 0.5 && rnd() < p; if (w.ppe) S.mats.psa -= 0.5;
+}
+// После каждой операции: шанс несчастного случая. Опасные участки (Rauen, зачистка, прессы с краном, обрезка) — в 4 раза опаснее.
+function accidentCheck(w, s) {
+  if (!w.attr || S.noAcc) return; // S.noAcc — для тестов баланса
+  const g = s && s.g, danger = DANGER.includes(g);
+  let p = danger ? 0.00015 : 0.00003;
+  p *= w.energy < 25 ? 2.5 : w.energy < 50 ? 1.4 : 1;
+  if (hasT(w, 'schusselig')) p *= 2;
+  if (danger && !w.ppe) p *= 2.5;
+  if (s && s.dirt) p *= 1 + 2 * s.dirt;
+  p *= 1.5 - 0.05 * AT(w, 'konz');
+  if (pol('akkord')) p *= 1.3; if (overtimeNow(w)) p *= 1.3; if (w.shift === 'N') p *= 1.2; if (pol('psa')) p *= 0.5;
+  if (rnd() < p) accident(w, s);
+}
+function accident(w, s) {
+  if (!w || w.away || w.sickUntil > S.t || (w.job && w.job.type === 'home')) return false;
+  let days = 1 + Math.floor(Math.pow(rnd(), 2.2) * 9.99); // 1–10 дней, чаще лёгкие if (hasT(w, 'zaeh')) days = Math.ceil(days / 2);
+  const g = s && s.g, noPPE = DANGER.includes(g) && !w.ppe, dirty = s && s.dirt > 0.6, ot = overtimeNow(w), viol = noPPE || dirty || ot;
+  const where = s ? s.de : LL('в проходе', 'im Gang'), why = [noPPE && LL('без СИЗ', 'ohne PSA'), dirty && LL('грязь у станка', 'Schmutz an der Maschine'), ot && LL('сверхурочные', 'Überstunden'), w.energy < 25 && LL('сильно устал', 'völlig übermüdet'), hasT(w, 'schusselig') && LL('растяпа', 'Schussel')].filter(Boolean);
+  w.sickUntil = (Math.floor(S.t / 1440) + days) * 1440 + DAY_START - 60; w.injured = true;
+  interrupt(w); w.job = { type: 'home', steps: [{ go: EXIT }, { leave: true }], i: 0 };
+  S.hr.acc++; S.lastAccident = S.t; S.hr.accLog.unshift({ t: S.t, name: w.name, st: where, days, viol, why }); if (S.hr.accLog.length > 20) S.hr.accLog.pop();
+  const fine = viol ? 1500 : 0; if (fine) { pay(fine, 'penalties'); S.hr.fines += fine; addRep(-2); }
+  for (const o of S.workers) if (o !== w && !o.away && o.shift === w.shift) { if (Math.hypot(o.x - w.x, o.y - w.y) < 8) moodMod(o, 'unfallSeen', 'Видел несчастный случай', 'Hat den Unfall gesehen', -8, 1440); else moodMod(o, 'unfall', 'Несчастный случай в цехе', 'Unfall im Werk', -3, 1440); }
+  const wy = TXF(lg => why.map(x => inLang(x, lg)).join(', '));
+  const text = TXF(lg => lg === 'de' ? `${w.name} hat sich verletzt (${inLang(where, lg)}): ${days} ${days === 1 ? 'Tag' : 'Tage'} krankgeschrieben${why.length ? ` (${inLang(wy, lg)})` : ''}. Unfallanzeige an die BG${fine ? `, Bußgeld ${eur(fine)} wegen Verstoß gegen die Vorschriften, Ruf −2` : ''}.`
+    : `${w.name} травмировался: ${inLang(where, lg)}, на больничном ${days} ${days === 1 ? 'день' : days < 5 ? 'дня' : 'дней'}${why.length ? ` (${inLang(wy, lg)})` : ''}. Отчёт в BG (страховой союз)${fine ? `, штраф ${eur(fine)} за нарушение правил, репутация −2` : ''}.`);
+  log(TXF(lg => `🚑 Arbeitsunfall: ${inLang(text, lg)}`), 'bad');
+  fireEvent('unfall', { data: { text, x: Math.round(w.x), y: Math.round(w.y) } }, true);
+  return true;
+}
+// Сезонный грипп: декабрь–февраль, утром — шанс заболеть (плохое настроение и больные в смене — чаще, крепкие — реже)
+function fluCheck() {
+  if (![11, 0, 1].includes(month())) return;
+  const ill = []; const sickBy = {}; for (const w of S.workers) if (w.flu && w.sickUntil > S.t) sickBy[w.shift] = true;
+  for (const w of S.workers) {
+    if (w.temp || w.sickUntil > S.t) continue;
+    if (rnd() < 0.025 * (w.mood < 40 ? 2 : 1) * (hasT(w, 'zaeh') ? 0.4 : 1) * (sickBy[w.shift] ? 1.5 : 1)) {
+      w.sickUntil = (Math.floor(S.t / 1440) + RI(1, 3)) * 1440 + DAY_START - 60; w.flu = true; S.hr.flu++; ill.push(w.name);
+      if (!w.away) { interrupt(w); w.job = { type: 'home', steps: [{ go: EXIT }, { leave: true }], i: 0 }; }
+    }
+  }
+  if (ill.length) { const text = LL(`Сезонный грипп: заболели ${ill.join(', ')}. Зарплата идёт (Lohnfortzahlung).`, `Grippewelle: krank sind ${ill.join(', ')}. Der Lohn läuft weiter (Lohnfortzahlung).`); log(TXF(lg => `🤧 ${inLang(text, lg)}`), 'bad'); fireEvent('grippe', { data: { text } }, true); }
+}
+
+// ================= Календарь и сезоны =================
+// Игровой месяц — 5 дней (год — 60 дней, как в RimWorld). Начинаем в сентябре: впереди пик зимних шин.
+const MONTH_DAYS = 5, START_MONTH = 8;
+const MONTHS_RU = ['январь', 'февраль', 'март', 'апрель', 'май', 'июнь', 'июль', 'август', 'сентябрь', 'октябрь', 'ноябрь', 'декабрь'];
+const MONTHS_DE = ['Januar', 'Februar', 'März', 'April', 'Mai', 'Juni', 'Juli', 'August', 'September', 'Oktober', 'November', 'Dezember'];
+const SEASON = [1.1, 1.0, 0.9, 0.9, 0.9, 0.8, 0.75, 0.8, 1.0, 1.4, 1.5, 1.5]; // спрос по месяцам: октябрь–декабрь — зимние шины, летом спад
+const month = () => (START_MONTH + Math.floor((day() - 1 + S.calOff) / MONTH_DAYS)) % 12;
+const seasonMul = () => SEASON[month()];
+const monthName = (m = month()) => L(MONTHS_RU[m], MONTHS_DE[m]);
+const seasonIcon = (m = month()) => [11, 0, 1].includes(m) ? '❄' : [2, 3, 4].includes(m) ? '🌱' : [5, 6, 7].includes(m) ? '☀' : '🍂';
+
+// ================= Качество шины: сорт A / B / C =================
+// Каждый участок (Rauen, ремонт, намотка, обрезка) добавляет оценку: навык, внимательность, вдохновение, черты; переделка и срезанный край — минус.
+const QUAL_G = ['rauen', 'ausschl', 'pflaster', 'fuellen', 'aufbau', 'entgr'];
+const GRADE = { A: { mul: 1.08, ru: 'A — премиум (+8 % к цене)', de: 'A — Premium (+8 % Preis)' }, B: { mul: 1, ru: 'B — стандарт', de: 'B — Standard' }, C: { mul: 0.8, ru: 'C — уценка (−20 %)', de: 'C — B-Ware (−20 %)' } };
+const qPoint = (w, sk, s) => sk / 10 + (AT(w, 'konz') - 10) * 0.012 + (inspOn(w, 'blick') ? 0.25 : 0) + (hasT(w, 'perfekt') ? 0.08 : 0) - (hasT(w, 'flink') ? 0.04 : 0) - (pol('akkord') ? 0.05 : 0) - s.dirt * 0.1;
+function gradeOf(t) {
+  const q = (t.qn ? t.qs / t.qn : 0.7) + (resDone('spc') ? 0.04 : 0) + (resDone('wickel') ? 0.03 : 0) + (S.upgrades.cncrauen ? 0.03 : 0) + (S.upgrades.mes ? 0.02 : 0) + (S.upgrades.shearo ? 0.02 : 0) - 0.15 * (t.rework || 0) - (t.edge ? 0.04 : 0);
+  return q >= 0.8 ? 'A' : q < 0.6 ? 'C' : 'B';
+}
+
+// ================= Правила предприятия (как законы во Frostpunk) =================
+// Каждое правило — компромисс; одно и то же правило можно менять не чаще раза в 7 дней.
+const POLICIES = [
+  { id: 'akkord', de: 'Akkordlohn', ru: 'Сдельная оплата', plus: ['+15 % к скорости работы; большинству нравится (+2)', '+15 % Arbeitstempo; den meisten gefällt es (+2)'], minus: ['брака на 25 % больше, шины чуть хуже по сорту, несчастных случаев на 30 % больше; аккуратные и перфекционисты недовольны (−6)', '25 % mehr Ausschuss, etwas schlechtere Reifenklasse, 30 % mehr Unfälle; Sorgfältige und Perfektionisten sind unzufrieden (−6)'] },
+  { id: 'ueberstunden', de: 'Überstunden', ru: 'Сверхурочные', plus: ['последняя смена работает на 2 ч дольше: при 2 сменах — до 24:00, при 1 — до 16:00 (при 3 сменах не действует)', 'die letzte Schicht arbeitet 2 h länger: bei 2 Schichten bis 24:00, bei 1 bis 16:00 (bei 3 Schichten ohne Wirkung)'], minus: ['доплата +25 % за эти часы, усталость ×1,3, настроение −5, травм больше', '+25 % Zuschlag für diese Stunden, Ermüdung ×1,3, Stimmung −5, mehr Unfälle'] },
+  { id: 'rauchverbot', de: 'Rauchverbot', ru: 'Запрет курения', plus: ['курильщики не уходят на перекуры каждые 2 часа — меньше простоев', 'Raucher gehen nicht mehr alle 2 Stunden raus — weniger Leerlauf'], minus: ['курильщики недовольны (−8)', 'Raucher sind sauer (−8)'] },
+  { id: 'psa', de: 'PSA-Pflicht', ru: 'СИЗ обязательно', plus: ['все в наушниках, перчатках и очках: травм вдвое меньше, шум не мешает', 'alle tragen Gehörschutz, Handschuhe und Brille: halb so viele Unfälle, der Lärm stört nicht'], minus: ['работа на 3 % медленнее, СИЗ уходят вдвое быстрее', 'Arbeit 3 % langsamer, doppelter PSA-Verbrauch'] },
+  { id: 'fuenfs', de: '5S-Pflicht', ru: '5S: уборка в конце смены', plus: ['последние 20 минут смены все убирают у станков: чисто, поломок на 15 % меньше', 'in den letzten 20 Minuten der Schicht putzen alle an den Maschinen: sauber, 15 % weniger Ausfälle'], minus: ['20 минут работы в каждую смену', '20 Minuten Arbeitszeit pro Schicht'] },
+  { id: 'gleitzeit', de: 'Gleitzeit', ru: 'Гибкий график', plus: ['настроение +5', 'Stimmung +5'], minus: ['часть людей приходит до 40 мин позже и уходит раньше: утро и вечер укомплектованы хуже', 'manche kommen bis zu 40 min später und gehen früher: morgens und abends ist die Halle dünner besetzt'] },
+  { id: 'praemie', de: 'Wochenprämie', ru: 'Недельная премия', plus: ['настроение +6', 'Stimmung +6'], minus: ['12 € в день на человека (84 € в неделю)', '12 € pro Person und Tag (84 € pro Woche)'] },
+  { id: 'rotation', de: 'Job-Rotation', ru: 'Ротация участков', plus: ['после 2 ч на одной работе люди переходят к другой: навыки растут по всем работам, опыт насыщается медленнее', 'nach 2 h an einer Arbeit wechselt man zur nächsten: Fähigkeiten wachsen überall, Erfahrung sättigt langsamer'], minus: ['работа на 5 % медленнее, иногда не у своего станка', 'Arbeit 5 % langsamer, manchmal nicht an der eigenen Maschine'] },
+];
+const POL_BY = Object.fromEntries(POLICIES.map(p => [p.id, p]));
+const POL_CD = 7 * 1440;
+const polLeft = id => Math.max(0, (S.polT[id] ?? -1e9) + POL_CD - S.t);
+function setPolicy(id, on, force = false) {
+  const p = POL_BY[id]; if (!p) return { ok: false, reason: 'unknown' };
+  on = !!on; if (pol(id) === on) return { ok: true, same: true };
+  const left = polLeft(id); if (left > 0 && !force) return { ok: false, reason: 'cooldown', left: Math.round(left) };
+  S.pol[id] = on; S.polT[id] = S.t;
+  if (id === 'psa' && on) for (const w of S.workers) if (!w.away && !w.ppe) dressPPE(w);
+  log(LL(`📜 Правило «${p.ru}» (${p.de}) ${on ? 'введено' : 'отменено'}. Следующее изменение — через 7 дней.`, `📜 Regel „${p.de}“ ${on ? 'eingeführt' : 'aufgehoben'}. Die nächste Änderung ist in 7 Tagen möglich.`), 'info');
+  return { ok: true };
+}
+// Kaizen: идеи рабочих (раз в неделю и от вдохновения «Erfinder»). Дёшево, навсегда, каждая — один раз.
+const KAIZEN = [
+  { id: 'raspel', ru: 'держатель для запасных ножей прямо у рауавтомата', de: 'ein Halter für Ersatzmesser direkt am Rauautomaten', fx: ['Rauen на 5 % быстрее', 'Rauen 5 % schneller'], apply() { S.tMul.rauen *= 0.95; } },
+  { id: 'wickelmark', ru: 'метки на барабане намоточной машины', de: 'Markierungen an der Wickeltrommel', fx: ['намотка на 5 % быстрее', 'Wickeln 5 % schneller'], apply() { S.tMul.aufbau *= 0.95; } },
+  { id: 'checkliste', ru: 'чек-лист перед намоткой', de: 'eine Checkliste vor dem Wickeln', fx: ['брака на намотке на 15 % меньше', '15 % weniger Ausschuss beim Wickeln'], apply() { S.defG.aufbau *= 0.85; } },
+  { id: 'besen', ru: 'щётка и совок у каждого станка', de: 'Besen und Schaufel an jeder Maschine', fx: ['пыли на 10 % меньше', '10 % weniger Staub'], apply() { S.dustMul *= 0.9; } },
+  { id: 'teilekiste', ru: 'ящик с ходовыми запчастями прямо у линии', de: 'eine Kiste mit gängigen Ersatzteilen direkt an der Linie', fx: ['ремонт на 10 % быстрее', 'Reparaturen 10 % schneller'], apply() { S.repairMul *= 1.1; } },
+  { id: 'lampe', ru: 'лампа-щуп для осмотра внутри каркаса', de: 'eine Stablampe für den Blick ins Karkasseninnere', fx: ['входной осмотр на 5 % быстрее', 'Eingangsprüfung 5 % schneller'], apply() { S.tMul.pruef *= 0.95; } },
+  { id: 'kranhaken', ru: 'быстросъёмный захват крана у прессов', de: 'ein Schnellgreifer am Pressenkran', fx: ['снять и поставить шину на 5 % быстрее', 'Reifen 5 % schneller ab- und aufsetzen'], apply() { S.liftMul *= 0.95; } },
+  { id: 'entgratmesser', ru: 'график заточки ножей обрезки', de: 'ein Schleifplan für die Entgratmesser', fx: ['обрезка на 5 % быстрее', 'Entgraten 5 % schneller'], apply() { S.tMul.entgr *= 0.95; } },
+  { id: 'spachtel', ru: 'подогревать пистолет-экструдер заранее', de: 'die Extruderpistole vorheizen', fx: ['шпаклёвка на 5 % быстрее', 'Spachteln 5 % schneller'], apply() { S.tMul.fuellen *= 0.95; } },
+  { id: 'fotostandard', ru: 'фото-образцы правильной зачистки у станков', de: 'Fotostandards fürs richtige Ausschleifen an den Maschinen', fx: ['брака на ремонте на 10 % меньше', '10 % weniger Ausschuss bei der Reparatur'], apply() { S.defG.ausschl *= 0.9; S.defG.fuellen *= 0.9; } },
+];
 
 // ================= Кредит и ночь =================
 // ================= Бизнес: банк, счета клиентов, страховка, налоги, отчёт =================
@@ -3434,21 +3977,27 @@ function simulate(dt) {
   S.t += dt;
   const c = clock();
   // Зарплата: кто в цехе (кроме бастующих) + больничные в часы своей смены (Lohnfortzahlung)
-  let wage = 0; for (const w of S.workers) if ((!w.away && !(w.job && w.job.type === 'strike')) || (w.away && w.sickUntil > S.t && onShift(w))) wage += w.wage * (w.shift === 'N' ? 1.25 : 1);
+  let wage = 0; for (const w of S.workers) if ((!w.away && !(w.job && w.job.type === 'strike')) || (w.away && w.sickUntil > S.t && onShift(w))) wage += w.wage * (w.shift === 'N' ? 1.25 : 1) * (!w.away && overtimeNow(w) ? 1.25 : 1); // ночные и сверхурочные +25 %
   wage *= dt / 60; S.money -= wage; S.stats.wages += wage;
-  if (prev < SHIFT_CHANGE && c >= SHIFT_CHANGE) { log(S.shiftModel === 1 ? LL('14:00 — конец смены. До утра цех стоит, догреваются только прессы.', '14:00 — Schichtende. Bis morgen früh steht das Werk, nur die Pressen heizen fertig.') : LL('14:00 — пересменка: Frühschicht уходит, Spätschicht приходит.', '14:00 — Schichtwechsel: Die Frühschicht geht, die Spätschicht kommt.'), 'info'); shiftEnd(); }
-  if (prev < DAY_END && c >= DAY_END && S.shiftModel >= 2) { log(S.shiftModel === 3 ? LL('22:00 — пересменка: приходит Nachtschicht (+25 % к зарплате).', '22:00 — Schichtwechsel: Die Nachtschicht kommt (+25 % Lohn).') : LL('22:00 — конец смены. Ночью только догреваются шины в прессах.', '22:00 — Schichtende. Nachts heizen nur die Reifen in den Pressen fertig.'), 'info'); shiftEnd(); }
+  const ot = otOn(), otEnd = ot ? shiftB(lastShift()) % 1440 : -1;
+  if (prev < SHIFT_CHANGE && c >= SHIFT_CHANGE) { log(S.shiftModel === 1 ? (ot ? LL('14:00 — Überstunden: смена работает до 16:00 (+25 %).', '14:00 — Überstunden: Die Schicht arbeitet bis 16:00 (+25 %).') : LL('14:00 — конец смены. До утра цех стоит, догреваются только прессы.', '14:00 — Schichtende. Bis morgen früh steht das Werk, nur die Pressen heizen fertig.')) : LL('14:00 — пересменка: Frühschicht уходит, Spätschicht приходит.', '14:00 — Schichtwechsel: Die Frühschicht geht, die Spätschicht kommt.'), 'info'); if (!(ot && S.shiftModel === 1)) shiftEnd(); }
+  if (prev < DAY_END && c >= DAY_END && S.shiftModel >= 2) { log(S.shiftModel === 3 ? LL('22:00 — пересменка: приходит Nachtschicht (+25 % к зарплате).', '22:00 — Schichtwechsel: Die Nachtschicht kommt (+25 % Lohn).') : ot ? LL('22:00 — Überstunden: Spätschicht работает до 24:00 (+25 %).', '22:00 — Überstunden: Die Spätschicht arbeitet bis 24:00 (+25 %).') : LL('22:00 — конец смены. Ночью только догреваются шины в прессах.', '22:00 — Schichtende. Nachts heizen nur die Reifen in den Pressen fertig.'), 'info'); if (!ot) shiftEnd(); }
+  if (ot && (otEnd === 0 ? c < prev : prev < otEnd && c >= otEnd)) { log(LL('Сверхурочные закончились, смена ушла домой.', 'Die Überstunden sind vorbei, die Schicht geht nach Hause.'), 'info'); shiftEnd(); }
   if (c < prev) { // полночь
     S.money -= S.overhead; S.stats.overhead += S.overhead;
     log(LL(`День ${day() - 1}: готово ${S.doneToday} шин, пройдено ${Math.round(S.stats.walkToday * 1.5)} м. Аренда/энергия −${eur(S.overhead)}.`, `Tag ${day() - 1}: ${S.doneToday} Reifen fertig, ${Math.round(S.stats.walkToday * 1.5)} m gelaufen. Miete/Energie −${eur(S.overhead)}.`), 'info');
+    if (pol('praemie')) pay(12 * S.workers.filter(w => !w.temp).length, 'wages'); // Wochenprämie: 12 € в день на человека
     closeDay(S.doneToday);
     S.lastDay = { done: S.doneToday, walk: Math.round(S.stats.walkToday * 1.5) };
     S.doneYesterday = S.doneToday; S.doneToday = 0; S.stats.walkToday = 0; S.breaksToday = 0;
     const old = S.orders.filter(o => o.state === 'done' && !S.trucks.some(t => t.order === o.id)); if (old.length > 12) { const drop = new Set(old.slice(0, old.length - 12)); S.orders = S.orders.filter(o => !drop.has(o)); }
-    const tw = S.workers.reduce((a, w) => a + (w.trait === 'teamplayer' ? 2 : w.trait === 'griesgram' ? -2 : 0), 0); // настроение тянется к базовому
-    S.morale += (moraleBase() + tw - S.morale) * 0.25;
+    peopleNight();
   }
-  if (prev < DAY_START && c >= DAY_START) { log(LL(`День ${day()}: 06:00, ${S.shiftModel === 3 ? 'пересменка: Nachtschicht → Frühschicht' : 'начало Frühschicht'}.`, `Tag ${day()}: 06:00, ${S.shiftModel === 3 ? 'Schichtwechsel: Nachtschicht → Frühschicht' : 'Beginn der Frühschicht'}.`), 'info'); if (S.shiftModel === 3) shiftEnd(); else S.shiftBreaks = 0; makeCands(); }
+  if (prev < DAY_START && c >= DAY_START) { log(LL(`День ${day()}: 06:00, ${S.shiftModel === 3 ? 'пересменка: Nachtschicht → Frühschicht' : 'начало Frühschicht'}.`, `Tag ${day()}: 06:00, ${S.shiftModel === 3 ? 'Schichtwechsel: Nachtschicht → Frühschicht' : 'Beginn der Frühschicht'}.`), 'info'); if (S.shiftModel === 3) shiftEnd(); else S.shiftBreaks = 0; makeCands(); peopleMorning(); }
+  // Люди: настроение — раз в игровую минуту, отношения — раз в 10 минут (не каждый кадр)
+  if (working()) S.planMin += dt;
+  S.moodAcc += dt; if (S.moodAcc >= 1) { S.moodAcc -= 1; moodTick(); coverTick(); }
+  S.socAcc += dt; if (S.socAcc >= 10) { S.socAcc -= 10; socialTick(); }
   updateTrucks(dt); collect();
   for (let i = S.matOrders.length - 1; i >= 0; i--) { const m = S.matOrders[i]; if (S.t >= m.at) { S.mats[m.key] += m.qty; S.cnt.mats++; log(LL(`Поставка: ${m.qty} × ${MATS[m.key].de}.`, `Lieferung: ${m.qty} × ${MATS[m.key].de}.`), 'good'); S.matOrders.splice(i, 1); } }
   if (S.autoBuy && S.t >= (S.buyCheck || 0)) for (const [k, m] of Object.entries(MATS)) { S.buyCheck = S.t + 2; const coming = S.matOrders.filter(o => o.key === k).reduce((a, o) => a + o.qty, 0); if (S.mats[k] + coming < m.min && S.money > matPrice(k)) buy(k, true); }
@@ -3464,12 +4013,12 @@ function simulate(dt) {
     S.acceptCheck = S.t + 5; const pipe = pipeCount();
     const o = pipe < 150 && S.offers.find(feasible); if (o) { log(LL(`Автопринятие: ${o.customer}, ${o.qty} шин.`, `Automatisch angenommen: ${o.customer}, ${o.qty} Reifen.`), 'info'); acceptOffer(o.id); }
   }
-  if (S.t - S.lastOffer > (evOn('winter') ? 45 : 90) && S.offers.length < S.offerSlots && isDay()) { S.lastOffer = S.t; makeOffer(); }
+  if (S.t - S.lastOffer > (evOn('winter') ? 45 : 90) / seasonMul() && S.offers.length < S.offerSlots && isDay()) { S.lastOffer = S.t; makeOffer(); } // сезон: зимой запросы чаще, летом реже
   if (S.offers.some(o => S.t > o.expires)) S.offers = S.offers.filter(o => { if (S.t > o.expires) { log(LL(`Запрос ${o.customer} истёк.`, `Anfrage von ${o.customer} abgelaufen.`), 'muted'); return false; } return true; });
   for (let i = S.complaints.length - 1; i >= 0; i--) {
     const cpl = S.complaints[i]; if (S.t < cpl.at) continue;
     const f = (cpl.premium ? 2 : 1) * (cpl.strict || 1), pen = Math.round(350 * f), rp = Math.round(4 * Math.min(f, 1.5));
-    pay(pen, 'penalties'); addRep(-rp); complaintMark(cpl.order);
+    pay(pen, 'penalties'); addRep(-rp); complaintMark(cpl.order); addMorale(-3, 'Рекламация от клиента', 'Reklamation vom Kunden', 1440, 'rekl');
     log(LL(`Рекламация от ${cpl.order}: брак восстановленной шины (−${eur(pen)}, репутация −${rp}).`, `Reklamation von ${cpl.order}: fehlerhafter runderneuerter Reifen (−${eur(pen)}, Ruf −${rp}).`), 'bad'); S.complaints.splice(i, 1);
   }
   updateHooks(dt);
@@ -3592,6 +4141,7 @@ function render() {
     if (S.selected && S.selected.w === w) { ctx.strokeStyle = '#f0a030'; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(px, py, 12, 0, 7); ctx.stroke(); ctx.lineWidth = 1; }
     if (w.state === 'break') { ctx.fillStyle = '#1f2430'; ctx.font = '10px system-ui'; ctx.fillText('z', px + 7, py - 9); }
     if (w.act === 'strike' || w.act === 'train') { ctx.font = '12px system-ui'; ctx.fillText(w.act === 'strike' ? '✊' : '📚', px + 5, py - 8); }
+    else if (w.badge) { ctx.font = '12px system-ui'; ctx.textAlign = 'center'; ctx.fillText(w.badge, px, py - 13); ctx.textAlign = 'left'; } // срыв, вдохновение, плохое настроение
     ctx.fillStyle = 'rgba(20,24,32,.85)'; ctx.font = '9px system-ui'; ctx.textAlign = 'center'; ctx.fillText(w.name.split(' ')[0], px, py + 18); ctx.textAlign = 'left';
   }
   const c = clock(); let dark = 0; // ночь в схеме — лёгкая синеватая вуаль, карта остаётся читаемой
@@ -3609,9 +4159,13 @@ function render() {
 const $ = id => document.getElementById(id);
 let tab = 'overview';
 function jobText(w) {
-  if (w.away) return w.sickUntil > S.t ? L(`🤒 Больничный до ${fmtDT(w.sickUntil)}`, `🤒 Krankgeschrieben bis ${fmtDT(w.sickUntil)}`) : L(`Дома (смена ${SHIFTS[w.shift].t})`, `Zu Hause (Schicht ${SHIFTS[w.shift].t})`);
+  if (w.away) return w.sickUntil > S.t ? (w.injured ? L(`🚑 Травма, на больничном до ${fmtDT(w.sickUntil)}`, `🚑 Verletzt, krankgeschrieben bis ${fmtDT(w.sickUntil)}`) : w.flu ? L(`🤧 Грипп, на больничном до ${fmtDT(w.sickUntil)}`, `🤧 Grippe, krankgeschrieben bis ${fmtDT(w.sickUntil)}`) : L(`🤒 Больничный до ${fmtDT(w.sickUntil)}`, `🤒 Krankgeschrieben bis ${fmtDT(w.sickUntil)}`))
+    : w.offUntil > S.t ? L('😡 Ушёл домой посреди смены', '😡 Mitten in der Schicht heimgegangen') : L(`Дома (смена ${SHIFTS[w.shift].t})`, `Zu Hause (Schicht ${SHIFTS[w.shift].t})`);
   const j = w.job; if (!j) return L('Ждёт работу', 'Wartet auf Arbeit');
-  if (j.type === 'home') return w.sickUntil > S.t ? L('🤒 Заболел — идёт домой', '🤒 Krank — geht nach Hause') : L('Идёт домой', 'Geht nach Hause');
+  if (j.type === 'home') return w.injured ? L('🚑 Травма — уходит к врачу', '🚑 Verletzt — geht zum Arzt') : w.sickUntil > S.t ? L('🤒 Заболел — идёт домой', '🤒 Krank — geht nach Hause') : w.brk && w.brk.kind === 'home' ? L('😡 Срыв: уходит домой', '😡 Ausraster: geht nach Hause') : L('Идёт домой', 'Geht nach Hause');
+  if (j.type === 'smoke') return L('🚬 Перекур во дворе', '🚬 Zigarettenpause im Hof');
+  if (j.type === 'mbreak') return L('😤 Срыв: долгий перекур, обиделся', '😤 Ausraster: lange Pause, eingeschnappt');
+  if (j.type === 'fives') return L(`🧹 5S: уборка в конце смены — ${j.st.de}`, `🧹 5S: Putzen zum Schichtende — ${j.st.de}`);
   if (j.type === 'train') return j.i === 0 ? L(`📚 Идёт на Schulung: ${workName(j.work)}`, `📚 Geht zur Schulung: ${workName(j.work)}`) : `📚 Schulung: ${workName(j.work)} (${pct((j.steps[1].t || 0) / 60)}%)`;
   if (j.type === 'strike') return L('✊ Warnstreik на парковке', '✊ Warnstreik auf dem Parkplatz');
   if (j.type === 'clean') return L(`🧹 Генеральная уборка: ${j.st.de}`, `🧹 Großputz: ${j.st.de}`);
@@ -3666,11 +4220,13 @@ function renderSel() {
   const sel = S.selected, el = $('sel');
   if (!sel) { el.innerHTML = `<span class="muted">${L('Кликните или нажмите на рабочего или станцию. Пробел — пауза, 1/2/3 — скорость.', 'Klicke oder tippe auf eine Person oder Station. Leertaste — Pause, 1/2/3 — Tempo.')}</span>`; return; }
   if (sel.w) {
-    const w = sel.w, r = rankOf(w), tr = w.trait && TRAITS[w.trait], perks = WORKS.filter(k => tier(w, k)).map(k => PERKS[k][tier(w, k) - 1][0]);
+    const w = sel.w, r = rankOf(w), perks = WORKS.filter(k => tier(w, k)).map(k => PERKS[k][tier(w, k) - 1][0]), stl = statusLine(w);
     el.innerHTML = `<div class="row"><b>${w.name}</b><span class="muted">${w.role} · ${r.name} ★${r.lvl} <span class="shift">${SHIFTS[w.shift].de.slice(0, -6)} ${SHIFTS[w.shift].t}</span></span></div>
       <div>${jobText(w)}</div>
-      <div class="row"><span class="muted">${L('Силы', 'Kraft')}</span><div class="bar" style="flex:1"><i style="width:${w.energy}%;background:${w.energy < 28 ? 'var(--bad)' : 'var(--good)'}"></i></div></div>
-      <div class="muted" style="font-size:11px;margin-top:4px">${w.wage} ${L('€/ч', '€/h')}${tr ? ` · <span title="${traitDesc(tr)}">${tr[0]}</span>` : ''}${perks.length ? ` · ${L('перки', 'Perks')}: ${perks.join(', ')}` : ''} · <a href="#" data-go="workers" style="color:var(--info)">${L('навыки и обучение →', 'Fähigkeiten und Schulung →')}</a></div>`;
+      <div class="row"><span class="muted">${L('Энергия', 'Energie')}</span><div class="bar" style="flex:1"><i style="width:${w.energy}%;background:${w.energy < 28 ? 'var(--bad)' : 'var(--good)'}"></i></div></div>
+      <div class="row"><span class="muted">${L('Настроение', 'Stimmung')} <b class="${moodCls(w.mood)}">${moodIc(w)} ${Math.round(w.mood)}</b></span><div class="bar" style="flex:1"><i style="width:${w.mood}%;background:${w.mood < brkThr(w) ? 'var(--bad)' : w.mood < 55 ? 'var(--accent)' : 'var(--good)'}"></i></div></div>
+      ${stl ? `<div style="font-size:12px">${stl}</div>` : ''}
+      <div class="muted" style="font-size:11px;margin-top:4px">${w.wage} ${L('€/ч', '€/h')} · ${Math.floor(w.age)} ${L('лет', 'J.')} · ${w.traits.map(k => TRAITS[k][0]).join(', ')}${perks.length ? ` · ${L('перки', 'Perks')}: ${perks.join(', ')}` : ''} · <a href="#" data-go="workers" style="color:var(--info)">${L('карточка: настроение, характеристики →', 'Karte: Stimmung, Eigenschaften →')}</a></div>`;
   } else if (sel.st) {
     const s = sel.st;
     let q = s === HOOK_DRIVE ? (S.hook ? L('Конвейер работает', 'Hängebahn läuft') : L('Конвейер выключен', 'Hängebahn ist aus')) : s.kind === 'store' ? `${L('На складе', 'Im Lager')}: ${s.items.length}/${s.cap}`
@@ -3682,8 +4238,10 @@ function renderSel() {
     const b = s.broken, tech = b && b.tech && S.workers.find(w => w.id === b.tech), bp = b ? Math.round(Math.min(1, b.done / b.need) * 100) : 0, down = b ? Math.round(S.t - b.at) : 0;
     const br = b ? `<div class="bad" style="margin-top:3px">${L(`⚠ Поломка: ${b.de} — ${b.ru}. ${tech ? `Чинит ${tech.name.split(' ')[0]}: ${bp}%` : 'Ждёт техника.'} Простой ${down} мин.`, `⚠ Störung: ${b.de}. ${tech ? `${tech.name.split(' ')[0]} repariert: ${bp}%` : 'Wartet auf die Instandhaltung.'} Stillstand ${down} min.`)}</div>`
       : s.kind !== 'store' && s.wear !== undefined ? `<div class="muted">${L(`Износ ${Math.round(s.wear * 50)}% · пыль ${Math.round(s.dirt * 100)}% (пыль и износ → чаще поломки)`, `Verschleiß ${Math.round(s.wear * 50)}% · Staub ${Math.round(s.dirt * 100)}% (Staub und Verschleiß → mehr Ausfälle)`)}</div>` : '';
-    const tm = s.time ? +(s.time * (S.tMul[s.g] || 1)).toFixed(1) : 0;
-    el.innerHTML = `<div class="row"><b>${s.de}</b><span class="muted">${sub(s)}</span></div><div class="muted" style="margin:3px 0">${dsc(s)}</div><div>${q}</div>${s.work ? `<div class="muted">${L('Работа', 'Arbeit')}: ${workName(s.work)}${tm ? L(`, ~${tm} мин на шину`, `, ~${String(tm).replace('.', ',')} min pro Reifen`) : ''} · ${L('загрузка', 'Auslastung')} ${util(s)}%</div>` : ''}${br}`;
+    const tm = s.time ? +(s.time * (S.tMul[s.g] || 1)).toFixed(1) : 0, o = oee(s);
+    const oh = o ? `<div style="font-size:12px;margin-top:2px" title="${L('OEE = доступность (без поломок) × производительность (сколько сделано от идеала за время работы) × качество (доля без брака)', 'OEE = Verfügbarkeit (ohne Ausfälle) × Leistung (geschafft im Verhältnis zum Ideal) × Qualität (Anteil ohne Fehler)')}"><b class="${o.oee < 0.4 ? 'bad' : o.oee < 0.65 ? 'warn' : 'good'}">OEE ${pct(o.oee)} %</b> <span class="muted">= ${L('доступность', 'Verfügbarkeit')} ${pct(o.A)} % × ${L('производительность', 'Leistung')} ${pct(o.P)} % × ${L('качество', 'Qualität')} ${pct(o.Q)} %</span></div>` : '';
+    const risk = DANGER.includes(s.g) ? `<div class="warn" style="font-size:11px">🦺 ${L('Опасный участок: без СИЗ травмы в 2,5 раза чаще', 'Gefährliche Station: ohne PSA 2,5-mal so viele Unfälle')}${NOISY.includes(s.g) ? L(', шумно — без наушников настроение −4', ', laut — ohne Gehörschutz Stimmung −4') : ''}.</div>` : '';
+    el.innerHTML = `<div class="row"><b>${s.de}</b><span class="muted">${sub(s)}</span></div><div class="muted" style="margin:3px 0">${dsc(s)}</div><div>${q}</div>${s.work ? `<div class="muted">${L('Работа', 'Arbeit')}: ${workName(s.work)}${tm ? L(`, ~${tm} мин на шину`, `, ~${String(tm).replace('.', ',')} min pro Reifen`) : ''} · ${L('загрузка', 'Auslastung')} ${util(s)}%</div>` : ''}${oh}${risk}${br}`;
   } else if (sel.d) el.innerHTML = `<b>${sel.d.label || sel.d.id}</b><div class="muted">${dsc(sel.d)}</div>` + (sel.d.id === 'scanner' && S.scans.length ? scanList(8) : '');
 }
 // ---------- Мелочи для панелей ----------
@@ -3712,22 +4270,69 @@ function goalCard(g) {
   const G = GOAL_BY[g.id], [v, m, f, note] = G.p(g);
   return `<div class="card"><div class="row"><b>🎯 ${goalT(G)}</b><span class="muted">${note || `${num(Math.min(v, m))} / ${num(m)}`}</span></div><div class="muted" style="font-size:11px">${goalD(G)}</div>${bar(f !== undefined ? f : v / m)}<div class="good" style="font-size:11px;margin-top:3px">${L('Награда', 'Belohnung')}: ${rewardText(G.r)}</div></div>`;
 }
+// ---------- Люди v2: настроение, черты, характеристики, отношения в интерфейсе ----------
+const moodCls = v => v < 35 ? 'bad' : v < 55 ? 'warn' : 'good';
+const moodIc = w => w.badge || (w.mood >= 75 ? '😊' : w.mood >= 55 ? '🙂' : w.mood >= 35 ? '😐' : '☹');
+const traitChips = w => `<div class="chips">${w.traits.map(k => { const t = TRAITS[k]; return `<span class="chip ${t[3] > 0 ? 'good' : t[3] < 0 ? 'bad' : ''}" title="${traitDesc(t)}">${t[0]}</span>`; }).join('')}</div>`;
+const traitLines = w => `<div class="muted" style="font-size:11px">${w.traits.map(k => `<b>${TRAITS[k][0]}</b> — ${traitDesc(TRAITS[k])}`).join('<br>')}</div>`;
+const passLine = (w, ks = WORKS) => ks.filter(k => w.pass[k]).map(k => `${PASS_IC[w.pass[k]]} ${workName(k)}`).join(' · ');
+function statusLine(w) { // срыв или вдохновение сейчас
+  if (w.brk) { const B = BRK[w.brk.kind]; return `<span class="bad">${badgeOf(w)} ${B[2] ? L('Крупный срыв', 'Schwerer Ausraster') : L('Срыв', 'Ausraster')}: ${L(B[0], B[1])} · ${L('ещё', 'noch')} ${fmtLeft(w.brk.until - S.t)}</span>`; }
+  if (w.insp && w.insp.until > S.t) { const I = INSP[w.insp.kind]; return `<span class="good">${I[1]} ${L('Вдохновение', 'Inspiration')} ${L(`«${I[0]}»`, `„${I[0]}“`)}: ${L(I[2], I[3])} · ${L('ещё', 'noch')} ${fmtLeft(w.insp.until - S.t)}</span>`; }
+  if (w.slowUntil > S.t) return `<span class="warn">💢 ${L('После ссоры работает медленнее', 'Nach dem Streit langsamer')} · ${L('ещё', 'noch')} ${fmtLeft(w.slowUntil - S.t)}</span>`;
+  return '';
+}
+function moodBlock(w) {
+  const P = moodParts(w), tg = clamp(P.reduce((a, p) => a + p[2], 0), 0, 100), t1 = brkThr(w), stl = statusLine(w);
+  const mods = P.slice(1).sort((a, b) => Math.abs(b[2]) - Math.abs(a[2])).map(p => `<div><b class="${p[2] > 0 ? 'good' : 'bad'}">${p[2] > 0 ? '+' : '−'}${Math.abs(p[2])}</b>${L(p[0], p[1])}${p[3] ? ` <span class="muted">(${fmtLeft(p[3] - S.t)})</span>` : ''}</div>`).join('');
+  return `<div class="row" style="margin-top:5px"><span>${L('Настроение', 'Stimmung')} <b class="${moodCls(w.mood)}">${moodIc(w)} ${Math.round(w.mood)}</b> <span class="muted" title="${L('К этому значению настроение постепенно тянется', 'Dorthin bewegt sich die Stimmung allmählich')}">→ ${Math.round(tg)}</span></span><span class="muted" style="font-size:11px">${L(`срыв ниже ${t1} · вдохновение выше 85`, `Ausraster unter ${t1} · Inspiration über 85`)}</span></div>
+    ${bar(w.mood / 100, w.mood < t1 ? 'var(--bad)' : w.mood < 55 ? 'var(--accent)' : '')}${stl ? `<div style="font-size:12px;margin-top:2px">${stl}</div>` : ''}
+    <div class="mods"><div><b>${MOOD_BASE}</b>${L('основа', 'Basis')}</div>${mods}</div>`;
+}
+const fmt1 = v => L(v.toFixed(1), v.toFixed(1).replace('.', ','));
+const attrBlock = w => `<div class="attrs">${ATTRS.map(a => `<div title="${attrName(a)}: ${L(ATTR_FX[a][0], ATTR_FX[a][1])}"><div class="row"><span>${attrName(a)}</span><b>${fmt1(w.attr[a])}</b></div>${bar(w.attr[a] / 20, 'var(--info)')}</div>`).join('')}</div>
+  <div class="muted" style="font-size:10.5px">${ATTRS.map(a => `${attrName(a)} — ${L(ATTR_FX[a][0], ATTR_FX[a][1])}`).join('; ')}. ${L('Растут от работы (до 25 лет — быстрее), после 50 сила и выносливость понемногу падают.', 'Wachsen mit der Arbeit (unter 25 schneller), ab 50 lassen Kraft und Ausdauer langsam nach.')}</div>`;
+function relBlock(w) {
+  const fr = friendsOf(w), rv = rivalsOf(w), m = w.mentor != null ? workerById(w.mentor) : null, pu = pupilsOf(w), nm = o => o.name.split(' ')[0];
+  let mh;
+  if (m) mh = `👨‍🏫 ${L('Наставник', 'Pate')}: <b>${m.name}</b>${mentorOf(w) ? ` <span class="good">${L(`учится в ${fmt1(mentorBoost(w))} раза быстрее`, `lernt ${fmt1(mentorBoost(w))}-mal so schnell`)}</span>` : ` <span class="muted">(${L('сейчас не рядом', 'gerade nicht da')})</span>`} <button data-mentor="${w.id}:x">✕</button>`;
+  else if (S.mentorAsk === w.id) {
+    const c = S.workers.filter(o => o !== w && !o.temp && o.shift === w.shift && bestSkill(o) >= 6 && o.mentor !== w.id && pupilsOf(o).length < maxPupils(o));
+    mh = `${L('Наставник из той же смены (навык 6+):', 'Pate aus derselben Schicht (Fähigkeit 6+):')}<div class="acts">${c.map(o => { const bk = WORKS.reduce((a, k) => o.skills[k] > o.skills[a] ? k : a, 'transport'); return `<button data-mentor="${w.id}:${o.id}">${nm(o)} · ${workName(bk)} ${Math.floor(o.skills[bk])} · ${L('общение', 'Komm.')} ${Math.round(AT(o, 'komm'))}${hasT(o, 'lehrmeister') ? ' · Lehrmeister' : ''}</button>`; }).join('') || `<span class="muted">${L('никого нет', 'niemand frei')}</span>`}<button data-mentor="${w.id}:cancel">${L('Отмена', 'Abbrechen')}</button></div>`;
+  } else mh = w.temp ? '' : `<button data-mentor="${w.id}:ask">👨‍🏫 ${L('Назначить наставника', 'Paten zuweisen')}</button> <span class="muted" style="font-size:11px">${L('ученик растёт в 1,5 раза быстрее, наставник работает на 10 % медленнее', 'Schützling lernt 1,5-mal so schnell, Pate arbeitet 10 % langsamer')}</span>`;
+  return `<div style="font-size:12px;margin-top:5px">🤝 ${L('Друзья', 'Freunde')}: ${fr.map(nm).join(', ') || '—'} · 😒 ${L('Не ладит', 'Kann nicht mit')}: ${rv.map(nm).join(', ') || '—'}</div>
+    <div style="font-size:12px;margin-top:4px">${mh}${pu.length ? `<div>${L('Ученики', 'Schützlinge')}: ${pu.map(nm).join(', ')}</div>` : ''}</div>`;
+}
+const seasonText = () => { const sm = seasonMul(); return L(`${seasonIcon()} Сейчас ${monthName()} (игровой месяц — 5 дней): спрос ×${fmt1(sm)} — запросы ${sm > 1 ? 'чаще и дороже' : sm < 1 ? 'реже и дешевле' : 'как обычно'}. Октябрь–декабрь — пик зимних шин (×1,4–1,5), летом спад; зимой — грипп.`, `${seasonIcon()} Jetzt ist ${monthName()} (ein Spielmonat dauert 5 Tage): Nachfrage ×${fmt1(sm)} — Anfragen ${sm > 1 ? 'häufiger und teurer' : sm < 1 ? 'seltener und billiger' : 'wie üblich'}. Oktober–Dezember ist Winterreifen-Saison (×1,4–1,5), im Sommer flaut es ab; im Winter kommt die Grippe.`); };
+// OEE станка: доступность × производительность × качество (с начала игры)
+function oee(s) {
+  if (!s || s.kind === 'store' || s === HOOK_DRIVE || !s.g) return null;
+  const auto = s.kind === 'auto', plan = auto ? Math.max(1, S.t - DAY_START) : Math.max(1, S.planMin), down = (s.down || 0) + (s.broken ? S.t - s.broken.at : 0);
+  const A = clamp(1 - down / plan, 0, 1), ideal = auto ? s.cycle * S.cureMul + (s.startT || 3) : (s.time || 10) * (S.tMul[s.g] || 1), run = Math.max(1, plan - down);
+  const P = clamp((s.ops || 0) * ideal / run, 0, 1), Q = s.ops ? clamp(1 - (s.bad || 0) / s.ops, 0, 1) : 1;
+  return { A, P, Q, oee: A * P * Q };
+}
 function workerCard(w) {
-  const r = rankOf(w), tr = w.trait && TRAITS[w.trait], can = !w.away && onShift(w) && S.money >= courseCost() && !(w.job && ['train', 'strike', 'home'].includes(w.job.type));
+  const r = rankOf(w), can = !w.away && onShift(w) && S.money >= courseCost() && !(w.job && ['train', 'strike', 'home'].includes(w.job.type)), cap = pol('rotation') ? 300 : 180;
   const rows = WORKS.map(k => {
-    const v = w.skills[k], t = tier(w, k), nx = t === 2 ? null : t === 1 ? [P2, PERKS[k][1][0]] : [P1, PERKS[k][0][0]];
-    return `<tr><td>${workName(k)}</td><td><b>${Math.floor(v)}</b></td><td style="width:28%">${bar(v - Math.floor(v), 'var(--info)')}</td>
+    const v = w.skills[k], t = tier(w, k), nx = t === 2 ? null : t === 1 ? [P2, PERKS[k][1][0]] : [P1, PERKS[k][0][0]], sat = (w.xpMin[k] || 0) > cap;
+    return `<tr><td>${workName(k)}${w.pass[k] ? ` <span title="${L(`страсть: учится ×${PASS_LEARN[w.pass[k]]}, настроение +${PASS_MOOD[w.pass[k]]} за эту работу`, `Leidenschaft: lernt ×${PASS_LEARN[w.pass[k]]}, Stimmung +${PASS_MOOD[w.pass[k]]} bei dieser Arbeit`)}">${PASS_IC[w.pass[k]]}</span>` : ''}</td><td><b>${Math.floor(v)}</b></td><td style="width:24%">${bar(v - Math.floor(v), 'var(--info)')}${sat ? `<div class="muted" style="font-size:10px" title="${L('Сегодня больше 3 ч этой работы: опыт идёт вдвое медленнее', 'Heute über 3 h diese Arbeit: Erfahrung nur halb so schnell')}">⏳ ½</div>` : ''}</td>
       <td style="font-size:11px">${t ? `<span class="${t === 2 ? 'warn' : 'good'}" title="${perkDesc(PERKS[k][t - 1])}">${t === 2 ? '★★' : '★'} ${PERKS[k][t - 1][0]}</span>` : ''}${nx ? `<span class="muted"${t ? '' : ` title="${perkDesc(PERKS[k][0])}"`}> ${t ? '· ' : ''}${L('на', 'ab')} ${String(nx[0]).replace('.', L('.', ','))}: ${nx[1]}</span>` : ''}</td>
       <td><button data-train="${w.id}:${k}" ${can && v < 10 ? '' : 'disabled'} title="${L(`Schulung: 1 ч в комнате отдыха, ${eur(courseCost())}, навык +${S.upgrades.schulung ? 1.5 : 1}`, `Schulung: 1 h im Pausenraum, ${eur(courseCost())}, Fähigkeit +${S.upgrades.schulung ? '1,5' : 1}`)}">📚</button></td></tr>`;
   }).join('');
   const perks = WORKS.filter(k => tier(w, k)).map(k => `<div><b>${PERKS[k][tier(w, k) - 1][0]}</b> — ${perkDesc(PERKS[k][tier(w, k) - 1])}</div>`).join('');
-  const sev = w.temp ? 0 : Math.round(w.wage * 40);
+  const sev = w.temp ? 0 : Math.round(w.wage * 40), mk = marketWage(w);
   return `<div class="card"><div class="row"><b>${w.name}</b><span><span class="shift">${r.name}</span> ★${r.lvl}</span></div>
-    <div class="muted" style="font-size:11px">${w.role} · ${SHIFTS[w.shift].de} · ${w.wage} ${L('€/ч', '€/h')}${w.shift === 'N' ? ' +25 %' : ''}${w.temp ? L(' · Leiharbeiter до ', ' · Leiharbeiter bis ') + fmtDT(w.leaveAt) : ''}${w.azubi ? L(' · Azubi: учится втрое быстрее', ' · Azubi: lernt dreimal so schnell') : ''}${tr ? ` · <b>${tr[0]}</b> — ${traitDesc(tr)}` : ''}</div>
+    <div class="muted" style="font-size:11px">${w.role} · ${Math.floor(w.age)} ${L('лет', 'Jahre')} · ${SHIFTS[w.shift].de} · ${w.wage} ${L('€/ч', '€/h')}${w.shift === 'N' ? ' +25 %' : ''} <span class="${w.wage < mk ? 'warn' : ''}">(${L('рынок', 'Markt')} ${mk})</span>${w.temp ? L(' · Leiharbeiter до ', ' · Leiharbeiter bis ') + fmtDT(w.leaveAt) : ''}${w.azubi ? L(' · Azubi: учится втрое быстрее', ' · Azubi: lernt dreimal so schnell') : ''}${w.ppe ? L(' · 🦺 в СИЗ', ' · 🦺 mit PSA') : ''}</div>
+    ${traitChips(w)}${traitLines(w)}
     <div style="font-size:12px;margin-top:3px">${jobText(w)}</div>
+    ${moodBlock(w)}
+    <h3 style="margin:8px 0 2px">${L('Характеристики (1–20)', 'Eigenschaften (1–20)')}</h3>${attrBlock(w)}
     <div class="hscroll"><table class="skills" style="margin-top:4px"><tr><th>${L('Работа', 'Arbeit')}</th><th>${L('Ур.', 'Stufe')}</th><th>${L('Опыт', 'Erfahrung')}</th><th>${L('Перк', 'Perk')}</th><th></th></tr>${rows}</table></div>
     ${perks ? `<div style="font-size:11px;margin-top:4px">${perks}</div>` : ''}
-    <div class="row" style="margin-top:6px"><span class="muted" style="font-size:11px">${L(`Опыт копится с каждой операцией. 📚 Schulung: 1 ч, ${eur(courseCost())}.`, `Erfahrung wächst mit jedem Arbeitsgang. 📚 Schulung: 1 h, ${eur(courseCost())}.`)}</span>
+    <div class="muted" style="font-size:11px;margin-top:3px">${L(`🔥 — страсть: учится ×1, настроение +4 за эту работу; 🔥🔥 — ×1,5 и +8; без страсти — ×0,35. После 3 ч одной работы за день опыт идёт вдвое медленнее (⏳). Навык выше 9 без практики понемногу забывается. 📚 Schulung: 1 ч, ${eur(courseCost())}.`, `🔥 — Leidenschaft: lernt ×1, Stimmung +4 bei dieser Arbeit; 🔥🔥 — ×1,5 und +8; ohne — ×0,35. Nach 3 h derselben Arbeit am Tag halbiert sich die Erfahrung (⏳). Über 9 rostet eine Fähigkeit ohne Übung langsam ein. 📚 Schulung: 1 h, ${eur(courseCost())}.`)}</div>
+    ${relBlock(w)}
+    <div class="acts"><button data-praise="${w.id}" ${S.t - (w.praiseT ?? -1e9) < 3 * 1440 ? `disabled title="${L('Раз в 3 дня', 'Alle 3 Tage')}"` : ''}>👏 ${L('Похвалить (+6)', 'Loben (+6)')}</button><button data-bonusw="${w.id}" ${S.money < BONUS_W || S.t - (w.bonusT ?? -1e9) < 3 * 1440 ? `disabled title="${L('Раз в 3 дня', 'Alle 3 Tage')}"` : ''}>💶 ${L('Премия', 'Prämie')} ${eur(BONUS_W)} (+10)</button><button data-raise="${w.id}" ${w.temp ? 'disabled' : ''}>⬆ +1 ${L('€/ч', '€/h')}</button>
       <button data-fire="${w.id}">${S.fireAsk === w.id ? L('Точно уволить?', 'Wirklich entlassen?') : L('Уволить', 'Entlassen')}${sev ? ` (${eur(sev)})` : ''}</button></div></div>`;
 }
 function resDepth(x) { return x.req.length ? 1 + Math.max(...x.req.map(q => resDepth(RES_BY[q]))) : 0; }
@@ -3741,7 +4346,6 @@ function resCard(x) {
     ${subl ? `<div class="muted" style="font-size:11px">${subl}</div>` : ''}<div style="font-size:12px;margin:3px 0">${resFx(x)}${up.length ? ` <span class="info">→ ${L('апгрейд', 'Upgrade')}: ${up.join(', ')}</span>` : ''}</div>
     ${active ? bar(S.res.prog / x.rp, 'var(--info)') : ''}<div class="row"><span></span><span>${status}</span></div></div>`;
 }
-const teamTraits = () => S.workers.reduce((a, w) => a + (w.trait === 'teamplayer' ? 2 : w.trait === 'griesgram' ? -2 : 0), 0);
 function renderPanel() {
   const p = $('panel'), mn = L('мин', 'min');
   if (tab === 'overview') {
@@ -3764,6 +4368,8 @@ function renderPanel() {
         <div class="row"><label title="${L('Подвесной конвейер на крюках (Hängebahn): шины едут между участками сами, люди только снимают и вешают. Выключите — и шины будут катать вручную.', 'Hängebahn mit Haken: Die Reifen fahren selbst zwischen den Stationen, das Team nimmt sie nur ab und hängt sie wieder auf. Ausgeschaltet werden die Reifen von Hand gerollt.')}"><input type="checkbox" data-hookbahn ${S.hook ? 'checked' : ''}> ${L('Hängebahn — крюки в Ж1–Ж2', 'Hängebahn — Haken in Ж1–Ж2')}</label><span class="${HOOK_DRIVE.broken || noPower() ? 'bad' : 'muted'}">${HOOK_DRIVE.broken ? L('⚠ привод сломан', '⚠ Antrieb defekt') : noPower() ? L('⚡ нет тока', '⚡ kein Strom') : L(`${HOOKS.filter(h => h.tire).length}/${HOOK_COUNT} крюков с шинами`, `${HOOKS.filter(h => h.tire).length}/${HOOK_COUNT} Haken mit Reifen`)}</span></div>
         <div class="row"><span title="${L('Станки ломаются чаще, если у них пыль и износ. Свободные рабочие подметают; техник (Instandhaltung) чинит.', 'Maschinen fallen öfter aus, wenn sie verstaubt und verschlissen sind. Freie Leute fegen, die Instandhaltung repariert.')}">${L('Поломки сегодня / всего', 'Ausfälle heute / gesamt')}</span><b class="${brNow ? 'bad' : ''}">${S.breaksToday} / ${S.stats.breakdowns}${brNow ? ` · ${L('сейчас', 'jetzt')} ⚠ ${brNow}` : ''}</b></div>
         <div class="row"><span>${L('Простой станков / запчасти', 'Stillstand / Ersatzteile')}</span><b>${Math.round(S.stats.downtime)} ${mn} / ${eur(S.stats.repairs)}</b></div>
+        <div class="row"><span title="${L('Подробнее — во вкладке «Правила»', 'Mehr im Reiter „Regeln“')}">${L('Без несчастных случаев / травм за 7 дней', 'Tage ohne Unfall / Unfälle in 7 Tagen')}</span><b>${Math.floor((S.t - S.lastAccident) / 1440)} ${L('дн.', 'T.')} / <span class="${S.hr.accLog.some(a => S.t - a.t < 10080) ? 'bad' : ''}">${S.hr.accLog.filter(a => S.t - a.t < 10080).length}</span></b></div>
+        <div class="row"><span title="${L('Сорт готовых шин: A — +8 % к цене, C — уценка −20 %. Зависит от навыков и внимательности тех, кто делал шину, исследований, переделок.', 'Klasse der fertigen Reifen: A — +8 % Preis, C — −20 %. Hängt von Fähigkeit und Konzentration der Leute, Forschung und Nacharbeit ab.')}">${L('Сорт шин A / B / C', 'Reifenklasse A / B / C')}</span><b><span class="good">${S.grades.A}</span> / ${S.grades.B} / <span class="${S.grades.C ? 'bad' : ''}">${S.grades.C}</span></b></div>
       </div>
       <h3>${L('Технологический поток', 'Materialfluss')}</h3>
       <table><tr><th>${L('Станция', 'Station')}</th><th>${L('Очередь (вход▸работа▸выход)', 'Warteschlange (Eingang▸Arbeit▸Ausgang)')}</th><th>${L('Загр.', 'Ausl.')}</th></tr>${rows}</table>
@@ -3781,30 +4387,49 @@ function renderPanel() {
       <table><tr><th>${L('Участок', 'Bereich')}</th><th>${L('Расчёт', 'Rechnung')}</th><th>${L('Нужно', 'Bedarf')}</th><th>${L('Есть', 'Vorhanden')}</th></tr>${equipCalc().map(r => `<tr><td>${r.name}</td><td class="muted" style="font-size:10px">${r.formula} = ${L(r.need.toFixed(2), r.need.toFixed(2).replace('.', ','))}</td><td><b>${r.n}</b></td><td class="${r.have >= r.n ? 'good' : 'bad'}">${r.have}</td></tr>`).join('')}</table>`;
   } else if (tab === 'workers') {
     const head = WORKS.map(k => `<th title="${workName(k)}">${L(WORK_RU[k].slice(0, 5), WORK_SHORT_DE[k])}</th>`).join('');
-    const cell = (w, k) => { const v = w.skills[k], t = tier(w, k); return `<td><button class="prio p${w.prio[k]}" data-prio="${w.id}:${k}" title="${workName(k)}: ${L('навык', 'Fähigkeit')} ${L(v.toFixed(2), v.toFixed(2).replace('.', ','))}${t ? ' · ' + PERKS[k][t - 1][0] : ''}">${w.prio[k] || '–'}</button><div class="sk"><span class="${t === 2 ? 'warn' : t ? 'good' : ''}">${Math.floor(v)}${t === 2 ? '★★' : t ? '★' : ''}</span><b><i style="width:${pct(v - Math.floor(v))}%"></i></b></div></td>`; };
-    const rows = S.workers.map(w => { const r = rankOf(w), tr = w.trait && TRAITS[w.trait];
-      return `<tr${S.selected && S.selected.w === w ? ' class="selrow"' : ''}><td><b data-selw="${w.id}" style="cursor:pointer">${w.name.split(' ')[0]}</b> <span class="shift">${w.shift}</span> <span class="muted" title="${r.name}: ${L('лучший навык', 'beste Fähigkeit')} ${r.lvl}" style="font-size:10px">★${r.lvl}</span>${w.temp ? ' <span class="muted" style="font-size:10px">Leih</span>' : ''}${w.azubi ? ' 🎓' : ''}${tr ? ` <span class="muted" style="font-size:10px" title="${traitDesc(tr)}">${tr[0]}</span>` : ''}<div class="muted" style="font-size:10px">${jobText(w)}</div></td>${WORKS.map(k => cell(w, k)).join('')}<td><button data-shift="${w.id}" title="${L('Сменить смену', 'Schicht wechseln')}">⇄</button></td></tr>`; }).join('');
-    const sel = S.selected && S.selected.w && S.workers.includes(S.selected.w) ? workerCard(S.selected.w) : `<div class="muted" style="font-size:11px;margin-bottom:6px">${L('Нажмите на имя — карточка с навыками, перками, обучением.', 'Tippe auf einen Namen — Karte mit Fähigkeiten, Perks und Schulung.')}</div>`;
-    const wageH = S.workers.filter(w => !w.away).reduce((a, w) => a + w.wage, 0), mb = moraleBase() + teamTraits(), here = S.workers.filter(w => !w.away).length;
-    const cands = S.cands.map(c => `<div class="card"><div class="row"><b>${c.name}</b><span>${ROLE[c.k]}</span></div><div class="row"><span class="muted">${workName(c.k)} ${c.a} · ${workName(c.k2)} ${c.b} · ${c.wage} ${L('€/ч · черта — узнаете после найма', '€/h · Charakterzug — erfährst du nach der Einstellung')}</span><button data-hirec="${c.id}" ${S.money < c.fee ? 'disabled' : ''}>${L('Нанять', 'Einstellen')} (${eur(c.fee)})</button></div></div>`).join('') || `<div class="muted">${L('Сегодня кандидатов больше нет — новые придут утром.', 'Heute keine Bewerber mehr — morgen früh kommen neue.')}</div>`;
+    const cell = (w, k) => { const v = w.skills[k], t = tier(w, k); return `<td><button class="prio p${w.prio[k]}" data-prio="${w.id}:${k}" title="${workName(k)}: ${L('навык', 'Fähigkeit')} ${L(v.toFixed(2), v.toFixed(2).replace('.', ','))}${t ? ' · ' + PERKS[k][t - 1][0] : ''}">${w.prio[k] || '–'}</button><div class="sk"><span class="${t === 2 ? 'warn' : t ? 'good' : ''}">${Math.floor(v)}${t === 2 ? '★★' : t ? '★' : ''}</span>${w.pass[k] ? PASS_IC[w.pass[k]] : ''}<b><i style="width:${pct(v - Math.floor(v))}%"></i></b></div></td>`; };
+    const rows = S.workers.map(w => { const r = rankOf(w);
+      return `<tr${S.selected && S.selected.w === w ? ' class="selrow"' : ''}><td><b data-selw="${w.id}" style="cursor:pointer">${w.name.split(' ')[0]}</b> <span class="shift">${w.shift}</span> <span class="muted" title="${r.name}: ${L('лучший навык', 'beste Fähigkeit')} ${r.lvl}" style="font-size:10px">★${r.lvl}</span> <b class="${moodCls(w.mood)}" style="font-size:11px" title="${L('Настроение', 'Stimmung')}">${moodIc(w)}${Math.round(w.mood)}</b>${w.temp ? ' <span class="muted" style="font-size:10px">Leih</span>' : ''}${w.azubi ? ' 🎓' : ''}${w.mentor != null ? ' 👨‍🏫' : ''}<div class="muted" style="font-size:10px">${w.traits.map(k => TRAITS[k][0]).join(', ')}</div><div class="muted" style="font-size:10px">${jobText(w)}</div></td>${WORKS.map(k => cell(w, k)).join('')}<td><button data-shift="${w.id}" title="${L('Сменить смену', 'Schicht wechseln')}">⇄</button></td></tr>`; }).join('');
+    const sel = S.selected && S.selected.w && S.workers.includes(S.selected.w) ? workerCard(S.selected.w) : `<div class="muted" style="font-size:11px;margin-bottom:6px">${L('Нажмите на имя — карточка: настроение и его причины, характеристики, страсти 🔥, черты, друзья, наставник, обучение.', 'Tippe auf einen Namen — Karte: Stimmung und Gründe, Eigenschaften, Leidenschaften 🔥, Charakterzüge, Freunde, Pate, Schulung.')}</div>`;
+    const wageH = S.workers.filter(w => !w.away).reduce((a, w) => a + w.wage, 0), here = S.workers.filter(w => !w.away).length, team = S.workers.filter(w => !w.temp);
+    const low = team.filter(w => w.mood < brkThr(w)).length, brk = team.filter(w => w.brk).length, insp = team.filter(w => w.insp && w.insp.until > S.t).length;
+    const cands = S.cands.map(c => { const cw = c.w; return `<div class="card"><div class="row"><b>${c.name}</b><span>${ROLE[c.k]} · ${Math.floor(cw.age)} ${L('лет', 'J.')}</span></div>${traitChips(cw)}<div class="muted" style="font-size:11px">${workName(c.k)} ${c.a} · ${workName(c.k2)} ${c.b}${passLine(cw) ? ` · ${passLine(cw)}` : ''}<br>${ATTRS.map(a => `${attrName(a)} ${Math.round(cw.attr[a])}`).join(' · ')}</div><div class="row"><span class="muted">${c.wage} ${L('€/ч', '€/h')}</span><button data-hirec="${c.id}" ${S.money < c.fee ? 'disabled' : ''}>${L('Нанять', 'Einstellen')} (${eur(c.fee)})</button></div></div>`; }).join('') || `<div class="muted">${L('Сегодня кандидатов больше нет — новые придут утром.', 'Heute keine Bewerber mehr — morgen früh kommen neue.')}</div>`;
     const now = activeShifts().map(k => `${SHIFTS[k].de} ${S.workers.filter(w => w.shift === k).length} ${L('чел.', 'Pers.')}`).join(' · ');
     p.innerHTML = `${sel}<h3>${L('Приоритеты и навыки', 'Prioritäten und Fähigkeiten')}</h3><div class="muted" style="font-size:11px;margin-bottom:6px">${L(`Нажатие: 1→2→3→4→выкл. 1 = делает в первую очередь. Под кнопкой — уровень навыка и опыт до следующего; ★ — перк Profi (${P1}), ★★ — Meister (${P2}). F/S/N — смена, ⇄ — перевести.`, `Tippen: 1→2→3→4→aus. 1 = macht das zuerst. Unter dem Knopf: Fähigkeitsstufe und Erfahrung bis zur nächsten; ★ — Perk Profi (${String(P1).replace('.', ',')}), ★★ — Meister (${String(P2).replace('.', ',')}). F/S/N — Schicht, ⇄ — umsetzen.`)}</div>
       <div class="hscroll"><table><tr><th></th>${head}<th></th></tr>${rows}</table></div>
       <h3 style="margin-top:10px">${L('Модель смен', 'Schichtmodell')}</h3><div class="card"><div style="display:flex;gap:4px;flex-wrap:wrap">${[1, 2, 3].map(n => `<button data-smodel="${n}" class="${S.shiftModel === n ? 'on' : ''}" ${n === 3 && S.level < 2 ? `disabled title="${L('С уровня 2', 'Ab Stufe 2')}"` : ''}>${n} ${n === 1 ? L('смена', 'Schicht') : L('смены', 'Schichten')}</button>`).join('')}</div>
         <div class="muted" style="font-size:11px;margin-top:4px">${L(`1 смена (06–14) — дёшево, но прессы полдня стоят. 2 смены (06–22) — как в эталонном цехе. 3 смены — цех работает круглые сутки, ночная смена (22–06) получает +25 %, устаёт быстрее и ошибается чуть чаще; людей нужно больше — нанимайте. Сейчас: ${now}. Смена модели перераспределит людей (настроение −5).`, `1 Schicht (06–14) — günstig, aber die Pressen stehen den halben Tag. 2 Schichten (06–22) — wie im Vorbild-Werk. 3 Schichten — das Werk läuft rund um die Uhr, die Nachtschicht (22–06) bekommt +25 %, ermüdet schneller und macht etwas mehr Fehler; du brauchst mehr Leute — stell ein. Aktuell: ${now}. Ein Wechsel verteilt alle neu (Stimmung −5).`)}</div></div>
-      <h3 style="margin-top:10px">${L('Команда', 'Team')}</h3><div class="card"><div class="row"><span>${L('Настроение', 'Stimmung')}</span><b>${Math.round(S.morale)} <span class="muted">(${L('тянется к', 'Tendenz')} ${mb})</span></b></div>${bar(S.morale / 100, S.morale < 40 ? 'var(--bad)' : S.morale < 60 ? 'var(--accent)' : '')}
-        <div class="muted" style="font-size:11px;margin-top:3px">${L('Настроение 100 — работа на 7 % быстрее, 30 — на 5 % медленнее и чаще больничные. Растёт: премии, цели, новый уровень, комната отдыха, подъёмники, Teamplayer. Падает: жара, отказ профсоюзу, увольнения, Griesgram.', 'Stimmung 100 — 7 % schnellere Arbeit, 30 — 5 % langsamer und mehr Krankmeldungen. Steigt durch: Prämien, Ziele, neue Stufe, Pausenraum, Hebehilfen, Teamplayer. Sinkt durch: Hitze, ein Nein zur Gewerkschaft, Entlassungen, Griesgram.')}</div>
+      <h3 style="margin-top:10px">${L('Команда', 'Team')}</h3><div class="card"><div class="row"><span>${L('Среднее настроение', 'Durchschnittliche Stimmung')}</span><b class="${moodCls(S.morale)}">${Math.round(S.morale)}</b></div>${bar(S.morale / 100, S.morale < 40 ? 'var(--bad)' : S.morale < 60 ? 'var(--accent)' : '')}
+        <div class="row" style="font-size:12px;margin-top:3px"><span>${L('Близко к срыву', 'Kurz vor dem Ausraster')}: <b class="${low ? 'bad' : ''}">${low}</b> · ${L('в срыве', 'im Ausraster')}: <b class="${brk ? 'bad' : ''}">${brk}</b> · ${L('вдохновение', 'Inspiration')}: <b class="${insp ? 'good' : ''}">${insp}</b></span></div>
+        <div class="muted" style="font-size:11px;margin-top:3px">${L(`У каждого своё настроение — сумма причин (видны в карточке): усталость, перерывы, друзья и соперники в смене, шум и пыль у станка, зарплата против рынка, страсть к работе, черты, правила, события. Ниже порога (обычно 35) — мелкие срывы: долгий перекур, бурчит и работает медленнее, ссора. На 15 ниже — крупные: уходит домой, отказывается от тяжёлой работы, больничный. Ниже 10 двое суток — заявление об уходе. Выше 85 — вдохновение. Всего срывов: ${S.hr.breaks + S.hr.majors}, вдохновений: ${S.hr.insp}, ссор: ${S.hr.fights}, ушли сами: ${S.hr.quits}.`, `Jede Person hat ihre eigene Stimmung — die Summe der Gründe (in der Karte): Müdigkeit, Pausen, Freunde und Rivalen in der Schicht, Lärm und Staub an der Maschine, Lohn im Vergleich zum Markt, Leidenschaft für die Arbeit, Charakterzüge, Regeln, Ereignisse. Unter der Schwelle (meist 35) gibt es kleine Ausraster: lange Pause, Grummeln und langsameres Arbeiten, Streit. 15 Punkte tiefer schwere: nach Hause gehen, schwere Arbeit verweigern, Krankmeldung. Zwei Tage unter 10 — Kündigung. Über 85 — Inspiration. Ausraster bisher: ${S.hr.breaks + S.hr.majors}, Inspirationen: ${S.hr.insp}, Streits: ${S.hr.fights}, Kündigungen: ${S.hr.quits}.`)}</div>
         <div class="row" style="margin-top:4px"><span>${L(`Сейчас в цехе: ${here} чел., ${eur(wageH)}/ч`, `Jetzt im Werk: ${here} Pers., ${eur(wageH)}/h`)}</span><button data-praemie ${S.t - S.lastPraemie < 1440 || S.money < S.workers.length * 80 ? `disabled title="${L('Раз в сутки', 'Einmal pro Tag')}"` : ''}>💶 ${L('Премия', 'Prämie')} (${eur(S.workers.length * 80)})</button></div></div>
       <h3>${L('Bewerber — кандидаты (новые каждое утро)', 'Bewerber (jeden Morgen neue)')}</h3>${cands}`;
+  } else if (tab === 'rules') {
+    const cards = POLICIES.map(pp => { const on = pol(pp.id), left = polLeft(pp.id);
+      return `<div class="card pol" style="${on ? 'border-color:var(--good);background:#f2faf4' : ''}"><div class="row"><b>${on ? '✅ ' : ''}${L(pp.ru, pp.de)}</b><span class="muted">${L(pp.de, '')}</span></div><div class="plus">+ ${L(pp.plus[0], pp.plus[1])}</div><div class="minus">− ${L(pp.minus[0], pp.minus[1])}</div>
+        <div class="row" style="margin-top:4px"><span class="muted" style="font-size:11px">${left > 0 ? L(`менять можно через ${fmtLeft(left)}`, `nächste Änderung in: ${fmtLeft(left)}`) : on ? L('действует', 'gilt') : L('не действует', 'gilt nicht')}</span><button data-pol="${pp.id}" class="${on ? '' : 'on'}" ${left > 0 ? 'disabled' : ''}>${on ? L('Отменить', 'Aufheben') : L('Ввести', 'Einführen')}</button></div></div>`; }).join('');
+    const wk = S.hr.accLog.filter(a => S.t - a.t < 7 * 1440).length, here = S.workers.filter(w => !w.away), ppe = here.filter(w => w.ppe).length, inj = S.workers.filter(w => w.injured && w.sickUntil > S.t), dn = Math.floor((S.t - S.lastAccident) / 1440);
+    const acc = S.hr.accLog.slice(0, 5).map(a => `<div style="font-size:11px">${fmtDT(a.t)} · <b>${a.name}</b> · ${a.st} · ${a.days} ${L('дн.', 'T.')}${a.why.length ? ` · <span class="muted">${a.why.join(', ')}</span>` : ''}${a.viol ? ` · <span class="bad">${L('штраф BG', 'Bußgeld BG')}</span>` : ''}</div>`).join('');
+    const kz = S.kaizen.map(id => { const k = KAIZEN.find(x => x.id === id); return `<div style="font-size:12px">💡 ${L(k.ru, k.de)} — <span class="good">${L(k.fx[0], k.fx[1])}</span></div>`; }).join('');
+    p.innerHTML = `<h3>${L('Правила предприятия', 'Betriebsregeln')}</h3><div class="muted" style="font-size:11px;margin-bottom:6px">${L('Каждое правило — компромисс: у него есть плюс и минус. Одно и то же правило можно менять не чаще раза в 7 дней — подумайте заранее.', 'Jede Regel ist ein Kompromiss: Sie hat ein Plus und ein Minus. Dieselbe Regel lässt sich höchstens alle 7 Tage ändern — überleg es dir vorher.')}</div>${cards}
+      <h3>${L('Безопасность (Arbeitssicherheit)', 'Arbeitssicherheit')}</h3><div class="card">
+        <div class="row"><span>${L('Дней без несчастных случаев', 'Tage ohne Arbeitsunfall')}</span><span class="big ${dn < 3 ? 'bad' : 'good'}">${dn}</span></div>
+        <div class="row"><span>${L('Несчастных случаев за 7 дней / всего', 'Unfälle in 7 Tagen / gesamt')}</span><b>${wk} / ${S.hr.acc}</b></div>
+        <div class="row"><span>${L('Штрафы BG за нарушения', 'BG-Bußgelder für Verstöße')}</span><b>${eur(S.hr.fines)}</b></div>
+        <div class="row"><span>${L('Сейчас травмированы', 'Gerade verletzt')}</span><b>${inj.map(w => w.name.split(' ')[0]).join(', ') || '—'}</b></div>
+        <div class="row"><span>${L(`В СИЗ сейчас: ${ppe} из ${here.length} в цехе · на складе ${Math.floor(S.mats.psa)} компл.`, `Mit PSA: ${ppe} von ${here.length} im Werk · Lager ${Math.floor(S.mats.psa)} Sets`)}</span><button data-buy="psa">+${MATS.psa.pack} ${L('за', 'für')} ${eur(matPrice('psa'))}</button></div>
+        <div class="muted" style="font-size:11px;margin-top:4px">${L('Травмы чаще: от усталости, у растяп (Schusselig), без СИЗ на опасных участках (Rauen, зачистка, прессы с краном, обрезка), при пыли у станка, сверхурочно, ночью, при сдельщине. Внимательность снижает риск. Последствия: 1–10 дней на больничном (Zäh — вдвое меньше), отчёт в BG, штраф 1 500 € при нарушении (без СИЗ, грязь, сверхурочные), у видевших — настроение −8. Без правила «СИЗ обязательно» их носит примерно половина. Зимой (декабрь–февраль) — сезонный грипп.', 'Unfälle passieren öfter: bei Müdigkeit, Schusseln, ohne PSA an gefährlichen Stationen (Rauen, Ausschleifen, Pressen mit Kran, Entgraten), bei Staub, in Überstunden, nachts, im Akkord. Konzentration senkt das Risiko. Folgen: 1–10 Tage krank (Zähe nur halb so lange), Unfallanzeige an die BG, 1 500 € Bußgeld bei Verstößen (ohne PSA, Schmutz, Überstunden), Augenzeugen Stimmung −8. Ohne PSA-Pflicht trägt sie nur etwa die Hälfte. Im Winter (Dezember–Februar) kommt die Grippe.')}</div>
+        ${acc ? `<div style="margin-top:5px">${acc}</div>` : ''}</div>
+      <h3>Kaizen</h3><div class="card">${kz || `<div class="muted" style="font-size:12px">${L('Пока ни одной внедрённой идеи.', 'Noch keine umgesetzte Idee.')}</div>`}<div class="muted" style="font-size:11px;margin-top:3px">${L(`Раз в неделю рабочие предлагают улучшение (следующее — ${fmtDT(S.kaizenAt)}); вдохновение «Erfinder» — ещё одно, за полцены. Внедрено ${S.kaizen.length} из ${KAIZEN.length}.`, `Einmal pro Woche schlägt das Team eine Verbesserung vor (nächste: ${fmtDT(S.kaizenAt)}); die Inspiration „Erfinder“ bringt eine weitere zum halben Preis. Umgesetzt: ${S.kaizen.length} von ${KAIZEN.length}.`)}</div></div>`;
   } else if (tab === 'orders') {
     const offers = S.offers.map(o => `<div class="card"><div class="row"><b>${o.customer}${tagsOf(o)}</b><span>${o.qty} ${L('шт', 'Stk.')} × ${o.price} €</span></div><div class="muted">${L('Срок', 'Termin')}: ${fmtDT(o.deadline)} · ${L('запрос истекает в', 'Anfrage läuft ab um')} ${fmtClock(o.expires)} · ${feasible(o) ? `<span class="good">${L('успеваем', 'schaffen wir')}</span>` : `<span class="bad">${L('риск просрочки', 'Verspätungsrisiko')}</span>`}</div><div class="row" style="margin-top:6px"><span class="good">${eur(o.qty * o.price)}</span><span><button data-accept="${o.id}">${L('Принять', 'Annehmen')}</button> <button data-decline="${o.id}">${L('Отказ', 'Ablehnen')}</button></span></div>${o.negDone ? '' : `<div class="row" style="margin-top:4px;flex-wrap:wrap"><button data-neg="${o.id}:up" title="${L(`Шанс ${negChance(o)} %. Неудача: клиент может уйти`, `Chance ${negChance(o)} %. Bei Misserfolg kann der Kunde abspringen`)}">🤝 ${L('Торг', 'Verhandeln')} +8 % (${negChance(o)} %)</button><button data-neg="${o.id}:down" title="${L('Цена −5 %, срок +1 сутки', 'Preis −5 %, Termin +1 Tag')}">${L('Скидка −5 % за +1 сут.', 'Rabatt −5 % für +1 Tag')}</button></div>`}</div>`).join('') || `<div class="muted">${L('Новых запросов нет.', 'Keine neuen Anfragen.')}</div>`;
     const st = L({ incoming: 'грузовик с каркасами в пути', production: 'в производстве', done: 'закрыт' }, { incoming: 'Lkw mit Karkassen unterwegs', production: 'in Produktion', done: 'abgeschlossen' });
     const active = S.orders.filter(o => o.state !== 'done'), done = S.orders.filter(o => o.state === 'done').slice(-6).reverse(), none = `<div class="muted">${L('Нет.', 'Keine.')}</div>`;
-    const card = o => `<div class="card"><div class="row"><b>${o.customer}${tagsOf(o)}</b><span class="${o.state === 'done' ? 'muted' : ''}">${st[o.state]}${o.pickupPending ? L(' · грузовик едет', ' · Lkw kommt') : ''}</span></div><div class="row"><span>${L(`Готово ${o.finished}/${o.qty}, отгружено ${o.shippedN}, лом ${o.scrapped}`, `Fertig ${o.finished}/${o.qty}, geliefert ${o.shippedN}, Schrott ${o.scrapped}`)}</span><span class="${S.t > o.deadline && o.state !== 'done' && !o.own ? 'bad' : 'muted'}">${L('до', 'bis')} ${fmtDT(o.deadline)}</span></div><div class="bar"><i style="width:${(o.finished + o.scrapped) / o.qty * 100}%"></i></div></div>`;
-    p.innerHTML = `<div class="card"><label title="${L('Мастер-автопилот: принимает запрос, если по загрузке цеха успеваем к сроку. Выключите, чтобы выбирать заказы самому.', 'Autopilot: nimmt eine Anfrage an, wenn das Werk den Termin schafft. Schalte ihn aus, um selbst auszuwählen.')}"><input type="checkbox" data-autoaccept ${S.autoAccept ? 'checked' : ''}> ${L('Принимать заказы автоматически (если успеваем)', 'Aufträge automatisch annehmen (wenn machbar)')}</label><div class="muted" style="font-size:11px">${L(`Отгрузок подряд в срок: ${S.onTimeStreak}. Просрочка: −20 % оплаты и репутация −3 (срочный заказ −30 % и −8).`, `Pünktliche Lieferungen in Folge: ${S.onTimeStreak}. Verspätung: −20 % Bezahlung und Ruf −3 (Eilauftrag −30 % und −8).`)}</div></div><h3>${L('Запросы клиентов', 'Kundenanfragen')}</h3>${offers}<h3>${L('В работе', 'In Arbeit')} (${active.length})</h3>${active.map(card).join('') || none}<h3>${L('Закрытые', 'Abgeschlossen')}</h3>${done.map(card).join('') || none}`;
+    const card = o => `<div class="card"><div class="row"><b>${o.customer}${tagsOf(o)}</b><span class="${o.state === 'done' ? 'muted' : ''}">${st[o.state]}${o.pickupPending ? L(' · грузовик едет', ' · Lkw kommt') : ''}</span></div><div class="row"><span>${L(`Готово ${o.finished}/${o.qty}, отгружено ${o.shippedN}, лом ${o.scrapped}`, `Fertig ${o.finished}/${o.qty}, geliefert ${o.shippedN}, Schrott ${o.scrapped}`)}${o.gr ? ` · <span class="muted" title="${L('Сорт отгруженных шин', 'Klasse der gelieferten Reifen')}">A ${o.gr.A} · B ${o.gr.B} · C ${o.gr.C}</span>` : ''}</span><span class="${S.t > o.deadline && o.state !== 'done' && !o.own ? 'bad' : 'muted'}">${L('до', 'bis')} ${fmtDT(o.deadline)}</span></div><div class="bar"><i style="width:${(o.finished + o.scrapped) / o.qty * 100}%"></i></div></div>`;
+    p.innerHTML = `<div class="card"><label title="${L('Мастер-автопилот: принимает запрос, если по загрузке цеха успеваем к сроку. Выключите, чтобы выбирать заказы самому.', 'Autopilot: nimmt eine Anfrage an, wenn das Werk den Termin schafft. Schalte ihn aus, um selbst auszuwählen.')}"><input type="checkbox" data-autoaccept ${S.autoAccept ? 'checked' : ''}> ${L('Принимать заказы автоматически (если успеваем)', 'Aufträge automatisch annehmen (wenn machbar)')}</label><div class="muted" style="font-size:11px">${L(`Отгрузок подряд в срок: ${S.onTimeStreak}. Просрочка: −20 % оплаты и репутация −3 (срочный заказ −30 % и −8).`, `Pünktliche Lieferungen in Folge: ${S.onTimeStreak}. Verspätung: −20 % Bezahlung und Ruf −3 (Eilauftrag −30 % und −8).`)}</div></div><h3>${L('Запросы клиентов', 'Kundenanfragen')}</h3><div class="muted" style="font-size:11px;margin-bottom:6px">${seasonText()}</div>${offers}<h3>${L('В работе', 'In Arbeit')} (${active.length})</h3>${active.map(card).join('') || none}<h3>${L('Закрытые', 'Abgeschlossen')}</h3>${done.map(card).join('') || none}`;
   } else if (tab === 'stock') {
     const rows = Object.entries(MATS).map(([k, m]) => { const coming = S.matOrders.filter(o => o.key === k).reduce((a, o) => a + o.qty, 0), pr = matPrice(k); return `<div class="card"><div class="row"><b>${m.de}</b><span class="${S.mats[k] < 10 ? 'bad' : ''}">${Math.round(S.mats[k])} ${L('шт', 'Stk.')}${coming ? ` <span class="muted">(+${coming} ${L('в пути', 'unterwegs')})</span>` : ''}</span></div><div class="row"><span class="muted">${L(m.ru, m.deLong)}</span><button data-buy="${k}">+${m.pack} ${L('за', 'für')} ${eur(pr)}${pr > m.price ? ' ↑' : pr < m.price ? ' ↓' : ''}</button></div>${matDelay(k) !== 120 ? `<div class="bad" style="font-size:11px">${L(`Поставка ${matDelay(k) / 60} ч — дефицит у поставщика`, `Lieferung ${matDelay(k) / 60} h — Engpass beim Lieferanten`)}</div>` : ''}</div>`; }).join('');
-    p.innerHTML = `<h3>${L('Материалы', 'Material')}</h3><div class="card"><label><input type="checkbox" data-autobuy ${S.autoBuy ? 'checked' : ''}> ${L('Автозаказ, когда остаток меньше 30', 'Automatisch nachbestellen, wenn der Bestand unter 30 fällt')}</label></div>${rows}<div class="muted" style="font-size:11px">${L('Поставка обычно через 2 игровых часа. На одну шину: 1 сырая резина (лента; карьерная OTR — 3), 1 клей, 1 ремонтная резина. Сырая резина лежит у машин Ж2, клей — на М2: за канистрой ходят.', 'Lieferung meist nach 2 Spielstunden. Pro Reifen: 1 Rohgummi (Band; OTR-Reifen — 3), 1 Gummilösung, 1 Füllgummi. Das Rohgummi liegt an den Maschinen in Ж2, die Gummilösung an М2: Kanister werden dort geholt.')}</div>`;
+    p.innerHTML = `<h3>${L('Материалы', 'Material')}</h3><div class="card"><label><input type="checkbox" data-autobuy ${S.autoBuy ? 'checked' : ''}> ${L('Автозаказ, когда остаток меньше 30', 'Automatisch nachbestellen, wenn der Bestand unter 30 fällt')}</label></div>${rows}<div class="muted" style="font-size:11px">${L('Поставка обычно через 2 игровых часа. На одну шину: 1 сырая резина (лента; карьерная OTR — 3), 1 клей, 1 ремонтная резина. Сырая резина лежит у машин Ж2, клей — на М2: за канистрой ходят.', 'Lieferung meist nach 2 Spielstunden. Pro Reifen: 1 Rohgummi (Band; OTR-Reifen — 3), 1 Gummilösung, 1 Füllgummi. Das Rohgummi liegt an den Maschinen in Ж2, die Gummilösung an М2: Kanister werden dort geholt.')} ${L('СИЗ: комплект на 2 смены на каждого, кто их носит (подробнее — вкладка «Правила»).', 'PSA: ein Set reicht für 2 Schichten pro Person, die sie trägt (mehr im Reiter „Regeln“).')}</div>`;
   } else if (tab === 'upgrades') {
     const list = [...UPGRADES].sort((a, b) => a.lvl - b.lvl || a.price - b.price);
     const cards = list.map(u => { const lock = upgLock(u), own = S.upgrades[u.id];
@@ -3865,6 +4490,7 @@ function renderPanel() {
 }
 function renderTop() {
   $('tDay').textContent = day(); $('tClock').textContent = fmtClock(clock());
+  const sm = seasonMul(), mnm = monthName(); $('tSeason').textContent = `${seasonIcon()} ${mnm[0].toUpperCase() + mnm.slice(1)}${sm !== 1 ? ` ×${fmt1(sm)}` : ''}`; $('tSeason').className = sm > 1 ? 'good' : sm < 1 ? 'warn' : ''; $('sSeason').title = seasonText();
   const c = clock(), cur = activeShifts().find(k => inShift(k, c)); $('tShift').textContent = cur ? SHIFTS[cur].de : L('смены нет', 'keine Schicht');
   $('tMoney').textContent = eur(S.money); $('tMoney').className = S.money < 0 ? 'bad' : '';
   $('tRep').textContent = Math.round(S.rep); $('tToday').textContent = S.doneToday;
@@ -3923,6 +4549,11 @@ document.addEventListener('click', e => {
   if (d.train) { const [id, k] = d.train.split(':'); train(Number(id), k); }
   if (d.fire) { const id = Number(d.fire); if (S.fireAsk === id) { fire(id); S.fireAsk = null; } else S.fireAsk = id; }
   if (d.hirec) hireCand(Number(d.hirec));
+  if (d.pol) setPolicy(d.pol, !pol(d.pol));
+  if (d.praise) praise(Number(d.praise));
+  if (d.bonusw) bonusW(Number(d.bonusw));
+  if (d.raise) raiseWage(Number(d.raise));
+  if (d.mentor) { const [id, m] = d.mentor.split(':'), wid = Number(id); if (m === 'ask') S.mentorAsk = wid; else if (m === 'cancel') S.mentorAsk = null; else if (m === 'x') setMentor(wid, null); else { setMentor(wid, Number(m)); S.mentorAsk = null; } }
   if (d.praemie !== undefined) praemie();
   if (d.res) research(d.res);
   if (d.unres) unresearch(d.unres);
@@ -4021,6 +4652,10 @@ const TUT = [
     de: ['Aufträge und Lkw', 'Kunden schicken Anfragen: Menge, Preis, Termin. Du kannst annehmen, ablehnen oder verhandeln. Danach bringt ein Lkw die Karkassen; Fertiges wird ab 12 Reifen abgeholt. Verspätungen kosten Geld und Ruf. Die automatische Annahme nimmt nur, was das Werk schafft.'] },
   { tab: 'workers', ru: ['Люди: приоритеты, навыки, перки', 'Каждый сам выбирает работу по приоритетам: нажатие на клетку 1→2→3→4→выкл. Под кнопкой — уровень навыка. Навыки растут с опытом и на курсах (📚 Schulung); с 8,5 открывается перк Profi, с 9,5 — Meister. Нажмите на имя — откроется карточка.'],
     de: ['Team: Prioritäten, Fähigkeiten, Perks', 'Alle suchen sich ihre Arbeit nach Prioritäten selbst: Tippe auf ein Feld, 1→2→3→4→aus. Unter dem Knopf steht die Fähigkeitsstufe. Fähigkeiten wachsen mit Erfahrung und in Schulungen (📚); ab 8,5 gibt es den Perk Profi, ab 9,5 Meister. Ein Tipp auf den Namen öffnet die Karte.'] },
+  { tab: 'workers', selw: true, ru: ['Карточка человека: настроение и характер', 'У каждого своё настроение — под ним список причин: усталость, кофе, друзья в смене, шум и пыль у станка, зарплата против рынка, черты. Ниже 35 — срывы (перекур, ссора, уход домой), выше 85 — вдохновение. Ещё здесь 6 характеристик (1–20, растут от работы), страсти 🔥 к видам работ (учится быстрее и работает охотнее), 1–3 черты, друзья и соперники. Можно назначить наставника, похвалить, дать премию или прибавку.'],
+    de: ['Personenkarte: Stimmung und Charakter', 'Jede Person hat ihre eigene Stimmung — darunter stehen die Gründe: Müdigkeit, Kaffee, Freunde in der Schicht, Lärm und Staub an der Maschine, Lohn im Vergleich zum Markt, Charakterzüge. Unter 35 drohen Ausraster (lange Pause, Streit, nach Hause gehen), über 85 Inspiration. Außerdem: 6 Eigenschaften (1–20, wachsen mit der Arbeit), Leidenschaften 🔥 (lernt schneller, arbeitet lieber), 1–3 Charakterzüge, Freunde und Rivalen. Du kannst einen Paten zuweisen, loben, eine Prämie oder mehr Lohn geben.'] },
+  { tab: 'rules', ru: ['Правила и безопасность', 'Во вкладке «Правила» — 8 правил предприятия: сдельная оплата, сверхурочные, запрет курения, СИЗ обязательно, 5S, гибкий график, недельная премия, ротация. У каждого есть плюс и минус, а менять правило можно раз в 7 дней. Там же — несчастные случаи: усталость, растяпы, пыль и работа без СИЗ на Rauen, зачистке и у прессов ведут к травмам и штрафам BG. И Kaizen: раз в неделю рабочие предлагают улучшения.'],
+    de: ['Regeln und Arbeitssicherheit', 'Im Reiter „Regeln“ stehen 8 Betriebsregeln: Akkordlohn, Überstunden, Rauchverbot, PSA-Pflicht, 5S, Gleitzeit, Wochenprämie, Job-Rotation. Jede hat ein Plus und ein Minus, ändern lässt sie sich nur alle 7 Tage. Dort siehst du auch die Arbeitsunfälle: Müdigkeit, Schussel, Staub und Arbeit ohne PSA an Rauen, Ausschleifen und Pressen führen zu Verletzungen und BG-Bußgeldern. Und Kaizen: Einmal pro Woche macht das Team Verbesserungsvorschläge.'] },
   { area: [26, 31, 14, 14], tab: 'overview', ru: ['Поломки и ремонт', 'Станки ломаются — чаще, если у них пыль и износ. На станке загорается ⚠, техник (Instandhaltung) берёт инструмент в мастерской (Werkstatt, внизу слева) и чинит. Первая поломка — у Rauen 1 уже в 06:30. Помогают уборка, вытяжка и техобслуживание.'],
     de: ['Ausfälle und Reparatur', 'Maschinen fallen aus — öfter, wenn sie verstaubt und verschlissen sind. Dann leuchtet ⚠, die Instandhaltung holt Werkzeug in der Werkstatt (unten links) und repariert. Der erste Ausfall kommt schon um 06:30 an Rauen 1. Dagegen helfen Putzen, Absaugung und Wartung.'] },
   { tab: 'events', ru: ['События и решения', 'Примерно раз-два в сутки что-то случается: срочный заказ, болезнь, проверка, жара, профсоюз. Наверху панели появляется карточка, игра встаёт на паузу — выберите вариант. Под каждым вариантом написаны последствия; не решите вовремя — сработает вариант по умолчанию.'],
@@ -4046,7 +4681,8 @@ function showTut(i) {
   const st = TUT[i], [h, t] = S.lang === 'de' ? st.de : st.ru;
   tutArea = st.area || null; tutCam = st.area || null;
   box.classList.toggle('map', !!st.area);
-  if (st.tab) { setTab(st.tab); renderPanel(); }
+  if (st.selw && !(S.selected && S.selected.w)) S.selected = { w: S.workers.find(w => !w.away && w.traits.length > 1) || S.workers[0] }; // показать карточку человека
+  if (st.tab) { setTab(st.tab); renderPanel(); renderSel(); }
   box.innerHTML = `<div class="row"><span class="muted" style="font-size:11px">${L('Обучение', 'Anleitung')} · ${i + 1} / ${TUT.length}</span><button data-tut="skip" title="Esc">${L('Пропустить', 'Überspringen')}</button></div>
     <div class="tutbar"><i style="width:${(i + 1) / TUT.length * 100}%"></i></div><b class="tuth" style="font-size:15px">${h}</b><div style="margin:6px 0 10px">${t}</div>
     <div class="row"><span>${i ? `<button data-tut="back">◀ ${L('Назад', 'Zurück')}</button>` : ''}</span><button class="on" data-tut="next">${i === TUT.length - 1 ? L('Играть ▶', 'Los geht’s ▶') : L('Дальше ▶', 'Weiter ▶')}</button></div>`;
@@ -4061,6 +4697,20 @@ function tutFocus(a) {
   const [x, y, w, h] = a, z = Math.max(1, Math.min(3, 0.92 * MW / (w + 2), 0.92 * vis * MH / (h + 2))), vh = MH / z;
   P.cam.z = z; P.cam.cx = (x + w / 2) * CAM_PT; P.cam.cy = (y + h / 2 + (0.5 - vis / 2) * vh) * CAM_PT;
   P.pan(0, 0); // pan(0, 0) только зажимает камеру в границах карты
+}
+// Значки настроения над людьми в пиксельной графике (w.badge: срыв 😤/😡/💢, вдохновение ⚡🔍💡🎓, плохое настроение ☹) — поверх кадра, в пикселях устройства
+function drawMoodOverlay() {
+  const P = window.PixelGfx; if (!pixelOn() || !P.cam) return;
+  const c = P.cam, W = cv.width, H = cv.height, vw = MW * CAM_PT / c.z, vh = MH * CAM_PT / c.z, sx = c.cx - vw / 2, sy = c.cy - vh / 2, tile = CAM_PT / vw * W, dpr = window.devicePixelRatio || 1;
+  const fs = Math.round(Math.max(11 * dpr, Math.min(22 * dpr, tile * 0.75)));
+  ctx.save(); ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.font = `${fs}px system-ui`; ctx.textAlign = 'center'; ctx.textBaseline = 'bottom';
+  for (const w of S.workers) {
+    if (w.away || !w.badge) continue;
+    const x = ((w.x + 0.5) * CAM_PT - sx) / vw * W, y = ((w.y - 1.75) * CAM_PT - sy) / vh * H;
+    if (x < -fs || y < -fs || x > W + fs || y > H + fs) continue;
+    ctx.fillText(w.badge, x - tile * 0.35, y);
+  }
+  ctx.restore();
 }
 // Пульсирующая рамка вокруг участка (рисуем поверх кадра, в пикселях устройства) и лёгкое затемнение остального
 function drawTutArea() {
@@ -4088,7 +4738,7 @@ function applyLang() {
   tip('skipNight', 'Ночью смены нет: досчитать ночь до 05:55 одним щелчком (прессы, грузовики, события считаются честно)', 'Nachts arbeitet keine Schicht: die Nacht mit einem Klick bis 05:55 durchrechnen (Pressen, Lkw und Ereignisse laufen ehrlich weiter)');
   tip('autoNightL', 'Каждую ночь пропускать автоматически', 'Jede Nacht automatisch überspringen');
   const pz = document.querySelector('[data-speed="0"]'); if (pz) pz.title = L('Пауза (Пробел)', 'Pause (Leertaste)');
-  const tabs = { overview: ['Цех', 'Werk'], workers: ['Люди', 'Team'], orders: ['Заказы', 'Aufträge'], stock: ['Склад', 'Lager'], upgrades: ['Апгрейды', 'Upgrades'], research: ['Наука', 'Forschung'], dev: ['Развитие', 'Fortschritt'], finance: ['Финансы', 'Finanzen'], events: ['События', 'Ereignisse'], log: ['Журнал', 'Logbuch'] };
+  const tabs = { overview: ['Цех', 'Werk'], workers: ['Люди', 'Team'], rules: ['Правила', 'Regeln'], orders: ['Заказы', 'Aufträge'], stock: ['Склад', 'Lager'], upgrades: ['Апгрейды', 'Upgrades'], research: ['Наука', 'Forschung'], dev: ['Развитие', 'Fortschritt'], finance: ['Финансы', 'Finanzen'], events: ['События', 'Ereignisse'], log: ['Журнал', 'Logbuch'] };
   document.querySelectorAll('#tabs button').forEach(b => { const t = tabs[b.dataset.tab]; if (!t) return; const tl = b.querySelector('.tl'); if (tl) tl.textContent = L(t[0], t[1]); else b.textContent = L(t[0], t[1]); });
   $('langBtn').textContent = S.lang === 'de' ? 'RU' : 'DE'; $('langBtn').title = L('Deutsch — переключить язык', 'Русский — Sprache wechseln');
   $('tutBtn').innerHTML = '❓<span class="gl"> ' + L('Обучение', 'Anleitung') + '</span>'; $('tutBtn').title = L('Показать обучение ещё раз', 'Anleitung noch einmal zeigen');
@@ -4102,7 +4752,7 @@ function frame(now) {
   const dt = Math.min(0.1, (now - last) / 1000); last = now;
   if (S.speed > 0) { if (S.autoNight && !working() && !S.events.some(e => e.state === 'choice')) skipNight(); else advance(dt * MIN_PER_SEC * S.speed); }
   if (pixelOn()) { window.PixelGfx.render(VIEW); pixDrawn = true; if (tutCam) { tutFocus(tutCam); tutCam = null; } } else render();
-  drawTutArea();
+  drawMoodOverlay(); drawTutArea();
   uiT += dt; if (uiT > 0.3) { uiT = 0; renderTop(); if (!uiBusy('#sel')) renderSel(); if (!uiBusy('#panel') || tab === 'log') renderPanel(); }
   requestAnimationFrame(frame);
 }
@@ -4128,6 +4778,10 @@ function prefill() {
   for (const s of [ST.rauen1, ST.ausschl1, ST.entgr2]) s.dirt = 0.3; // с ночи осталась пыль — будет что подметать
 }
 if (params.get('empty') !== '1') prefill();
+// Люди v2 при старте: старая команда знакома друг с другом, ранняя смена — в СИЗ, настроение уже «устоялось»
+S.workers.forEach(migrateWorker); initRelations();
+for (const w of S.workers) { if (!w.away) dressPPE(w); w.mood = clamp(moodTarget(w) + R(-4, 4), 0, 100); w.badge = badgeOf(w); }
+updateMorale();
 makeOffer(); makeOffer(); makeCands(); updateGoals();
 resize(); renderTop(); renderSel(); renderPanel();
 log(LL('Добро пожаловать в Reifenwerk! Вы — стартап: взяли в аренду цех восстановления шин вместе с командой из 15 человек. Банк даст льготный кредит KfW (вкладка «Финансы»), дальше — развитие, оптимизация, оборудование. Цех построен по эталону: горячий метод — крюки в Ж1–Ж2, намотка сырой резины, 10 прессов с формами, обрезка, сканер, контроль, отгрузка через пандус Р. 2 заказа уже в производстве, грузовик подъезжает к воротам З. Заказы принимаются автоматически (вкладка «Заказы»).',
@@ -4154,7 +4808,27 @@ window.RW = {
     breakdowns: S.stats.breakdowns, broken: MACHINES.filter(m => m.broken).map(m => `${m.id}: ${m.broken.de} ${m.broken.tech ? Math.round(m.broken.done / m.broken.need * 100) + '%' : 'ждёт'}`),
     downtimeMin: Math.round(S.stats.downtime), repairsEur: S.stats.repairs,
     events: S.events.map(e => `${e.kind}:${e.state}`), goals: S.goals.map(g => g.id), research: S.res.cur, researched: S.res.done.length, upgrades: Object.keys(S.upgrades),
+    // Люди v2
+    month: MONTHS_DE[month()], season: seasonMul(), policies: Object.keys(S.pol).filter(pol), grades: { ...S.grades }, hr: { ...S.hr, accLog: S.hr.accLog.length },
+    moodMin: Math.round(Math.min(...S.workers.map(w => w.mood))), lowMood: S.workers.filter(w => w.mood < brkThr(w)).length, injured: S.workers.filter(w => w.injured && w.sickUntil > S.t).map(w => w.name), inBreak: S.workers.filter(w => w.brk).map(w => `${w.name}:${w.brk.kind}`), inspired: S.workers.filter(w => w.insp).map(w => `${w.name}:${w.insp.kind}`),
   }),
+  // ---- Люди v2: тестовые хуки ----
+  setPolicy: (id, on, force = false) => { const r = setPolicy(id, on, force); renderPanel(); return r; }, // force — без 7-дневного ожидания
+  policies: () => POLICIES.map(p => ({ id: p.id, de: p.de, on: pol(p.id), cooldownMin: Math.round(polLeft(p.id)) })),
+  workerInfo: id => {
+    const w = typeof id === 'string' ? S.workers.find(x => x.name.startsWith(id)) : workerById(id); if (!w) return null;
+    const nm = o => o.name;
+    return { id: w.id, name: w.name, age: Math.floor(w.age), shift: w.shift, wage: w.wage, market: marketWage(w), traits: [...w.traits], attr: Object.fromEntries(ATTRS.map(a => [a, +w.attr[a].toFixed(2)])), passions: { ...w.pass },
+      skills: Object.fromEntries(WORKS.map(k => [k, +w.skills[k].toFixed(2)])), xpMinToday: { ...w.xpMin }, mood: +w.mood.toFixed(1), moodTarget: Math.round(moodTarget(w)), breakAt: brkThr(w),
+      mods: moodParts(w).map(p => ({ label: S.lang === 'de' ? p[1] : p[0], v: p[2], leftMin: p[3] ? Math.round(p[3] - S.t) : null })), brk: w.brk, insp: w.insp, badge: w.badge, ppe: w.ppe, injured: !!(w.injured && w.sickUntil > S.t), away: w.away, job: jobText(w),
+      friends: friendsOf(w).map(nm), rivals: rivalsOf(w).map(nm), mentor: w.mentor != null && workerById(w.mentor) ? workerById(w.mentor).name : null, pupils: pupilsOf(w).map(nm), learnF: +learnF(w).toFixed(2) };
+  },
+  forceInspiration: (id, kind) => { const w = typeof id === 'string' ? S.workers.find(x => x.name.startsWith(id)) : workerById(id); if (!w) return false; w.insp = null; return inspire(w, kind); },
+  forceAccident: id => { const w = typeof id === 'string' ? S.workers.find(x => x.name.startsWith(id)) : workerById(id); if (!w) return false; const s = w.lastSt && ST[w.lastSt]; return accident(w, s || null); },
+  forceBreak: (id, major = false, kind) => { const w = typeof id === 'string' ? S.workers.find(x => x.name.startsWith(id)) : workerById(id); return !!w && mentalBreak(w, major, kind); },
+  setMentor, praise, bonusW, raiseWage, setMonth: m => { S.calOff = 0; S.calOff = ((m - month()) % 12 + 12) % 12 * MONTH_DAYS; return MONTHS_DE[month()]; },
+  safety: () => ({ accidents: S.hr.acc, fines: S.hr.fines, daysWithout: Math.floor((S.t - S.lastAccident) / 1440), log: S.hr.accLog.map(a => `${fmtDT(a.t)} ${a.name} ${a.st} ${a.days}d${a.viol ? ' Verstoß' : ''}`), psaStock: S.mats.psa, wearing: S.workers.filter(w => !w.away && w.ppe).length }),
+  oee: id => oee(ST[id]),
   MACHINES, breakDown, UPGRADES, buyUpgrade,
   // События: список, запустить вручную (с выбором варианта сразу), выбрать вариант
   events: () => S.events.map(e => ({ id: e.id, kind: e.kind, title: e.title, text: e.text, state: e.state, x: e.x, y: e.y, until: e.until, choices: e.choices && e.choices.map(c => c.t) })),
@@ -4168,7 +4842,7 @@ window.RW = {
   hireCand, train, fire, praemie, takeLoan, repayLoan, skipNight, tier, rankOf, setShiftModel, negotiate, debt,
   finance: () => { const t = statDiff(S.stats, S.snap); return { cash: Math.round(S.money), debt: debt(), receivables: recvSum(), lossCarry: S.lossCarry, days: S.days.map(r => ({ d: r.d, done: r.done, revenue: Math.round(r.revenue), ebt: Math.round(ebt(r)), tax: r.tax, cash: r.cash })), todayEbt: Math.round(ebt(t)) }; },
   profile: (min = 240) => profile(min),
-  draw: (t = tab) => { setTab(t); if (S.gfx === 'pixel' && window.PixelGfx) { window.PixelGfx.render(VIEW); pixDrawn = true; if (tutCam) { tutFocus(tutCam); tutCam = null; } } else render(); drawTutArea(); renderTop(); renderSel(); renderPanel(); return $('panel').innerHTML.length; }, // один кадр и панель — для тестов
+  draw: (t = tab) => { setTab(t); if (S.gfx === 'pixel' && window.PixelGfx) { window.PixelGfx.render(VIEW); pixDrawn = true; if (tutCam) { tutFocus(tutCam); tutCam = null; } } else render(); drawMoodOverlay(); drawTutArea(); renderTop(); renderSel(); renderPanel(); return $('panel').innerHTML.length; }, // один кадр и панель — для тестов
 };
 // Профилировщик: сколько мс уходит на части симуляции за min игровых минут
 function profile(min) {

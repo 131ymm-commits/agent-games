@@ -534,6 +534,7 @@ function toolPose(tool, on, t) { // [ближняя рука x,y, дальняя
     case 'knife': { const p = on ? (t * 1.6) % 1 : 0.3; return [7 + Math.round(p * 5), -18 + Math.round(p * 2), 4, -19]; }
     case 'canister': case 'toolbox': return [3, -14, -1, -16];
     case 'cup': return on && (t * 0.45) % 1 < 0.25 ? [5, -31, -1, -16] : [6, -21, -1, -16];
+    case 'cig': return on && (t * 0.35) % 1 < 0.3 ? [4, -31, -1, -16] : [6, -22, -1, -16]; // затяжка — рука ко рту
     case 'sign': return [6, -29 + (on ? Math.round(s(t * 4) * 2) : 0), 3, -26 + (on ? Math.round(s(t * 4) * 2) : 0)];
     case 'book': return [6, -17, 3, -17];
     default: { const a = on ? s(t * 5) : 0; return [8, -20 + Math.round(a * 3), 6, -19 - Math.round(a * 3)]; }
@@ -580,6 +581,7 @@ function drawTool(tool, on, t, hx, hy) {
       R(hx, hy - 14, 1, 16, WOOD[2]); R(hx - 8, hy - 24, 17, 11, OUT); R(hx - 7, hy - 23, 15, 9, '#f4f2ea'); R(hx - 7, hy - 23, 15, 1, '#ffffff');
       R(hx - 5, hy - 21, 11, 2, RED[3]); R(hx - 5, hy - 17, 7, 1, '#3a3a44'); R(hx + 3, hy - 17, 3, 1, '#3a3a44'); break;
     case 'book': R(hx - 6, hy - 5, 13, 7, OUT); R(hx - 5, hy - 4, 5, 5, '#f4f2ea'); R(hx + 1, hy - 4, 5, 5, '#e8e4d8'); R(hx, hy - 4, 1, 5, RED[2]); R(hx - 4, hy - 2, 3, 1, '#9a9a9a'); R(hx + 2, hy - 2, 3, 1, '#9a9a9a'); break;
+    case 'cig': R(hx, hy - 2, 5, 2, OUT); R(hx + 1, hy - 2, 3, 1, '#f4f4f0'); px(hx + 4, hy - 2, f2 ? '#ff7a2a' : '#ffb060'); break; // сигарета с тлеющим концом
     case 'cup': R(hx - 2, hy - 4, 5, 5, OUT); R(hx - 1, hy - 3, 3, 3, '#f4f4f4'); px(hx + 2, hy - 2, '#f4f4f4'); px(hx - 1, hy - 3, '#7a4a2a'); break;
   }
 }
@@ -592,6 +594,9 @@ function toolOf(w) {
   if (j.type === 'train') return w.act === 'train' ? 'book' : null;      // Schulung — учебник
   if (j.type === 'fetch') return w.tool === 'canister' ? 'canister' : null;
   if (j.type === 'repair') return w.act === 'repair' ? 'wrench' : w.tool ? 'toolbox' : null;
+  if (j.type === 'smoke') return w.state === 'act' ? 'cig' : null;          // перекур во дворе
+  if (j.type === 'fives') return w.state === 'act' ? 'broom' : null;        // уборка 5S в конце смены
+  if (j.type === 'mbreak') return w.state === 'act' && w.act === 'smoke' ? 'cig' : null;
   if (j.type === 'idle') return j.act === 'sweep' ? 'broom' : j.act === 'inspect' ? 'clipboard' : w.state === 'act' ? (j.act === 'coffee' ? 'cup' : 'hands') : null;
   if (j.type === 'start') return w.state === 'work' ? 'hands' : null;
   if (j.type === 'work') return w.state === 'work' ? TOOL_G[j.st.g] || 'hands' : null;
@@ -1500,6 +1505,7 @@ function toolFx(tool, x, y, face, w, view) {
     case 'broom': if (rate(w, 0, 7)) emit(2, x + face * 10, y + 16, face * (8 + rnd() * 14), -6 - rnd() * 8, 0.9, 0, 0.8, 0, 1, 4, '#9a8c74', 0.4); break;
     case 'wrench': if (rate(w, 0, 1.2)) sparks(x + face * 10, y - 2, face, 3); break;
     case 'cup': if (rate(w, 0, 1.5)) steam(x, y - 5, 0.4); break;
+    case 'cig': if (rate(w, 0, 1.2)) emit(2, x + face * 6, y - 4, face * 3, -10, 1.6, -2, 0.6, 0, 1, 4, '#d8d8dc', 0.35); break;
   }
 }
 
