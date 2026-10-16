@@ -136,7 +136,7 @@ area(66, 23, 71, 31, T_FLOOR); wallH(23, 66, 71); wallH(31, 66, 71); wallV(71, 2
 wallH(16, 26, 35); wallV(35, 9, 23); wallH(23, 26, 66); wallH(40, 26, 66);           // С1|С2, С|С3, левый пролёт|Ж, Ж|Ф
 area(66, 24, 66, 30, T_FLOOR);                                   // Ж4 открыт на пандус
 for (const [x, y] of [[30, 9], [26, 19], [26, 38], [12, 27], [23, 42], [30, 16], [35, 12], [35, 19], [27, 23], [41, 23], [42, 23], [49, 23],
-  [60, 23], [61, 23], [29, 40], [53, 40], [67, 23], [68, 23], [69, 23], [70, 23]]) grid[I(x, y)] = T_DOOR;
+  [60, 23], [61, 23], [37, 23], [29, 40], [53, 40], [67, 23], [68, 23], [69, 23], [70, 23]]) grid[I(x, y)] = T_DOOR;
 
 const ZONES = [
   { name: 'Pausenraum', kind: 'rest', x: 27, y: 10, w: 8, h: 6, color: 'rgba(110,160,110,.28)' },
@@ -145,9 +145,9 @@ const ZONES = [
   { name: 'К2 MATERIAL', kind: 'label', x: 3, y: 28, w: 23, h: 14, color: 'rgba(120,110,90,.10)' },
   { name: 'С2 PRÜFUNG', kind: 'label', x: 27, y: 17, w: 8, h: 6, color: 'rgba(90,130,200,.10)' },
   { name: 'С3 KARKASSENLAGER', kind: 'label', x: 36, y: 10, w: 30, h: 13, color: 'rgba(90,130,200,.10)' },
-  { name: 'Ж1 VORBEREITUNG', kind: 'label', x: 27, y: 24, w: 15, h: 16, color: 'rgba(240,190,40,.10)' },
-  { name: 'Ж2 AUFBAU', kind: 'label', x: 42, y: 24, w: 4, h: 16, color: 'rgba(240,190,40,.14)' },
-  { name: 'Ж3 PRESSEN', kind: 'label', x: 46, y: 24, w: 8, h: 16, color: 'rgba(240,190,40,.10)' },
+  { name: 'Ж1 VORBEREITUNG', kind: 'label', x: 27, y: 24, w: 12, h: 16, color: 'rgba(240,190,40,.10)' },
+  { name: 'Ж2 AUFBAU', kind: 'label', x: 39, y: 24, w: 8, h: 16, color: 'rgba(240,190,40,.14)' },
+  { name: 'Ж3 PRESSEN', kind: 'label', x: 47, y: 24, w: 7, h: 16, color: 'rgba(240,190,40,.10)' },
   { name: 'Ж4 FINISH', kind: 'label', x: 54, y: 24, w: 12, h: 16, color: 'rgba(240,190,40,.14)' },
   { name: 'Ф KLEINREIFEN', kind: 'label', x: 27, y: 41, w: 39, h: 8, color: 'rgba(150,110,200,.12)' },
 ];
@@ -160,7 +160,7 @@ const DECOR = [
   { id: 'desk', label: '', x: 33, y: 14, w: 2, h: 1, color: '#5a5f7a', desc: 'Стол мастера: заказы, планирование, качество. Мастер — это вы.' },
   { id: 'schrott', label: 'Container', x: 5, y: 5, w: 12, h: 2, color: '#7a3b2a', desc: 'Огороженная площадка с большими контейнерами. Сюда уходит лом — забракованные каркасы.' },
   { id: 'werkbank', label: 'Werkstatt', x: 27, y: 42, w: 3, h: 1, color: '#6b4a2a', desc: 'Мастерская техника: верстак, тиски, ящик с инструментами и запчасти. Когда станок ломается, техник берёт здесь инструмент и идёт чинить.' },
-  { id: 'rohgummi', label: 'Rohgummi', x: 44, y: 37, w: 2, h: 2, color: '#2a2a30', desc: 'Сырая (невулканизированная) резина для намотки. Лежит прямо у машин Ж2: её подвозят, ходить за ней не нужно.' },
+  { id: 'rohgummi', label: 'Rohgummi', x: 41, y: 37, w: 2, h: 2, color: '#2a2a30', desc: 'Сырая (невулканизированная) резина для намотки. Лежит прямо у машин Ж2: её подвозят, ходить за ней не нужно.' },
   { id: 'm2', label: 'М2', x: 21, y: 44, w: 4, h: 2, color: '#4a4f57', desc: 'М2: контейнеры для резиновых отходов и склад Gummilösung. Когда клей на участке кончается, рабочий идёт сюда за канистрой.' },
   { id: 'm1', label: 'М1', x: 70, y: 44, w: 4, h: 2, color: '#4a4f57', desc: 'М1: мусор — металл (проволока, гвозди) и бумага.' },
   { id: 'autoklav1', label: 'Autoklav', x: 55, y: 43, w: 5, h: 3, color: '#4a7db0', desc: 'Единственный автоклав (холодный метод). Работает отдельно от основной линии, на нём один человек. Пока не моделируется.' },
@@ -215,16 +215,16 @@ const STATIONS = [
   { id: 'pruef2', g: 'pruef', kind: 'proc', work: 'pruefen', time: 7, x: 31, y: 18, w: 2, h: 2, ax: 31, ay: 20, inCap: 2, next: 'sort', color: '#2c6aa8' },
   { id: 'sort', g: 'sort', kind: 'store', x: 37, y: 11, w: 14, h: 9, ax: 44, ay: 20, cap: 120, next: 'aufh', fork: true, color: '#4b5361' },
   { id: 'aufh', g: 'aufh', kind: 'store', x: 27, y: 31, w: 2, h: 4, ax: 29, ay: 33, cap: 24, next: 'rauen', loop: true, color: '#4b5361' },
-  { id: 'rauen1', g: 'rauen', kind: 'proc', work: 'rauen', time: 7, x: 39, y: 33, w: 3, h: 2, ax: 38, ay: 34, inCap: 1, next: 'ausschl', loop: true, color: '#8f5a1c' },
-  { id: 'rauen2', g: 'rauen', kind: 'proc', work: 'rauen', time: 7, x: 39, y: 36, w: 3, h: 2, ax: 38, ay: 36, inCap: 1, next: 'ausschl', loop: true, color: '#8f5a1c' },
-  { id: 'ausschl1', g: 'ausschl', kind: 'proc', work: 'reparatur', time: 8, x: 33, y: 31, w: 3, h: 1, ax: 36, ay: 31, inCap: 1, next: 'spray', loop: true, color: '#7a4f8a' },
-  { id: 'ausschl2', g: 'ausschl', kind: 'proc', work: 'reparatur', time: 8, x: 33, y: 28, w: 3, h: 1, ax: 36, ay: 28, inCap: 1, next: 'spray', loop: true, color: '#7a4f8a' },
-  { id: 'pflaster', g: 'pflaster', kind: 'proc', work: 'reparatur', time: 6, mat: { pflaster: 1 }, x: 29, y: 27, w: 2, h: 2, ax: 27, ay: 28, inCap: 1, next: 'spray', loop: true, color: '#c2435a' },
+  { id: 'rauen1', g: 'rauen', kind: 'proc', work: 'rauen', time: 7, x: 36, y: 33, w: 3, h: 2, ax: 35, ay: 34, inCap: 1, next: 'ausschl', loop: true, color: '#8f5a1c' },
+  { id: 'rauen2', g: 'rauen', kind: 'proc', work: 'rauen', time: 7, x: 36, y: 36, w: 3, h: 2, ax: 35, ay: 36, inCap: 1, next: 'ausschl', loop: true, color: '#8f5a1c' },
+  { id: 'ausschl1', g: 'ausschl', kind: 'proc', work: 'reparatur', time: 8, x: 32, y: 31, w: 3, h: 1, ax: 31, ay: 31, inCap: 1, next: 'spray', loop: true, color: '#7a4f8a' },
+  { id: 'ausschl2', g: 'ausschl', kind: 'proc', work: 'reparatur', time: 8, x: 32, y: 27, w: 3, h: 2, ax: 31, ay: 28, inCap: 1, next: 'spray', loop: true, color: '#7a4f8a' },
+  { id: 'pflaster', g: 'pflaster', kind: 'proc', work: 'reparatur', time: 6, mat: { pflaster: 1 }, x: 28, y: 27, w: 2, h: 2, ax: 27, ay: 28, inCap: 1, next: 'spray', loop: true, color: '#c2435a' },
   { id: 'spray', g: 'spray', kind: 'proc', work: 'reparatur', time: 2, dry: 10, mat: { loesung: 1 }, x: 31, y: 24, w: 3, h: 2, ax: 34, ay: 25, inCap: 1, outCap: 2, next: 'fuellen', loop: true, color: '#3c7f7a' },
-  { id: 'fuellen', g: 'fuellen', kind: 'proc', work: 'reparatur', time: 6, mat: { fuellgummi: 1 }, x: 37, y: 24, w: 2, h: 2, ax: 39, ay: 25, inCap: 1, next: 'aufbau', loop: true, color: '#5d6b2f' },
-  { id: 'aufbau1', g: 'aufbau', kind: 'proc', work: 'belegen', time: 9, mat: { rohgummi: 1 }, x: 43, y: 27, w: 3, h: 2, ax: 42, ay: 27, inCap: 2, outCap: 4, next: 'puffer', loop: true, cartOut: true, color: '#a0662a' },
-  { id: 'aufbau2', g: 'aufbau', kind: 'proc', work: 'belegen', time: 9, mat: { rohgummi: 1 }, x: 43, y: 24, w: 3, h: 2, ax: 42, ay: 25, inCap: 2, outCap: 4, next: 'puffer', loop: true, cartOut: true, color: '#a0662a' },
-  { id: 'puffer', g: 'puffer', kind: 'store', x: 44, y: 30, w: 2, h: 4, ax: 43, ay: 31, cap: 16, next: 'presse', color: '#4b5361' },
+  { id: 'fuellen', g: 'fuellen', kind: 'proc', work: 'reparatur', time: 6, mat: { fuellgummi: 1 }, x: 35, y: 24, w: 2, h: 2, ax: 37, ay: 25, inCap: 1, next: 'aufbau', loop: true, color: '#5d6b2f' },
+  { id: 'aufbau1', g: 'aufbau', kind: 'proc', work: 'belegen', time: 9, mat: { rohgummi: 1 }, x: 41, y: 27, w: 4, h: 3, ax: 45, ay: 28, inCap: 2, outCap: 4, next: 'puffer', loop: true, cartOut: true, color: '#a0662a' },
+  { id: 'aufbau2', g: 'aufbau', kind: 'proc', work: 'belegen', time: 9, mat: { rohgummi: 1 }, x: 41, y: 32, w: 4, h: 3, ax: 45, ay: 33, inCap: 2, outCap: 4, next: 'puffer', loop: true, cartOut: true, color: '#a0662a' },
+  { id: 'puffer', g: 'puffer', kind: 'store', x: 46, y: 35, w: 2, h: 4, ax: 45, ay: 36, cap: 16, next: 'presse', color: '#4b5361' },
   ...PRESSES,
   { id: 'entgr1', g: 'entgr', kind: 'proc', work: 'nacharbeit', time: 6, x: 55, y: 24, w: 2, h: 2, ax: 55, ay: 26, inCap: 3, next: 'endk', color: '#8a5a2a' },
   { id: 'entgr2', g: 'entgr', kind: 'proc', work: 'nacharbeit', time: 6, x: 58, y: 24, w: 2, h: 2, ax: 58, ay: 26, inCap: 3, next: 'endk', color: '#8a5a2a' },
@@ -253,18 +253,18 @@ const loopG = g => !!(GROUP[g] && GROUP[g][0].loop);
 //  Линия в одну сторону; на намотке шины уходят на тележки, пустые крюки — по обратной ветке к навеске.
 const PT2 = (x, y) => ({ x, y });
 const SEGS = {
-  L2: { pts: [PT2(29, 35), PT2(29, 33), PT2(36, 33), PT2(37, 35)], n: '2' },
-  L3: { pts: [PT2(29, 35), PT2(29, 37), PT2(36, 37), PT2(37, 35)], n: '3' },
-  M1: { pts: [PT2(37, 35), PT2(38, 34)], cap: 1 },
-  M2: { pts: [PT2(37, 35), PT2(38, 36)], cap: 1 },
-  L5: { pts: [PT2(38, 34), PT2(38, 30), PT2(32, 30), PT2(31, 29.5)], n: '5' },
-  L6: { pts: [PT2(38, 36), PT2(42, 36), PT2(42, 29), PT2(32, 29), PT2(31, 29.5)], n: '6' },
-  B9: { pts: [PT2(31, 29.5), PT2(28, 29.5), PT2(28, 26), PT2(31, 26)], n: '9' },
-  B10: { pts: [PT2(31, 29.5), PT2(31, 26)], n: '10' },
-  TOP: { pts: [PT2(31, 26), PT2(40, 26)] },
-  S11: { pts: [PT2(40, 26), PT2(40, 24), PT2(42, 24)], n: '11', siding: true, cap: 6 },
-  END: { pts: [PT2(40, 26), PT2(46, 26)], n: '13' },
-  RET: { pts: [PT2(46, 26), PT2(46, 39), PT2(28, 39), PT2(28, 35.5), PT2(29, 35)], ret: true },
+  L2: { pts: [PT2(29, 35), PT2(29, 33), PT2(33, 33), PT2(34, 35)], n: '2' },
+  L3: { pts: [PT2(29, 35), PT2(29, 37), PT2(33, 37), PT2(34, 35)], n: '3' },
+  M1: { pts: [PT2(34, 35), PT2(35, 34)], cap: 1 },
+  M2: { pts: [PT2(34, 35), PT2(35, 36)], cap: 1 },
+  L5: { pts: [PT2(35, 34), PT2(35, 30), PT2(31, 30), PT2(30.5, 29.5)], n: '5' },
+  L6: { pts: [PT2(35, 36), PT2(35, 38.5), PT2(39, 38.5), PT2(39, 29), PT2(31, 29), PT2(30.5, 29.5)], n: '6' },
+  B9: { pts: [PT2(30.5, 29.5), PT2(27.5, 29.5), PT2(27.5, 26), PT2(30.5, 26)], n: '9' },
+  B10: { pts: [PT2(30.5, 29.5), PT2(30.5, 26)], n: '10' },
+  TOP: { pts: [PT2(30.5, 26), PT2(38, 26)] },
+  S11: { pts: [PT2(38, 26), PT2(38, 24.5), PT2(42.5, 24.5)], n: '11', siding: true, cap: 6 },
+  END: { pts: [PT2(38, 26), PT2(40.5, 26)], n: '13' },
+  RET: { pts: [PT2(40.5, 26), PT2(40.5, 39.5), PT2(27.5, 39.5), PT2(27.5, 35), PT2(29, 35)], ret: true },
 };
 for (const sg of Object.values(SEGS)) { sg.cum = [0]; for (let i = 1; i < sg.pts.length; i++) sg.cum.push(sg.cum[i - 1] + Math.hypot(sg.pts[i].x - sg.pts[i - 1].x, sg.pts[i].y - sg.pts[i - 1].y)); sg.len = sg.cum[sg.cum.length - 1]; }
 function segPos(sg, s) {
@@ -274,8 +274,8 @@ function segPos(sg, s) {
 }
 function segProject(sg, p) { let best = { s: 0, d: Infinity }; for (let i = 1; i < sg.pts.length; i++) { const a = sg.pts[i - 1], b = sg.pts[i], dx = b.x - a.x, dy = b.y - a.y, t = Math.max(0, Math.min(1, ((p.x - a.x) * dx + (p.y - a.y) * dy) / (dx * dx + dy * dy || 1))), d = Math.hypot(a.x + dx * t - p.x, a.y + dy * t - p.y); if (d < best.d) best = { s: sg.cum[i - 1] + t * (sg.cum[i] - sg.cum[i - 1]), d }; } return best.s; }
 // Остановки участков на линии: [станция, ветка, точка]
-const STOP_DEF = [['rauen1', 'M1', PT2(38, 34)], ['rauen2', 'M2', PT2(38, 36)], ['ausschl1', 'L5', PT2(34, 30)], ['ausschl2', 'L6', PT2(34, 29)],
-  ['pflaster', 'B9', PT2(28, 27.5)], ['spray', 'TOP', PT2(32.5, 26)], ['fuellen', 'TOP', PT2(37.5, 26)], ['aufbau1', 'END', PT2(44, 26)], ['aufbau2', 'END', PT2(44, 26)]];
+const STOP_DEF = [['rauen1', 'M1', PT2(35, 34)], ['rauen2', 'M2', PT2(35, 36)], ['ausschl1', 'L5', PT2(33, 30)], ['ausschl2', 'L6', PT2(33, 29)],
+  ['pflaster', 'B9', PT2(27.5, 27.5)], ['spray', 'TOP', PT2(32, 26)], ['fuellen', 'TOP', PT2(35.5, 26)], ['aufbau1', 'END', PT2(40.5, 26)], ['aufbau2', 'END', PT2(40.5, 26)]];
 for (const [id, seg, p] of STOP_DEF) { ST[id].stopSeg = seg; ST[id].stopS = segProject(SEGS[seg], p); ST[id].final = ST[id].g === 'aufbau'; }
 for (const [k, sg] of Object.entries(SEGS)) sg.stations = STATIONS.filter(s => s.stopSeg === k).sort((a, b) => a.stopS - b.stopS);
 const SEG_ORDER = ['RET', 'END', 'S11', 'TOP', 'B9', 'B10', 'L5', 'L6', 'M1', 'M2', 'L2', 'L3']; // от конца к началу
@@ -283,11 +283,11 @@ const HOOK_SPACING = 1, HOOK_SPEED = 8, HOOK_COUNT = 40; // клеток; кле
 const HOOKS = [];                                       // крюки на линиях; остальные висят на входе
 let hookStock = HOOK_COUNT;
 const LOOP_ST = STATIONS.filter(s => s.loop);
-const NODES = { 1: PT2(29, 35), 4: PT2(37, 35), 7: PT2(31, 29.5), 8: PT2(31, 26), 12: PT2(41, 27) };
+const NODES = { 1: PT2(29, 35), 4: PT2(34, 35), 7: PT2(30.5, 29.5), 8: PT2(30.5, 26), 12: PT2(38.3, 27.4) };
 const hookPos = h => segPos(SEGS[h.seg], h.s);
 const MODULE = { seg: 'M1', t: -99 }; // модуль переключения у Rauen: куда последний раз подавал крюк
 // Привод конвейера: тоже может сломаться — тогда все крюки стоят
-const HOOK_DRIVE = { id: 'antrieb', g: 'antrieb', de: 'Hängebahn-Antrieb', ru: 'Привод подвесного конвейера', desc: 'Мотор и натяжная станция цепи подвесного конвейера. Сломается — встанут все крюки.', x: 46, y: 25, w: 1, h: 1, ax: 47, ay: 25, broken: null, wear: 0, dirt: 0 };
+const HOOK_DRIVE = { id: 'antrieb', g: 'antrieb', de: 'Hängebahn-Antrieb', ru: 'Привод подвесного конвейера', desc: 'Мотор и натяжная станция цепи подвесного конвейера. Сломается — встанут все крюки.', x: 37, y: 27, w: 1, h: 1, ax: 37, ay: 28, broken: null, wear: 0, dirt: 0 };
 const MACHINES = [...STATIONS.filter(s => s.kind !== 'store'), HOOK_DRIVE];
 
 // Куда шине дальше: после зачистки с проколами — на заклейку, иначе по технологии

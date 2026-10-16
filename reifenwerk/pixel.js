@@ -311,6 +311,16 @@ function drawStation(s) {
   else if (s.g === 'pruef' || s.g === 'endk') { R(cx - 8, cy - 1, 3, 6, '#ffd24a'); R(cx + 5, cy - 1, 3, 6, '#ffd24a'); if (s.g === 'endk') { box(X + Wp - 9, Y + 3, 8, 6, '#222'); R(X + Wp - 7, Y + 5, 4, 2, '#62e08a'); } }
   else if (s.g === 'spray') { R(X + 2, Y + 2, Wp - 4, Hp - 8, 'rgba(180,240,255,.35)'); const a = time * 8; disc(X + Wp - 6, Y + 6, 3, '#d8e6f0'); R(X + Wp - 6 + Math.round(Math.cos(a) * 2), Y + 6 + Math.round(Math.sin(a) * 2), 1, 1, OUT); if (work) for (let k = 0; k < 6; k++) R(cx - 6 + hash(k, time * 10 | 0) * 12, cy - 4 + hash(time * 10 | 0, k) * 8, 1, 1, '#eaf6ff'); }
   else if (s.g === 'fuellen') { R(X + 3, cy + 3, 9, 3, '#6b7280'); R(X + 12, cy + 3, 2, 2, work && blink ? '#ff7a2a' : '#ffb347'); }
+  else if (s.g === 'aufbau' && Wp >= 40) { // большая машина намотки: пульт, экструдер со шлангом, шина на вращающейся ступице, лента сырой резины
+    const a = work ? time * 5 : 0, tx = X + Wp - 14, ty = Y + 13;
+    box(X + 3, Y + 4, 8, 12, '#3a3d47'); R(X + 5, Y + 6, 4, 3, '#62e08a'); R(X + 5, Y + 11, 1, 1, '#ff4d4d'); R(X + 7, Y + 11, 1, 1, '#ffd24a');   // пульт
+    box(X + 13, Y + 9, 9, 7, '#e0a862'); R(X + 15, Y + 11, 5, 1, '#fff2cc'); R(X + 22, Y + 12, 4, 2, '#4a5260');                            // экструдер
+    for (let k = 0; k < 8; k++) R(X + 14 + k, Y + 6 - Math.round(Math.sin(k / 7 * Math.PI) * 3), 1, 2, '#1e1e22');                       // шланг
+    disc(tx, ty, 11, OUT); disc(tx, ty, 10, '#26262c'); disc(tx, ty, 6, '#3a3a42'); disc(tx, ty, 3, '#9aa3ad'); R(tx, ty, 1, 1, OUT);
+    for (let k = 0; k < 6; k++) { const b = a + k * Math.PI / 3; R(tx + Math.round(Math.cos(b) * 8), ty + Math.round(Math.sin(b) * 8), 2, 2, '#4a4a54'); }
+    R(X + 26, ty - 1, tx - X - 35, 2, '#1e1e22'); if (work) for (let k = 0; k < tx - X - 35; k += 3) R(X + 26 + ((k + Math.floor(time * 14)) % (tx - X - 35)), ty - 1, 1, 2, '#55555e');
+    if (s.robot) { const ra = Math.sin(time * (work ? 2.2 : 0.6)) * 0.8, bx = X + Wp - 4, by = Y + Hp - 7; box(bx - 5, by - 2, 9, 5, '#3b6fb6'); const ex = bx + Math.round(Math.cos(ra + 3.6) * 9), ey = by + Math.round(Math.sin(ra + 3.6) * 9); for (let k = 0; k <= 8; k++) R(bx + Math.round((ex - bx) * k / 8), by + Math.round((ey - by) * k / 8), 2, 2, '#f2c230'); R(ex - 2, ey - 2, 4, 3, '#2a2a30'); for (let k = X; k < X + Wp; k += 3) R(k, Y - 1, 1, 1, '#f2c230'); }
+  }
   else if (s.g === 'aufbau') { // намотка: барабан крутится, экструдер подаёт ленту сырой резины
     const a = work ? time * 6 : 0; disc(X + Wp - 8, cy + 1, 6, OUT); disc(X + Wp - 8, cy + 1, 5, '#2a2a2e'); R(X + Wp - 8 + Math.round(Math.cos(a) * 3), cy + 1 + Math.round(Math.sin(a) * 3), 1, 1, '#8a8f98');
     box(X + 3, cy - 3, 7, 6, '#e0a862'); R(X + 10, cy, Wp - 22, 2, '#1e1e22'); if (work) for (let k = 0; k < Wp - 22; k += 3) R(X + 10 + ((k + Math.floor(time * 12)) % (Wp - 22)), cy, 1, 2, '#55555e');
@@ -518,7 +528,7 @@ function render(view) {
   for (const s of STATIONS) drawStation(s);
   if (S.selected && S.selected.st) { const s = S.selected.st; brackets(s.x * PT - 1, s.y * PT - 1, s.w * PT + 2, s.h * PT + 2); }
   // роликовый конвейер Ж2 → Ж3 (апгрейд)
-  if (S.rollenbahn) { const X = 45 * PT + 2, Y = 29 * PT; R(X - 1, Y, PT - 2, 6 * PT, OUT); R(X, Y, PT - 4, 6 * PT, '#5d6270'); for (let k = (Math.floor(time * 10) % 3); k < 6 * PT; k += 3) R(X, Y + k, PT - 4, 1, '#9aa0ad'); }
+  if (S.rollenbahn) { const X = 45 * PT + 2, Y = 29 * PT, L = 8 * PT; R(X - 1, Y, PT - 2, L, OUT); R(X, Y, PT - 4, L, '#5d6270'); for (let k = (Math.floor(time * 10) % 3); k < L; k += 3) R(X, Y + k, PT - 4, 1, '#9aa0ad'); }
   // сканер Ж4: красный луч, когда через него прокатили шину
   const scn = V.DECOR.find(d => d.id === 'scanner');
   if (scn) { const X = scn.x * PT, Y = scn.y * PT; R(X + 3, Y + 2, scn.w * PT - 6, 6, '#16181d'); if (S.t - scn.lastScan < 0.8) { R(X + 1, Y + PT - 2, scn.w * PT - 2, 1, '#ff3030'); R(X + 4, Y + 4, 3, 2, '#ff3030'); } else R(X + 4, Y + 4, 2, 2, '#3fa060'); }
