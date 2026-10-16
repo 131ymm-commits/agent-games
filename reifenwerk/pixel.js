@@ -163,8 +163,8 @@ function buildBackground() {
 }
 
 // ---------- станки ----------
-const COL = { pruef: '#3c7fd8', rauen: '#f2b230', ausschl: '#9a6ad6', spray: '#2bb3a3', fuellen: '#86b83a', aufbau: '#e38438', presse: '#5d6470', entgr: '#d4673a', nacharb: '#c2435a', scan: '#3c7fd8', endk: '#3c7fd8' };
-const LABEL = { eingang: 'EINGANG', pruef: 'PRÜF', sort: 'KARKASSEN', aufh: 'AUFH', rauen: 'RAUEN', ausschl: 'SCHL', spray: 'LÖSUNG', fuellen: 'SPACH', aufbau: 'AUFBAU', puffer: 'WAGEN', presse: 'P', entgr: 'TRIM', nacharb: 'NACHARB', scan: 'SCAN', endk: 'KONTR', fertig: 'FERTIG' };
+const COL = { pflaster: '#8d96a3', pruef: '#3c7fd8', rauen: '#f2b230', ausschl: '#9a6ad6', spray: '#2bb3a3', fuellen: '#86b83a', aufbau: '#e38438', presse: '#5d6470', entgr: '#d4673a', nacharb: '#c2435a', scan: '#3c7fd8', endk: '#3c7fd8' };
+const LABEL = { pflaster: 'PFLASTER', eingang: 'EINGANG', pruef: 'PRÜF', sort: 'KARKASSEN', aufh: 'AUFH', rauen: 'RAUEN', ausschl: 'SCHL', spray: 'LÖSUNG', fuellen: 'SPACH', aufbau: 'AUFBAU', puffer: 'WAGEN', presse: 'P', entgr: 'TRIM', nacharb: 'NACHARB', scan: 'SCAN', endk: 'KONTR', fertig: 'FERTIG' };
 function label(s, X, Y, Wp) {
   const multi = V.STATIONS.filter(o => o.g === s.g).length > 1;
   let base = LABEL[s.g] || s.g; const suf = multi ? s.id.replace(/^\D+/, '') : '';
@@ -244,6 +244,14 @@ function drawStation(s) {
       for (let k = X; k < X + Wp; k += 3) R(k, Y - 1, 1, 1, '#f2c230');
     }
   }
+  else if (s.g === 'pflaster') { // салазки на рельсах, расширитель держит шину раскрытой, пресс прижимает пластырь изнутри
+    R(X + 1, Y + Hp - 6, Wp - 2, 1, '#9aa0ad'); R(X + 1, Y + Hp - 4, Wp - 2, 1, '#9aa0ad');
+    const sx = X + 3 + (work ? Math.round((Math.sin(time * 1.5) + 1) * 2) : 0);
+    box(sx, Y + Hp - 9, 12, 5, '#f2c230');
+    disc(sx + 6, Y + 8, 7, OUT); disc(sx + 6, Y + 8, 6, '#34343b'); disc(sx + 6, Y + 8, 3, '#cdc6b5');
+    R(sx + 1, Y + 3, 2, 10, '#f2c230'); R(sx + 9, Y + 3, 2, 10, '#f2c230');
+    const pr = work && Math.floor(time * 2) % 2 ? 2 : 0; R(sx + 5, Y + 2, 2, 4 + pr, '#5d6470'); R(sx + 4, Y + 6 + pr, 4, 1, '#c2435a');
+  }
   else if (s.g === 'ausschl') { R(X + 3, cy + 3, Wp - 6, 2, '#8a6038'); R(X + 4, cy, 5, 2, '#9aa3ad'); if (work && blink) R(X + 9, cy - 1, 1, 1, '#ffe066'); }
   else if (s.g === 'entgr') { // вращающийся станок обрезки облоя
     const a = work ? time * 5 : 0; disc(cx - 2, cy + 1, 6, OUT); disc(cx - 2, cy + 1, 5, '#5d6470'); R(cx - 2 + Math.round(Math.cos(a) * 4), cy + 1 + Math.round(Math.sin(a) * 4), 1, 1, '#ffe066'); R(X + Wp - 5, cy - 3, 2, 7, '#c9ced8');
@@ -298,7 +306,7 @@ function forklift(px, py, face, driver, load) {
 // ---------- люди ----------
 const prevPos = new Map(), facing = new Map();
 // Инструмент в руке по участку: лампа, шлифмашинка, распылитель, пистолет-экструдер, ролик…
-const TOOL_G = { pruef: 'lamp', endk: 'tablet', rauen: 'pendant', ausschl: 'grinder', entgr: 'knife', spray: 'spray', fuellen: 'extruder', aufbau: 'pendant', scan: 'scangun' };
+const TOOL_G = { pflaster: 'roller', pruef: 'lamp', endk: 'tablet', rauen: 'pendant', ausschl: 'grinder', entgr: 'knife', spray: 'spray', fuellen: 'extruder', aufbau: 'pendant', scan: 'scangun' };
 function toolOf(w) {
   const j = w.job; if (!j || w.state === 'break') return null;
   if (w.act === 'crane') return 'pendant';                 // пульт крана у пресса
@@ -402,6 +410,9 @@ function drawWorker(w) {
   ptext(nm, px - textW(nm) / 2, py + 3, '#f4f4f4');
 }
 
+// точка на ветке конвейера по длине
+function segP(sg, s) { s = Math.max(0, Math.min(sg.len, s)); let i = 1; while (i < sg.cum.length - 1 && sg.cum[i] < s) i++; const a = sg.pts[i - 1], b = sg.pts[i], t = (s - sg.cum[i - 1]) / ((sg.cum[i] - sg.cum[i - 1]) || 1); return { x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t }; }
+
 // ---------- кадр ----------
 const LAMPS = [];
 let camInit = false;
@@ -427,16 +438,19 @@ function render(view) {
   const present = S.workers.filter(w => !w.away);
   const pz = V.ZONES.find(z => z.kind === 'parking');
   if (pz) present.slice(0, Math.floor(pz.w / 2)).forEach((w, k) => { const X = pz.x * PT + 4 + k * 2 * PT, Y = pz.y * PT + 4 + (k % 2) * PT; box(X, Y, 14, 9, w.color); R(X + 3, Y + 2, 3, 5, '#9fd3ff'); R(X + 10, Y + 2, 2, 5, shade(w.color, -0.3)); });
-  // Hängebahn: главная ветка идёт вперёд (стрелки), по обратной ветке едут пустые крюки
+  // Hängebahn Ж1: ветки накопителей и ручьёв (бегущие стрелки — направление), тупик 11, обратная ветка пустых крюков, номера как на схеме
   if (S.hook) {
     const P = p => [Math.round(p.x * PT + PT / 2), Math.round(p.y * PT + PT / 2)];
-    V.RET_PATH.forEach((q, i) => { if (!i) return; const [x1, y1] = P(V.RET_PATH[i - 1]), [x2, y2] = P(q); R(Math.min(x1, x2), Math.min(y1, y2), Math.abs(x2 - x1) + 1, Math.abs(y2 - y1) + 1, '#6b7080'); });
-    const [x0, y0] = P({ x: V.LINE.x0, y: V.LINE.y }), [x1] = P({ x: V.LINE.x1, y: V.LINE.y });
-    R(x0, y0 - 1, x1 - x0 + 1, 3, '#3d3f49'); R(x0, y0, x1 - x0 + 1, 1, '#c3c8d2');
-    for (let x = x0 + 6; x < x1 - 2; x += 12) { const off = Math.floor(time * 8) % 12; R(x + off - 6, y0 - 2, 1, 1, '#ffd24a'); R(x + off - 5, y0 - 1, 1, 1, '#ffd24a'); R(x + off - 6, y0 + 2, 1, 1, '#ffd24a'); R(x + off - 5, y0 + 1, 1, 1, '#ffd24a'); }
-    for (const st of V.STOPS) { const [x, y] = P({ x: V.LINE.x0 + st, y: V.LINE.y }); R(x - 2, y - 2, 4, 4, '#ff9f1a'); }
+    const line = (a, b, c, w) => { const [x1, y1] = P(a), [x2, y2] = P(b), n = Math.max(Math.abs(x2 - x1), Math.abs(y2 - y1)); for (let k = 0; k <= n; k++) R(x1 + Math.round((x2 - x1) * k / n) - (w >> 1), y1 + Math.round((y2 - y1) * k / n) - (w >> 1), w, w, c); };
+    for (const sg of Object.values(V.SEGS)) sg.pts.forEach((q, i) => { if (!i) return; const a = sg.pts[i - 1]; if (sg.ret) line(a, q, '#6b7080', 1); else { line(a, q, '#3d3f49', 3); line(a, q, sg.siding ? '#e0b860' : '#c3c8d2', 1); } });
+    for (const sg of Object.values(V.SEGS)) { if (sg.ret) continue; const off = (time * 8) % 3; for (let s = off; s < sg.len; s += 3) { const p = segP(sg, s); R(Math.round(p.x * PT + PT / 2), Math.round(p.y * PT + PT / 2), 1, 1, '#ffd24a'); } }
+    for (const st of V.STATIONS) if (st.stopSeg) { const p = segP(V.SEGS[st.stopSeg], st.stopS), [x, y] = P(p); R(x - 2, y - 2, 4, 4, '#ff9f1a'); }
+    // модуль переключения у Rauen (4): каретка между двумя машинами
+    const m = V.MODULE, [mx, my] = P(V.NODES[4]), dy = m.seg === 'M2' ? 4 : -4; box(mx - 3, my - 3 + Math.round(dy * Math.max(0, 1 - (S.t - m.t) / 2)), 7, 6, '#5d6470');
+    for (const [nm, sg] of Object.entries(V.SEGS)) if (sg.n) { const p = segP(sg, sg.len * 0.5); ptext(sg.n, Math.round(p.x * PT) + 6, Math.round(p.y * PT) - 1, '#9fc6ff'); }
+    for (const [nm, p] of Object.entries(V.NODES)) ptext(nm === '12' ? '12 Ф' : nm, Math.round(p.x * PT) + 6, Math.round(p.y * PT) + 6, '#9fc6ff');
     for (const h of HOOKS) {
-      const [x, y] = P(V.hookPos(h)); R(x - 1, y - 1, 3, 3, h.ret ? '#8a8f9a' : '#e3b341');
+      const [x, y] = P(V.hookPos(h)); R(x - 1, y - 1, 3, 3, V.SEGS[h.seg].ret ? '#8a8f9a' : '#e3b341');
       if (h.tire) { const t = S.tires.get(h.tire); R(x, y + 2, 1, 2, '#6b6b72'); tire(x - 3, y + 4, NEW(t)); }
     }
   }
