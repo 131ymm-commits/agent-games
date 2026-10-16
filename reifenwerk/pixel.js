@@ -236,6 +236,13 @@ function drawStation(s) {
   else if (s.g === 'aufbau') { // намотка: барабан крутится, экструдер подаёт ленту сырой резины
     const a = work ? time * 6 : 0; disc(X + Wp - 8, cy + 1, 6, OUT); disc(X + Wp - 8, cy + 1, 5, '#2a2a2e'); R(X + Wp - 8 + Math.round(Math.cos(a) * 3), cy + 1 + Math.round(Math.sin(a) * 3), 1, 1, '#8a8f98');
     box(X + 3, cy - 3, 7, 6, '#e0a862'); R(X + 10, cy, Wp - 22, 2, '#1e1e22'); if (work) for (let k = 0; k < Wp - 22; k += 3) R(X + 10 + ((k + Math.floor(time * 12)) % (Wp - 22)), cy, 1, 2, '#55555e');
+    if (s.robot) { // робот ABC: жёлтая рука на синем основании, ограждение ячейки
+      const a = Math.sin(time * (work ? 2.2 : 0.6)) * 0.8, bx = X + 6, by = Y + Hp - 4;
+      box(bx - 4, by - 2, 9, 4, '#3b6fb6'); const ex = bx + Math.round(Math.cos(a - 1.2) * 7), ey = by - 2 + Math.round(Math.sin(a - 1.2) * 7);
+      for (let k = 0; k <= 6; k++) R(bx + Math.round((ex - bx) * k / 6), by - 2 + Math.round((ey - by + 2) * k / 6), 2, 2, '#f2c230');
+      for (let k = 0; k <= 5; k++) R(ex + k, ey - Math.round(k * 0.4), 2, 2, '#f2c230'); R(ex + 6, ey - 3, 2, 3, '#2a2a30');
+      for (let k = X; k < X + Wp; k += 3) R(k, Y - 1, 1, 1, '#f2c230');
+    }
   }
   else if (s.g === 'ausschl') { R(X + 3, cy + 3, Wp - 6, 2, '#8a6038'); R(X + 4, cy, 5, 2, '#9aa3ad'); if (work && blink) R(X + 9, cy - 1, 1, 1, '#ffe066'); }
   else if (s.g === 'entgr') { // вращающийся станок обрезки облоя
@@ -408,6 +415,8 @@ function render(view) {
   g.drawImage(bgCanvas, 0, 0);
   for (const s of STATIONS) drawStation(s);
   if (S.selected && S.selected.st) { const s = S.selected.st; brackets(s.x * PT - 1, s.y * PT - 1, s.w * PT + 2, s.h * PT + 2); }
+  // роликовый конвейер Ж2 → Ж3 (апгрейд)
+  if (S.rollenbahn) { const X = 45 * PT + 2, Y = 29 * PT; R(X - 1, Y, PT - 2, 6 * PT, OUT); R(X, Y, PT - 4, 6 * PT, '#5d6270'); for (let k = (Math.floor(time * 10) % 3); k < 6 * PT; k += 3) R(X, Y + k, PT - 4, 1, '#9aa0ad'); }
   // сканер Ж4: красный луч, когда через него прокатили шину
   const scn = V.DECOR.find(d => d.id === 'scanner');
   if (scn) { const X = scn.x * PT, Y = scn.y * PT; R(X + 3, Y + 2, scn.w * PT - 6, 6, '#16181d'); if (S.t - scn.lastScan < 0.8) { R(X + 1, Y + PT - 2, scn.w * PT - 2, 1, '#ff3030'); R(X + 4, Y + 4, 3, 2, '#ff3030'); } else R(X + 4, Y + 4, 2, 2, '#3fa060'); }

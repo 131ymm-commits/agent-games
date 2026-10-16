@@ -73,6 +73,7 @@
     <button data-tab="workers">Рабочие</button>
     <button data-tab="orders">Заказы</button>
     <button data-tab="stock">Склад</button>
+    <button data-tab="upgrades">Апгрейды</button>
     <button data-tab="log">Журнал</button>
   </div>
   <div id="panel"></div>
@@ -315,6 +316,7 @@ function updateHooks(dt) {
 // ================= Состояние =================
 const S = {
   t: DAY_START, speed: 1, money: 40000, rep: 50, wip: 64, autoBuy: true, autoAccept: true, hook: true,
+  upgrades: {}, dustMul: 1, wearMul: 1, rollenbahn: false,
   forks: FORK_HOMES.map((h, k) => ({ id: k + 1, home: h, x: h.x, y: h.y, by: null })),
   firstBreak: DAY_START + 30, breaksToday: 0,
   gfx: (() => { try { return new URLSearchParams(location.search).get('gfx') || localStorage.getItem('rw-gfx') || 'pixel'; } catch (e) { return 'pixel'; } })(),
@@ -323,7 +325,7 @@ const S = {
   mats: { rohgummi: 60, loesung: 80, fuellgummi: 80 }, scans: [],
   scrap: 0, shipped: 0, log: [], selected: null, lastOffer: DAY_START - 200,
   doneToday: 0, doneYesterday: 0, leadTimes: [],
-  stats: { revenue: 0, wages: 0, materials: 0, penalties: 0, overhead: 0, walk: 0, walkToday: 0, repairs: 0, breakdowns: 0, downtime: 0 },
+  stats: { revenue: 0, wages: 0, materials: 0, penalties: 0, overhead: 0, walk: 0, walkToday: 0, repairs: 0, breakdowns: 0, downtime: 0, upgrades: 0 },
 };
 const MATS = {
   rohgummi: { de: 'Rohgummi', ru: 'Сырая резина (лента для намотки)', pack: 40, price: 2400, min: 30 },
@@ -552,13 +554,14 @@ function genJobs() {
     }
     if (s.kind === 'proc') {
       const ready = s.out.filter(tid => { const t = S.tires.get(tid); return !t.res && (t.readyAt <= S.t || viaHook(s, t.dest || s.next)) && !viaHook(s, t.dest || s.next); });
-      if (s.cartOut && ready.length) { // намотанные шины — тележкой по 4 к прессам
+      if (s.cartOut && S.rollenbahn) { /* роликовый конвейер сам везёт шины к прессам */ }
+      else if (s.cartOut && ready.length) { // намотанные шины — тележкой по 4 к прессам
         const dst = chooseDst(s.next); if (dst) { const room = ST[dst].cap - ST[dst].items.length - ST[dst].resIn; jobs.push({ type: 'haul', work: 'transport', tire: ready[0], tires: ready.slice(0, Math.min(CART, room)), cart: true, src: s.id, from, dst, to: accessOf(dst) }); }
       } else for (const tid of ready) {
         const t = S.tires.get(tid), dst = chooseDst(t.dest || s.next); if (!dst) continue;
         jobs.push({ type: 'haul', work: 'transport', tire: tid, src: s.id, from, dst, to: accessOf(dst) });
       }
-      if (!s.broken && !s.worker && !s.cur && s.input.some(id => S.tires.get(id).readyAt <= S.t) && s.out.length < s.outCap && matsOk(s)) jobs.push({ type: 'work', work: s.work, st: s, to: from });
+      if (!s.robot && !s.broken && !s.worker && !s.cur && s.input.some(id => S.tires.get(id).readyAt <= S.t) && s.out.length < s.outCap && matsOk(s)) jobs.push({ type: 'work', work: s.work, st: s, to: from });
     }
     if (s.kind === 'auto') { // пресс: зарядить краном, закрыть, после вулканизации достать краном и откатить на обрезку
       if (s.state === 'done') { const tid = s.items.find(id => !S.tires.get(id).res), dst = tid && chooseDst(s.next); if (dst) jobs.push({ type: 'haul', work: 'vulkan', tire: tid, src: s.id, from, dst, to: accessOf(dst), crane: 'pick' }); }
@@ -681,7 +684,7 @@ function finishProc(s, w) {
       else { t.rework++; t.defect = false; t.dest = 'nacharb'; log(`${w.name}: финальный контроль — шина #${t.id} на переделку.`, 'warn'); }
     }
   } else if (['rauen', 'ausschl', 'fuellen', 'aufbau'].includes(s.g) && rnd() < 0.07 * (1 - sk / 12) + s.dirt * 0.06) t.defect = true; // пыль у станка — больше брака
-  if (DUSTY.includes(s.g)) s.dirt = Math.min(1, s.dirt + 0.035);
+  if (DUSTY.includes(s.g)) s.dirt = Math.min(1, s.dirt + 0.035 * S.dustMul);
   t.stage = s.g; t.readyAt = S.t + (s.dry || 0);
   scanTire(s, s.cur, s.g === 'endk' ? (t.dest === 'schrott' ? 'лом' : t.dest === 'nacharb' ? 'переделка' : 'годна ✓') : s.g === 'pruef' ? (t.dest === 'schrott' ? 'лом' : 'штрихкод наклеен') : s.g === 'scan' ? `путь: ${t.trace ? t.trace.length + 1 : 1} участков` : null);
   s.out.push(s.cur); s.cur = null; s.prog = 0; s.worker = null;
@@ -769,7 +772,7 @@ function updateWorker(w, dt) {
         s.cur = s.input.splice(k, 1)[0]; matTake(s, 1);
         st.dur = workDuration(w, s); st.t = 0;
       }
-      st.t += dt; s.prog = st.t / st.dur; s.busy += dt; s.wear = Math.min(2, s.wear + dt / 900);
+      st.t += dt; s.prog = st.t / st.dur; s.busy += dt; s.wear = Math.min(2, s.wear + dt / 900 * S.wearMul);
       if (rnd() < dt * breakRate(s)) { breakDown(s); return; }
       if (st.t >= st.dur) { finishProc(s, w); j.i++; }
     }
@@ -781,6 +784,56 @@ function updateWorker(w, dt) {
   if (j.i >= j.steps.length) { w.job = null; w.state = 'idle'; }
 }
 
+// ================= Апгрейды (система оптимизации) =================
+// Цех улучшают за заработанные деньги. Каждый апгрейд меняет реальный параметр симуляции.
+const UPGRADES = [
+  { id: 'abc', de: 'Automated Build Cell', ru: 'Робот на намотке (ABC)', price: 45000,
+    desc: 'Как на заводе Continental ContiLifeCycle: робот сам берёт шину с крюка, ставит на машину намотки и снимает готовую. Намотка Ж2 работает без человека и на 10 % быстрее.',
+    apply() { for (const s of GROUP.aufbau) { s.robot = true; if (s.worker) { const w = S.workers.find(x => x.id === s.worker); if (w) releaseJob(w); } } } },
+  { id: 'rollenbahn', de: 'Rollenbahn Ж2 → Ж3', ru: 'Роликовый конвейер к прессам', price: 12000,
+    desc: 'Намотанные шины сами едут по роликам к прессам — тележки больше не нужны.', apply() { S.rollenbahn = true; } },
+  { id: 'absaugung', de: 'Absaugung', ru: 'Вытяжка пыли на шероховке и обрезке', price: 8000,
+    desc: 'Резиновая пыль копится вдвое медленнее: меньше брака, поломок и подметания.', apply() { S.dustMul = 0.5; } },
+  { id: 'schleifer', de: 'Druckluft-Schleifer Pro', ru: 'Новые пневмошлифовки', price: 5000,
+    desc: 'Зачистка повреждений (Ausschleifen) на 25 % быстрее: 6 мин вместо 8.', apply() { for (const s of GROUP.ausschl) s.time = 6; } },
+  { id: 'entgratautomat', de: 'Entgratautomat', ru: 'Автомат обрезки облоя', price: 15000,
+    desc: 'Обрезка облоя в Ж4 на треть быстрее: 4 мин вместо 6.', apply() { for (const s of GROUP.entgr) s.time = 4; } },
+  { id: 'wartung', de: 'Wartungsvertrag', ru: 'Плановое техобслуживание', price: 6000,
+    desc: 'Износ станков растёт вдвое медленнее — поломок меньше.', apply() { S.wearMul = 0.5; } },
+  { id: 'pruefauto', de: 'Prüfmaschine Automatik', ru: 'Автоматический станок осмотра', price: 14000,
+    desc: 'Входной осмотр каркасов быстрее: 5 мин вместо 7. Помогает, когда склад С3 пустеет, а под навесом копятся каркасы.', apply() { for (const s of GROUP.pruef) s.time = 5; } },
+  { id: 'heizprogramm', de: 'Schnellheizprogramm', ru: 'Быстрый цикл прессов', price: 20000,
+    desc: 'Новые варочные камеры (Heizbalg) и программа нагрева: вулканизация 75 мин вместо 90. Помогает, когда тележки у прессов стоят полные.', apply() { for (const s of GROUP.presse) s.cycle = 75; } },
+  { id: 'stapler3', de: 'Dritter Stapler', ru: 'Третий погрузчик', price: 18000,
+    desc: 'Ещё один погрузчик на стоянке у склада С3: быстрее разгрузка, подвоз к навеске и отгрузка.',
+    apply() { S.forks.push({ id: 3, home: { x: 54, y: 21 }, x: 54, y: 21, by: null }); if (window.PixelGfx) window.PixelGfx.reset(); } },
+];
+function buyUpgrade(id) {
+  const u = UPGRADES.find(x => x.id === id); if (!u || S.upgrades[id] || S.money < u.price) return false;
+  S.money -= u.price; S.stats.upgrades += u.price; S.upgrades[id] = true; u.apply();
+  log(`Апгрейд: ${u.ru} (${u.de}), −${eur(u.price)}.`, 'good'); return true;
+}
+// Робот ABC на намотке и роликовый конвейер Ж2 → Ж3
+const ROBOT = { id: -1, name: 'Roboter ABC', skills: { belegen: 9 } };
+function updateRobots(dt) {
+  for (const s of GROUP.aufbau) {
+    if (!s.robot || s.broken) continue;
+    if (!s.cur) {
+      const k = s.input.findIndex(id => S.tires.get(id).readyAt <= S.t);
+      if (k < 0 || s.out.length >= s.outCap || !matsOk(s)) continue;
+      s.cur = s.input.splice(k, 1)[0]; matTake(s, 1); s.rT = 0; s.rDur = s.time * 0.9;
+    }
+    s.rT += dt; s.prog = s.rT / s.rDur; s.busy += dt; s.wear = Math.min(2, s.wear + dt / 900 * S.wearMul);
+    if (rnd() < dt * breakRate(s)) { breakDown(s); continue; }
+    if (s.rT >= s.rDur) finishProc(s, ROBOT);
+  }
+  if (S.rollenbahn) for (const s of GROUP.aufbau) for (let i = s.out.length - 1; i >= 0; i--) {
+    const t = S.tires.get(s.out[i]); if (t.res) continue;
+    if (t.rollT === undefined) t.rollT = S.t + 1.5; // ~1,5 мин по роликам
+    if (S.t >= t.rollT && canAcceptId('puffer')) { const tid = s.out.splice(i, 1)[0]; delete t.rollT; t.res = false; ST.puffer.items.push(tid); }
+  }
+}
+
 // ================= Время и экономика =================
 function simulate(dt) {
   const prev = clock();
@@ -789,7 +842,7 @@ function simulate(dt) {
   const present = S.workers.filter(w => !w.away).length;
   const wage = present * WAGE_PER_HOUR / 60 * dt; S.money -= wage; S.stats.wages += wage;
   if (prev < SHIFT_CHANGE && c >= SHIFT_CHANGE) log('14:00 — пересменка: Frühschicht уходит, Spätschicht приходит.', 'info');
-  if (prev < DAY_END && c >= DAY_END) log('22:00 — конец смены. Ночью работают только автоклавы.', 'info');
+  if (prev < DAY_END && c >= DAY_END) log('22:00 — конец смены. Ночью только догреваются шины в прессах.', 'info');
   if (c < prev) { // полночь
     S.money -= OVERHEAD_PER_DAY; S.stats.overhead += OVERHEAD_PER_DAY;
     log(`День ${day() - 1}: готово ${S.doneToday} шин, пройдено ${Math.round(S.stats.walkToday * 1.5)} м. Аренда/энергия −${eur(OVERHEAD_PER_DAY)}.`, 'info');
@@ -814,6 +867,7 @@ function simulate(dt) {
   S.offers = S.offers.filter(o => { if (S.t > o.expires) { log(`Запрос ${o.customer} истёк.`, 'muted'); return false; } return true; });
   for (let i = S.complaints.length - 1; i >= 0; i--) { const cpl = S.complaints[i]; if (S.t >= cpl.at) { S.money -= 350; S.stats.penalties += 350; S.rep = Math.max(0, S.rep - 4); log(`Рекламация от ${cpl.order}: брак восстановленной шины (−350 €, репутация −4).`, 'bad'); S.complaints.splice(i, 1); } }
   updateHooks(dt);
+  updateRobots(dt);
   checkOrders();
   assignJobs();
   for (const w of S.workers) updateWorker(w, dt);
@@ -1055,6 +1109,9 @@ function renderPanel() {
   } else if (tab === 'stock') {
     const rows = Object.entries(MATS).map(([k, m]) => { const coming = S.matOrders.filter(o => o.key === k).reduce((a, o) => a + o.qty, 0); return `<div class="card"><div class="row"><b>${m.de}</b><span class="${S.mats[k] < 10 ? 'bad' : ''}">${S.mats[k]} шт${coming ? ` <span class="muted">(+${coming} в пути)</span>` : ''}</span></div><div class="row"><span class="muted">${m.ru}</span><button data-buy="${k}">+${m.pack} за ${eur(m.price)}</button></div></div>`; }).join('');
     p.innerHTML = `<h3>Материалы</h3><div class="card"><label><input type="checkbox" data-autobuy ${S.autoBuy ? 'checked' : ''}> Автозаказ, когда остаток меньше 30</label></div>${rows}<div class="muted" style="font-size:11px">Поставка через 2 игровых часа. На одну шину: 1 сырая резина (лента), 1 клей, 1 ремонтная резина. Сырая резина лежит у машин Ж2, клей — на М2: за канистрой ходят.</div>`;
+  } else if (tab === 'upgrades') {
+    const cards = UPGRADES.map(u => `<div class="card"><div class="row"><b>${u.ru}</b><span class="muted">${u.de}</span></div><div class="muted" style="margin:4px 0">${u.desc}</div><div class="row"><b>${eur(u.price)}</b>${S.upgrades[u.id] ? '<span class="good">✓ установлено</span>' : `<button data-upgrade="${u.id}" ${S.money < u.price ? 'disabled title="Не хватает денег"' : ''}>Купить</button>`}</div></div>`).join('');
+    p.innerHTML = `<h3>Апгрейды — система оптимизации</h3><div class="muted" style="font-size:11px;margin-bottom:6px">Улучшайте цех за заработанные деньги. Смотрите во вкладке «Цех», где узкое место (загрузка станков, очереди, простои), и вкладывайте туда. Потрачено на апгрейды: ${eur(S.stats.upgrades)}.</div>${cards}`;
   } else if (tab === 'log') p.innerHTML = `<div class="log">${S.log.map(l => `<div><span class="muted">${l.t}</span> <span class="${l.cls}">${l.msg}</span></div>`).join('')}</div>`;
 }
 function renderTop() {
@@ -1084,6 +1141,7 @@ document.addEventListener('click', e => {
   if (b.dataset.tab) { tab = b.dataset.tab; document.querySelectorAll('#tabs button').forEach(x => x.classList.toggle('on', x === b)); }
   if (b.dataset.prio) { const [id, k] = b.dataset.prio.split(':'); const w = S.workers.find(x => x.id === Number(id)); w.prio[k] = (w.prio[k] + 1) % 5; }
   if (b.dataset.shift) { const w = S.workers.find(x => x.id === Number(b.dataset.shift)); w.shift = w.shift === 'F' ? 'S' : 'F'; }
+  if (b.dataset.upgrade) buyUpgrade(b.dataset.upgrade);
   if (b.dataset.accept) acceptOffer(Number(b.dataset.accept));
   if (b.dataset.decline) declineOffer(Number(b.dataset.decline));
   if (b.dataset.buy) buy(b.dataset.buy);
@@ -1194,7 +1252,7 @@ window.RW = {
     breakdowns: S.stats.breakdowns, broken: MACHINES.filter(m => m.broken).map(m => `${m.id}: ${m.broken.de} ${m.broken.tech ? Math.round(m.broken.done / m.broken.need * 100) + '%' : 'ждёт'}`),
     downtimeMin: Math.round(S.stats.downtime), repairsEur: S.stats.repairs,
   }),
-  MACHINES, breakDown,
+  MACHINES, breakDown, UPGRADES, buyUpgrade,
 };
 })();
 </script>
