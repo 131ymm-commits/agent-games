@@ -400,7 +400,7 @@ const LAMPS = [];
 let camInit = false;
 function render(view) {
   V = view; time = performance.now() / 1000;
-  const { MW, MH, S, STATIONS, LOOP, HOOKS, loopPos, ctx, TILE } = V;
+  const { MW, MH, S, STATIONS, HOOKS, ctx, TILE } = V;
   if (!camInit) { camInit = true; if (V.CAM) { cam.z = V.CAM.z; cam.cx = V.CAM.cx * PT; cam.cy = V.CAM.cy * PT; } clampCam(); }
   if (!pc) { pc = document.createElement('canvas'); pc.width = MW * PT; pc.height = MH * PT; lightCanvas = document.createElement('canvas'); lightCanvas.width = pc.width; lightCanvas.height = pc.height; for (let y = 11; y < MH - 2; y += 6) for (let x = 4; x < MW - 2; x += 7) if (V.grid[V.I(x, y)] === V.T_FLOOR) LAMPS.push([x * PT, y * PT]); }
   if (!bgCanvas) buildBackground();
@@ -418,13 +418,16 @@ function render(view) {
   const present = S.workers.filter(w => !w.away);
   const pz = V.ZONES.find(z => z.kind === 'parking');
   if (pz) present.slice(0, Math.floor(pz.w / 2)).forEach((w, k) => { const X = pz.x * PT + 4 + k * 2 * PT, Y = pz.y * PT + 4 + (k % 2) * PT; box(X, Y, 14, 9, w.color); R(X + 3, Y + 2, 3, 5, '#9fd3ff'); R(X + 10, Y + 2, 2, 5, shade(w.color, -0.3)); });
-  // кольцо Hängebahn и его привод
+  // Hängebahn: главная ветка идёт вперёд (стрелки), по обратной ветке едут пустые крюки
   if (S.hook) {
     const P = p => [Math.round(p.x * PT + PT / 2), Math.round(p.y * PT + PT / 2)];
-    LOOP.forEach((p, i) => { const q = LOOP[(i + 1) % LOOP.length], [x1, y1] = P(p), [x2, y2] = P(q); R(Math.min(x1, x2) - 1, Math.min(y1, y2) - 1, Math.abs(x2 - x1) + 3, Math.abs(y2 - y1) + 3, '#3d3f49'); R(Math.min(x1, x2), Math.min(y1, y2), Math.abs(x2 - x1) + 1, Math.abs(y2 - y1) + 1, '#9aa0ad'); });
-    for (const s of STATIONS) { const [x, y] = P(loopPos(s.stopS)); R(x - 2, y - 2, 4, 4, '#ff9f1a'); }
+    V.RET_PATH.forEach((q, i) => { if (!i) return; const [x1, y1] = P(V.RET_PATH[i - 1]), [x2, y2] = P(q); R(Math.min(x1, x2), Math.min(y1, y2), Math.abs(x2 - x1) + 1, Math.abs(y2 - y1) + 1, '#6b7080'); });
+    const [x0, y0] = P({ x: V.LINE.x0, y: V.LINE.y }), [x1] = P({ x: V.LINE.x1, y: V.LINE.y });
+    R(x0, y0 - 1, x1 - x0 + 1, 3, '#3d3f49'); R(x0, y0, x1 - x0 + 1, 1, '#c3c8d2');
+    for (let x = x0 + 6; x < x1 - 2; x += 12) { const off = Math.floor(time * 8) % 12; R(x + off - 6, y0 - 2, 1, 1, '#ffd24a'); R(x + off - 5, y0 - 1, 1, 1, '#ffd24a'); R(x + off - 6, y0 + 2, 1, 1, '#ffd24a'); R(x + off - 5, y0 + 1, 1, 1, '#ffd24a'); }
+    for (const st of V.STOPS) { const [x, y] = P({ x: V.LINE.x0 + st, y: V.LINE.y }); R(x - 2, y - 2, 4, 4, '#ff9f1a'); }
     for (const h of HOOKS) {
-      const [x, y] = P(loopPos(h.s)); R(x - 1, y - 1, 3, 3, '#e3b341');
+      const [x, y] = P(V.hookPos(h)); R(x - 1, y - 1, 3, 3, h.ret ? '#8a8f9a' : '#e3b341');
       if (h.tire) { const t = S.tires.get(h.tire); R(x, y + 2, 1, 2, '#6b6b72'); tire(x - 3, y + 4, NEW(t)); }
     }
   }

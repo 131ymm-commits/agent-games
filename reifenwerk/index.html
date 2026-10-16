@@ -143,8 +143,8 @@ const ZONES = [
   { name: 'К2 MATERIAL', kind: 'label', x: 3, y: 28, w: 23, h: 14, color: 'rgba(120,110,90,.10)' },
   { name: 'С2 PRÜFUNG', kind: 'label', x: 27, y: 17, w: 8, h: 6, color: 'rgba(90,130,200,.10)' },
   { name: 'С3 KARKASSENLAGER', kind: 'label', x: 36, y: 10, w: 30, h: 13, color: 'rgba(90,130,200,.10)' },
-  { name: 'Ж1 VORBEREITUNG', kind: 'label', x: 27, y: 24, w: 10, h: 16, color: 'rgba(240,190,40,.10)' },
-  { name: 'Ж2 AUFBAU', kind: 'label', x: 37, y: 24, w: 9, h: 16, color: 'rgba(240,190,40,.14)' },
+  { name: 'Ж1 VORBEREITUNG', kind: 'label', x: 27, y: 24, w: 15, h: 16, color: 'rgba(240,190,40,.10)' },
+  { name: 'Ж2 AUFBAU', kind: 'label', x: 42, y: 24, w: 4, h: 16, color: 'rgba(240,190,40,.14)' },
   { name: 'Ж3 PRESSEN', kind: 'label', x: 46, y: 24, w: 8, h: 16, color: 'rgba(240,190,40,.10)' },
   { name: 'Ж4 FINISH', kind: 'label', x: 54, y: 24, w: 12, h: 16, color: 'rgba(240,190,40,.14)' },
   { name: 'Ф KLEINREIFEN', kind: 'label', x: 27, y: 41, w: 39, h: 8, color: 'rgba(150,110,200,.12)' },
@@ -204,7 +204,7 @@ const INFO = {
 };
 const PRESSES = Array.from({ length: 10 }, (_, k) => {
   const colA = k < 5, y = 24 + (k % 5) * 3;
-  return { id: 'presse' + (k + 1), g: 'presse', kind: 'auto', work: 'vulkan', x: colA ? 47 : 51, y, w: 2, h: 2, ax: colA ? 49 : 50, ay: y, cap: 1, cycle: 90, startT: 3, next: 'entgr', color: '#56606e' };
+  return { id: 'presse' + (k + 1), g: 'presse', kind: 'auto', work: 'vulkan', x: colA ? 48 : 52, y, w: 2, h: 2, ax: colA ? 50 : 51, ay: y, cap: 1, cycle: 90, startT: 3, next: 'entgr', color: '#56606e' };
 });
 const STATIONS = [
   { id: 'eingang', g: 'eingang', kind: 'store', x: 15, y: 11, w: 7, h: 5, ax: 22, ay: 13, cap: 60, next: 'pruef', color: '#4b5361' },
@@ -212,15 +212,15 @@ const STATIONS = [
   { id: 'pruef2', g: 'pruef', kind: 'proc', work: 'pruefen', time: 7, x: 31, y: 18, w: 2, h: 2, ax: 31, ay: 20, inCap: 2, next: 'sort', color: '#2c6aa8' },
   { id: 'sort', g: 'sort', kind: 'store', x: 37, y: 11, w: 14, h: 9, ax: 44, ay: 20, cap: 120, next: 'aufh', fork: true, color: '#4b5361' },
   { id: 'aufh', g: 'aufh', kind: 'store', x: 27, y: 30, w: 2, h: 4, ax: 29, ay: 31, cap: 24, next: 'rauen', loop: true, color: '#4b5361' },
-  { id: 'rauen1', g: 'rauen', kind: 'proc', work: 'rauen', time: 7, x: 30, y: 24, w: 3, h: 2, ax: 31, ay: 26, inCap: 2, next: 'ausschl', loop: true, color: '#8f5a1c' },
-  { id: 'rauen2', g: 'rauen', kind: 'proc', work: 'rauen', time: 7, x: 33, y: 24, w: 3, h: 2, ax: 34, ay: 26, inCap: 2, next: 'ausschl', loop: true, color: '#8f5a1c' },
-  { id: 'ausschl1', g: 'ausschl', kind: 'proc', work: 'reparatur', time: 8, x: 36, y: 24, w: 2, h: 2, ax: 36, ay: 26, inCap: 2, next: 'spray', loop: true, color: '#7a4f8a' },
-  { id: 'ausschl2', g: 'ausschl', kind: 'proc', work: 'reparatur', time: 8, x: 38, y: 24, w: 2, h: 2, ax: 39, ay: 26, inCap: 2, next: 'spray', loop: true, color: '#7a4f8a' },
-  { id: 'spray', g: 'spray', kind: 'proc', work: 'reparatur', time: 2, dry: 15, mat: { loesung: 1 }, x: 30, y: 38, w: 3, h: 2, ax: 31, ay: 37, inCap: 2, outCap: 4, next: 'fuellen', loop: true, color: '#3c7f7a' },
-  { id: 'fuellen', g: 'fuellen', kind: 'proc', work: 'reparatur', time: 6, mat: { fuellgummi: 1 }, x: 33, y: 38, w: 2, h: 2, ax: 33, ay: 37, inCap: 2, next: 'aufbau', loop: true, color: '#5d6b2f' },
-  { id: 'aufbau1', g: 'aufbau', kind: 'proc', work: 'belegen', time: 9, mat: { rohgummi: 1 }, x: 41, y: 38, w: 3, h: 2, ax: 42, ay: 37, inCap: 2, outCap: 4, next: 'puffer', loop: true, cartOut: true, color: '#a0662a' },
-  { id: 'aufbau2', g: 'aufbau', kind: 'proc', work: 'belegen', time: 9, mat: { rohgummi: 1 }, x: 37, y: 38, w: 3, h: 2, ax: 38, ay: 37, inCap: 2, outCap: 4, next: 'puffer', loop: true, cartOut: true, color: '#a0662a' },
-  { id: 'puffer', g: 'puffer', kind: 'store', x: 44, y: 29, w: 2, h: 4, ax: 46, ay: 30, cap: 16, next: 'presse', color: '#4b5361' },
+  { id: 'rauen1', g: 'rauen', kind: 'proc', work: 'rauen', time: 7, x: 30, y: 28, w: 3, h: 2, ax: 31, ay: 30, inCap: 2, next: 'ausschl', loop: true, color: '#8f5a1c' },
+  { id: 'rauen2', g: 'rauen', kind: 'proc', work: 'rauen', time: 7, x: 30, y: 33, w: 3, h: 2, ax: 31, ay: 32, inCap: 2, next: 'ausschl', loop: true, color: '#8f5a1c' },
+  { id: 'ausschl1', g: 'ausschl', kind: 'proc', work: 'reparatur', time: 8, x: 34, y: 28, w: 2, h: 2, ax: 34, ay: 30, inCap: 2, next: 'spray', loop: true, color: '#7a4f8a' },
+  { id: 'ausschl2', g: 'ausschl', kind: 'proc', work: 'reparatur', time: 8, x: 34, y: 33, w: 2, h: 2, ax: 34, ay: 32, inCap: 2, next: 'spray', loop: true, color: '#7a4f8a' },
+  { id: 'spray', g: 'spray', kind: 'proc', work: 'reparatur', time: 2, dry: 15, mat: { loesung: 1 }, x: 37, y: 28, w: 3, h: 2, ax: 38, ay: 30, inCap: 2, outCap: 4, next: 'fuellen', loop: true, color: '#3c7f7a' },
+  { id: 'fuellen', g: 'fuellen', kind: 'proc', work: 'reparatur', time: 6, mat: { fuellgummi: 1 }, x: 40, y: 33, w: 2, h: 2, ax: 40, ay: 32, inCap: 3, next: 'aufbau', loop: true, color: '#5d6b2f' },
+  { id: 'aufbau1', g: 'aufbau', kind: 'proc', work: 'belegen', time: 9, mat: { rohgummi: 1 }, x: 42, y: 28, w: 3, h: 2, ax: 43, ay: 30, inCap: 2, outCap: 4, next: 'puffer', loop: true, cartOut: true, color: '#a0662a' },
+  { id: 'aufbau2', g: 'aufbau', kind: 'proc', work: 'belegen', time: 9, mat: { rohgummi: 1 }, x: 42, y: 33, w: 3, h: 2, ax: 43, ay: 32, inCap: 2, outCap: 4, next: 'puffer', loop: true, cartOut: true, color: '#a0662a' },
+  { id: 'puffer', g: 'puffer', kind: 'store', x: 46, y: 32, w: 2, h: 4, ax: 45, ay: 33, cap: 16, next: 'presse', color: '#4b5361' },
   ...PRESSES,
   { id: 'entgr1', g: 'entgr', kind: 'proc', work: 'nacharbeit', time: 6, x: 55, y: 24, w: 2, h: 2, ax: 55, ay: 26, inCap: 3, next: 'endk', color: '#8a5a2a' },
   { id: 'entgr2', g: 'entgr', kind: 'proc', work: 'nacharbeit', time: 6, x: 58, y: 24, w: 2, h: 2, ax: 58, ay: 26, inCap: 3, next: 'endk', color: '#8a5a2a' },
@@ -241,57 +241,74 @@ ST.spray.canister = 20; ST.spray.fetching = null; // канистра Gummilösu
 const loopG = g => !!(GROUP[g] && GROUP[g][0].loop);
 
 // ================= Подвесной конвейер (Hängebahn) =================
-// Только Ж1 и начало Ж2: навеска → шероховка → зачистка → Gummilösung → шпаклёвка → намотка. Кольцо: верх (запад→восток), вниз, низ (восток→запад), вверх.
-const LOOP = [{ x: 30, y: 27 }, { x: 43, y: 27 }, { x: 43, y: 36 }, { x: 30, y: 36 }];
-const SEGS = []; let LOOP_LEN = 0;
-LOOP.forEach((a, i) => { const b = LOOP[(i + 1) % LOOP.length], len = Math.abs(b.x - a.x) + Math.abs(b.y - a.y); SEGS.push({ a, b, len, start: LOOP_LEN }); LOOP_LEN += len; });
-function loopPos(s) {
-  s = ((s % LOOP_LEN) + LOOP_LEN) % LOOP_LEN;
-  const g = SEGS.find(g => s >= g.start && s < g.start + g.len) || SEGS[SEGS.length - 1], t = (s - g.start) / g.len;
+// Как в эталонном цехе: линия идёт в одну сторону. На входе (навеска) каркас вешают на крюк, крюк едет по участкам Ж1
+// до намотки в Ж2. На участке шину снимают с крюка; готовую шину вешают на подошедший крюк. Перед занятым участком
+// крюки копятся (накопление). В конце линии шины уходят на тележки, а пустые крюки идут по обратной ветке ко входу.
+const LINE_Y = 31, LINE_X0 = 29, LINE_X1 = 45, LINE_LEN = LINE_X1 - LINE_X0;
+const RET_PATH = [{ x: LINE_X1, y: LINE_Y }, { x: LINE_X1, y: 36 }, { x: LINE_X0, y: 36 }, { x: LINE_X0, y: LINE_Y }];
+const RET_SEGS = []; let RET_LEN = 0;
+RET_PATH.slice(1).forEach((b, i) => { const a = RET_PATH[i], len = Math.abs(b.x - a.x) + Math.abs(b.y - a.y); RET_SEGS.push({ a, b, len, start: RET_LEN }); RET_LEN += len; });
+const HOOK_SPACING = 1.2, HOOK_SPEED = 8, HOOK_COUNT = 30; // клеток; клеток в минуту (≈12 м/мин); всего крюков
+const HOOKS = [];                                           // крюки на линии и на обратной ветке; остальные ждут на входе
+let hookStock = HOOK_COUNT;
+const LOOP_ST = STATIONS.filter(s => s.loop);
+LOOP_ST.forEach(s => { s.stopS = s.g === 'aufh' ? 0 : s.ax - LINE_X0; });
+const STOPS = [...new Set(LOOP_ST.filter(s => s.kind === 'proc').map(s => s.stopS))].sort((a, b) => a - b);
+const stopOf = g => GROUP[g][0].stopS;
+function hookPos(h) {
+  if (!h.ret) return { x: LINE_X0 + h.s, y: LINE_Y };
+  const g = RET_SEGS.find(g => h.r >= g.start && h.r < g.start + g.len) || RET_SEGS[RET_SEGS.length - 1], t = Math.min(1, (h.r - g.start) / g.len);
   return { x: g.a.x + (g.b.x - g.a.x) * t, y: g.a.y + (g.b.y - g.a.y) * t };
 }
-function nearestOnLoop(px, py) {
-  let best = { s: 0, d: Infinity };
-  for (const g of SEGS) {
-    const dx = g.b.x - g.a.x, dy = g.b.y - g.a.y, t = Math.max(0, Math.min(1, ((px - g.a.x) * dx + (py - g.a.y) * dy) / (dx * dx + dy * dy)));
-    const x = g.a.x + dx * t, y = g.a.y + dy * t, d = Math.hypot(px - x, py - y);
-    if (d < best.d) best = { s: g.start + t * g.len, d };
-  }
-  return best;
-}
-const HOOK_SPACING = 1.5, HOOK_SPEED = 8; // клеток; клеток в минуту (≈12 м/мин)
-const HOOK_RESERVE = 10;                  // столько крюков навеска оставляет свободными для переходов между участками
-const HOOKS = Array.from({ length: Math.floor(LOOP_LEN / HOOK_SPACING) }, (_, k) => ({ s: k * HOOK_SPACING, tire: null, dest: null }));
-const LOOP_ST = STATIONS.filter(s => s.loop);
-LOOP_ST.forEach(s => { s.stopS = nearestOnLoop(s.ax, s.ay).s; });
 // Привод конвейера: тоже может сломаться — тогда все крюки стоят
-const HOOK_DRIVE = { id: 'antrieb', g: 'antrieb', de: 'Hängebahn-Antrieb', ru: 'Привод подвесного конвейера', desc: 'Мотор и натяжная станция цепи подвесного конвейера. Сломается — встанут все крюки.', x: 44, y: 26, w: 1, h: 1, ax: 44, ay: 27, broken: null, wear: 0, dirt: 0 };
+const HOOK_DRIVE = { id: 'antrieb', g: 'antrieb', de: 'Hängebahn-Antrieb', ru: 'Привод подвесного конвейера', desc: 'Мотор и натяжная станция цепи подвесного конвейера. Сломается — встанут все крюки.', x: 45, y: 30, w: 1, h: 1, ax: 45, ay: 29, broken: null, wear: 0, dirt: 0 };
 const MACHINES = [...STATIONS.filter(s => s.kind !== 'store'), HOOK_DRIVE];
 
-// Что можно повесить на крюк на этом участке (или null). Только станции на кольце и только если следующий участок тоже на кольце.
-function takeForHook(st) {
-  if (st.kind === 'proc') {
-    const k = st.out.findIndex(id => { const t = S.tires.get(id); return !t.res && t.readyAt <= S.t && loopG(t.dest || st.next); });
-    if (k < 0) return null; const tid = st.out.splice(k, 1)[0], t = S.tires.get(tid); const dest = t.dest || st.next; t.dest = null; return { tid, dest };
+// Готовая шина на участке, которую можно повесить на крюк: следующий участок — дальше по линии
+const readyForHook = (st, stop) => st.out.findIndex(id => { const t = S.tires.get(id), d = t.dest || st.next; return !t.res && loopG(d) && stopOf(d) > stop; });
+// Крюк дошёл до остановки участка. 'wait' — стоять и ждать, 'done' — постоять (сняли/повесили шину), 'pass' — ехать дальше
+function hookAtStop(h, stop) {
+  const sts = LOOP_ST.filter(s => s.kind === 'proc' && s.stopS === stop);
+  let acted = false;
+  if (h.tire) {
+    if (!sts.length || sts[0].g !== h.dest) return 'pass';
+    let st = sts.find(s => canAcceptId(s.id)) || sts.find(s => readyForHook(s, stop) >= 0); // нет места — меняем на готовую шину
+    if (!st) return 'wait';
+    const t = S.tires.get(h.tire); t.res = false; t.dest = null; st.input.push(h.tire); scanTire(st, h.tire, null);
+    h.tire = null; h.dest = null; acted = true;
   }
-  if (st.kind === 'store' && st.next && loopG(st.next)) {
-    if (HOOKS.filter(h => h.tire).length >= HOOKS.length - HOOK_RESERVE) return null; // держим свободные крюки, иначе кольцо встанет
-    const k = st.items.findIndex(id => !S.tires.get(id).res); if (k < 0) return null;
-    return { tid: st.items.splice(k, 1)[0], dest: st.next };
+  for (const s of sts) {
+    const k = readyForHook(s, stop); if (k < 0) continue;
+    const tid = s.out.splice(k, 1)[0], t = S.tires.get(tid); h.tire = tid; h.dest = t.dest || s.next; t.dest = null; t.res = false; acted = true; break;
   }
-  return null;
+  return acted ? 'done' : 'pass';
 }
 function updateHooks(dt) {
   if (!S.hook || HOOK_DRIVE.broken) return;
   if (isDay() && rnd() < dt / 6000) { breakDown(HOOK_DRIVE); return; }
   const ds = HOOK_SPEED * dt;
-  for (const h of HOOKS) {
-    const p0 = h.s; h.s = (h.s + ds) % LOOP_LEN;
-    for (const st of LOOP_ST) {
-      if (((st.stopS - p0) % LOOP_LEN + LOOP_LEN) % LOOP_LEN >= ds) continue; // крюк не проходил эту точку
-      if (h.tire && h.dest === st.g && canAcceptId(st.id)) { deposit(st.id, h.tire); h.tire = null; h.dest = null; }
-      if (!h.tire) { const got = takeForHook(st); if (got) { h.tire = got.tid; h.dest = got.dest; S.tires.get(got.tid).res = false; } }
+  for (let i = HOOKS.length - 1; i >= 0; i--) { const h = HOOKS[i]; if (h.ret && (h.r += ds) >= RET_LEN) { HOOKS.splice(i, 1); hookStock++; } }
+  // главная ветка: от головы к хвосту, без обгона
+  const main = HOOKS.filter(h => !h.ret).sort((a, b) => b.s - a.s);
+  let ahead = Infinity;
+  for (const h of main) {
+    let target = Math.max(h.s, Math.min(h.s + ds, ahead - HOOK_SPACING, LINE_LEN));
+    if (h.wait !== undefined) { if (hookAtStop(h, h.wait) === 'wait') target = h.s; else h.wait = undefined; }
+    if (h.wait === undefined) for (const st of STOPS) {
+      if (st <= h.s || st > target) continue;
+      const r = hookAtStop(h, st);
+      if (r === 'wait') { target = st; h.wait = st; break; }
+      if (r === 'done') { target = st; break; }
     }
+    h.s = target; ahead = h.s;
+    if (h.s >= LINE_LEN && !h.tire) { h.ret = true; h.r = 0; } // конец линии: пустой крюк — на обратную ветку
+  }
+  // вход: навеска вешает каркас на свободный крюк; если навешивать нечего, а на участках ждут готовые шины — пускаем пустой крюк
+  if (hookStock > 0 && !main.some(h => !h.ret && h.s < HOOK_SPACING)) {
+    const aufh = GROUP.aufh[0], k = aufh.items.findIndex(id => !S.tires.get(id).res);
+    const needEmpty = LOOP_ST.some(s => s.kind === 'proc' && readyForHook(s, s.stopS) >= 0 && !main.some(h => !h.tire && !h.ret && h.s <= s.stopS));
+    if (k >= 0) { const tid = aufh.items.splice(k, 1)[0]; HOOKS.push({ s: 0, tire: tid, dest: aufh.next, ret: false }); hookStock--; S.tires.get(tid).res = false; }
+    else if (needEmpty) { HOOKS.push({ s: 0, tire: null, dest: null, ret: false }); hookStock--; }
   }
 }
 
@@ -534,14 +551,14 @@ function genJobs() {
       } else { const dst = free.length && chooseDst(s.next); if (dst) jobs.push({ type: 'haul', work: 'transport', tire: free[0], src: s.id, from, dst, to: accessOf(dst) }); }
     }
     if (s.kind === 'proc') {
-      const ready = s.out.filter(tid => { const t = S.tires.get(tid); return !t.res && t.readyAt <= S.t && !viaHook(s, t.dest || s.next); });
+      const ready = s.out.filter(tid => { const t = S.tires.get(tid); return !t.res && (t.readyAt <= S.t || viaHook(s, t.dest || s.next)) && !viaHook(s, t.dest || s.next); });
       if (s.cartOut && ready.length) { // намотанные шины — тележкой по 4 к прессам
         const dst = chooseDst(s.next); if (dst) { const room = ST[dst].cap - ST[dst].items.length - ST[dst].resIn; jobs.push({ type: 'haul', work: 'transport', tire: ready[0], tires: ready.slice(0, Math.min(CART, room)), cart: true, src: s.id, from, dst, to: accessOf(dst) }); }
       } else for (const tid of ready) {
         const t = S.tires.get(tid), dst = chooseDst(t.dest || s.next); if (!dst) continue;
         jobs.push({ type: 'haul', work: 'transport', tire: tid, src: s.id, from, dst, to: accessOf(dst) });
       }
-      if (!s.broken && !s.worker && !s.cur && s.input.length && s.out.length < s.outCap && matsOk(s)) jobs.push({ type: 'work', work: s.work, st: s, to: from });
+      if (!s.broken && !s.worker && !s.cur && s.input.some(id => S.tires.get(id).readyAt <= S.t) && s.out.length < s.outCap && matsOk(s)) jobs.push({ type: 'work', work: s.work, st: s, to: from });
     }
     if (s.kind === 'auto') { // пресс: зарядить краном, закрыть, после вулканизации достать краном и откатить на обрезку
       if (s.state === 'done') { const tid = s.items.find(id => !S.tires.get(id).res), dst = tid && chooseDst(s.next); if (dst) jobs.push({ type: 'haul', work: 'vulkan', tire: tid, src: s.id, from, dst, to: accessOf(dst), crane: 'pick' }); }
@@ -747,8 +764,9 @@ function updateWorker(w, dt) {
       if (st.t >= T0) { s.state = 'running'; s.timer = s.cycle; s.worker = null; s.prog = 0; scanTire(s, s.items[0], null); j.i++; }
     } else {
       if (!s.cur) {
-        if (!s.input.length || !matsOk(s)) { releaseJob(w); return; }
-        s.cur = s.input.shift(); matTake(s, 1);
+        const k = s.input.findIndex(id => S.tires.get(id).readyAt <= S.t); // шина после клея должна высохнуть
+        if (k < 0 || !matsOk(s)) { releaseJob(w); return; }
+        s.cur = s.input.splice(k, 1)[0]; matTake(s, 1);
         st.dur = workDuration(w, s); st.t = 0;
       }
       st.t += dt; s.prog = st.t / st.dur; s.busy += dt; s.wear = Math.min(2, s.wear + dt / 900);
@@ -875,14 +893,15 @@ function render() {
     if (m.broken.tech) { ctx.fillStyle = '#111'; ctx.fillRect(px + 3, py - 5, pw - 6, 4); ctx.fillStyle = '#ff9f1a'; ctx.fillRect(px + 3, py - 5, (pw - 6) * Math.min(1, m.broken.done / m.broken.need), 4); }
   }
   for (const f of S.forks) if (!f.by) { ctx.fillStyle = '#f2b230'; ctx.fillRect(f.x * TILE + 2, f.y * TILE + 4, 20, 14); ctx.fillStyle = '#555'; ctx.fillRect(f.x * TILE + 22, f.y * TILE + 6, 6, 2); ctx.fillRect(f.x * TILE + 22, f.y * TILE + 13, 6, 2); }
-  if (S.hook) { // подвесной конвейер рисуем поверх станков, но под людьми
+  if (S.hook) { // подвесной конвейер: главная ветка (вперёд), обратная ветка (пустые крюки), остановки, крюки
     const P = p => [p.x * TILE + TILE / 2, p.y * TILE + TILE / 2];
-    ctx.beginPath(); LOOP.forEach((p, i) => { const [x, y] = P(p); i ? ctx.lineTo(x, y) : ctx.moveTo(x, y); }); ctx.closePath();
-    ctx.strokeStyle = 'rgba(25,27,32,.85)'; ctx.lineWidth = 5; ctx.stroke(); ctx.strokeStyle = 'rgba(210,215,225,.55)'; ctx.lineWidth = 1.5; ctx.stroke(); ctx.lineWidth = 1;
-    for (const s of STATIONS) { const p = loopPos(s.stopS), [x, y] = P(p); ctx.fillStyle = '#f0a030'; ctx.fillRect(x - 3, y - 3, 6, 6); }
+    ctx.strokeStyle = 'rgba(150,155,170,.45)'; ctx.setLineDash([4, 4]); ctx.lineWidth = 2; ctx.beginPath(); RET_PATH.forEach((p, i) => { const [x, y] = P(p); i ? ctx.lineTo(x, y) : ctx.moveTo(x, y); }); ctx.stroke(); ctx.setLineDash([]);
+    const [mx0, my] = P({ x: LINE_X0, y: LINE_Y }), [mx1] = P({ x: LINE_X1, y: LINE_Y });
+    ctx.strokeStyle = 'rgba(25,27,32,.85)'; ctx.lineWidth = 5; ctx.beginPath(); ctx.moveTo(mx0, my); ctx.lineTo(mx1, my); ctx.stroke(); ctx.strokeStyle = 'rgba(210,215,225,.7)'; ctx.lineWidth = 1.5; ctx.stroke(); ctx.lineWidth = 1;
+    for (const st of STOPS) { const [x, y] = P({ x: LINE_X0 + st, y: LINE_Y }); ctx.fillStyle = '#f0a030'; ctx.fillRect(x - 3, y - 3, 6, 6); }
     for (const h of HOOKS) {
-      const p = loopPos(h.s), [x, y] = P(p);
-      ctx.fillStyle = '#c9ced8'; ctx.beginPath(); ctx.arc(x, y, 1.8, 0, 7); ctx.fill();
+      const [x, y] = P(hookPos(h));
+      ctx.fillStyle = h.ret ? '#8a8f9a' : '#c9ced8'; ctx.beginPath(); ctx.arc(x, y, 1.8, 0, 7); ctx.fill();
       if (h.tire) { const t = S.tires.get(h.tire); ctx.strokeStyle = '#999'; ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x, y + 4); ctx.stroke(); drawTire(x, y + 9, 6, looksNew(t)); }
     }
   }
@@ -1005,7 +1024,7 @@ function renderPanel() {
         <div class="row"><span title="Durchlaufzeit: от выгрузки до склада готовой продукции">Среднее время прохождения</span><b>${avgLead() ? Math.floor(avgLead() / 60) + ' ч ' + (avgLead() % 60) + ' мин' : '—'}</b></div>
         <div class="row"><span title="Сколько метров прошли рабочие сегодня — главный показатель для оптимизации расстановки">Пройдено рабочими сегодня</span><b>${Math.round(S.stats.walkToday * 1.5).toLocaleString('de-DE')} м</b></div>
         <div class="row"><span title="Kanban: сколько шин одновременно пускать в линию. Мало — станки простаивают, много — заторы.">WIP-лимит: в линии <b>${wipCount()}</b> из</span><span><button data-wip="-2">−</button> <b>${S.wip}</b> <button data-wip="2">+</button></span></div>
-        <div class="row"><label title="Подвесной конвейер на крюках (Hängebahn): шины едут между участками сами, люди только снимают и вешают. Выключите — и шины будут катать вручную."><input type="checkbox" data-hookbahn ${S.hook ? 'checked' : ''}> Hängebahn — крюки в Ж1–Ж2</label><span class="${HOOK_DRIVE.broken ? 'bad' : 'muted'}">${HOOK_DRIVE.broken ? '⚠ привод сломан' : `${HOOKS.filter(h => h.tire).length}/${HOOKS.length} крюков заняты`}</span></div>
+        <div class="row"><label title="Подвесной конвейер на крюках (Hängebahn): шины едут между участками сами, люди только снимают и вешают. Выключите — и шины будут катать вручную."><input type="checkbox" data-hookbahn ${S.hook ? 'checked' : ''}> Hängebahn — крюки в Ж1–Ж2</label><span class="${HOOK_DRIVE.broken ? 'bad' : 'muted'}">${HOOK_DRIVE.broken ? '⚠ привод сломан' : `${HOOKS.filter(h => h.tire).length}/${HOOK_COUNT} крюков с шинами`}</span></div>
         <div class="row"><span title="Станки ломаются чаще, если у них пыль и износ. Свободные рабочие подметают; техник (Instandhaltung) чинит.">Поломки сегодня / всего</span><b class="${MACHINES.some(m => m.broken) ? 'bad' : ''}">${S.breaksToday} / ${S.stats.breakdowns}${MACHINES.some(m => m.broken) ? ` · сейчас ⚠ ${MACHINES.filter(m => m.broken).length}` : ''}</b></div>
         <div class="row"><span>Простой станков / запчасти</span><b>${Math.round(S.stats.downtime)} мин / ${eur(S.stats.repairs)}</b></div>
       </div>
@@ -1116,7 +1135,7 @@ $('zoomIn').addEventListener('click', () => { if (!pixelOn()) setGfx('pixel'); w
 $('zoomOut').addEventListener('click', () => { if (pixelOn()) window.PixelGfx.zoomAt(1 / 1.25, 0.5, 0.5); });
 
 // ================= Пиксельная графика (pixel.js) =================
-const VIEW = { CAM, ctx, TILE, MW, MH, S, grid, I, T_GRASS, T_ROAD, T_YARD, T_FLOOR, T_WALL, T_DOOR, ZONES, DECOR, DOCKS, SEATS, STATIONS, LOOP, HOOKS, HOOK_DRIVE, loopPos, clock, DAY_START, DAY_END, matsOk };
+const VIEW = { CAM, ctx, TILE, MW, MH, S, grid, I, T_GRASS, T_ROAD, T_YARD, T_FLOOR, T_WALL, T_DOOR, ZONES, DECOR, DOCKS, SEATS, STATIONS, LINE: { y: LINE_Y, x0: LINE_X0, x1: LINE_X1 }, RET_PATH, STOPS, HOOKS, HOOK_DRIVE, hookPos, clock, DAY_START, DAY_END, matsOk };
 function setGfx(m) {
   S.gfx = m; try { localStorage.setItem('rw-gfx', m); } catch (e) { /* без хранилища */ }
   const b = document.getElementById('gfxBtn'); if (b) b.textContent = m === 'pixel' ? '🎨 Графика: пиксели' : '🎨 Графика: схема';
